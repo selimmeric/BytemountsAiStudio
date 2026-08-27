@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace BytemountsAiStudio.Providers.Open;
@@ -17,8 +18,14 @@ namespace BytemountsAiStudio.Providers.Open;
 public static class HtmlTextExtractor
 {
     /// İçeriği hiç olmayan, tamamen atılan öğeler.
+    ///
+    /// `head` de burada: içindeki `<title>` ve `<meta>` metni gövdeye
+    /// karışıyordu. `<article>`/`<main>` olan sayfalarda daraltma bunu
+    /// gizliyor, olmayanlarda özetin ilk cümlesi hep başlık çıkıyordu
+    /// ve model aynı bilgiyi iki kez okuyordu. Python yan-servisinde
+    /// de aynı kural (tools/bmai_tools/extract.py).
     private static readonly string[] Dropped =
-        ["script", "style", "noscript", "svg", "iframe", "template", "form", "button", "select"];
+        ["head", "script", "style", "noscript", "svg", "iframe", "template", "form", "button", "select"];
 
     /// Metni olan ama ana içerik olmayan öğeler. Menü ve altbilgi
     /// metni iddia çıkarımına girerse kaynak güvenilirliği çöker:
@@ -410,4 +417,12 @@ public static class HtmlTextExtractor
 
         return builder.ToString();
     }
+
+    /// Icerigin sha256'si.
+    ///
+    /// TEK yerde: bilgi tabani tekillestirmeyi icerik ozetine gore
+    /// yapiyor (P1-11). Iki ayri tanim sessizce ayrisirsa ayni sayfa
+    /// iki kez kaydedilir ve kimse fark etmez.
+    internal static string Sha256(string text)
+        => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text ?? string.Empty)));
 }

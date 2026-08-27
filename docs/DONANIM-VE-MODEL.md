@@ -150,6 +150,33 @@ setx BMAI_OLLAMA_MODEL_STRONG qwen2.5:14b-instruct
 
 ---
 
+## Hizalama modeli (ASR)
+
+Kelime zamanları sesten ölçülüyor (P1-04 `/align`, P1-15). Model
+`faster-whisper`, arkasında CTranslate2 — Ollama'dan **ayrı** bir
+çalışma zamanı ve ayrı bir VRAM bütçesi.
+
+| Model | VRAM (int8) | Not |
+|---|---|---|
+| `small` | ~1 GB | **Varsayılan.** Türkçede yeterli, 8 GB kartta Ollama ile birlikte sığıyor |
+| `medium` | ~2,5 GB | Belirgin bir kazanç yok; hizalamada asıl iş zamanlama, tanıma değil |
+| `large-v3` | ~5 GB | Ollama ile aynı anda **sığmıyor** |
+
+`small` seçilmesinin sebebi kalite değil **birlikte yaşama**: aynı
+kartta bir 7B LLM koşuyor ve ikisi aynı 8 GB'ı paylaşıyor.
+
+> **Kart görünüyor olması yetmiyor.** CTranslate2 CUDA için cuBLAS ve
+> cuDNN istiyor; sürücü kurulu ve kart sayılıyor olsa bile bu iki
+> kütüphane yoksa çağrı modelin ortasında düşüyor. Yan-servis bunu
+> önceden kontrol edip CPU'ya düşüyor **ve nedenini `/health`'te
+> söylüyor** — sessiz bir düşüş, 10 kat yavaş koşan bir servisi
+> gizlerdi. Açmak için: `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`.
+
+Hizalama CPU'da da koşuyor: 4 saniyelik bir ses ~3 saniye sürüyor.
+Filodaki 2 GB'lık makineler bu işi yapabilir — yavaş ama yapabilir.
+
+---
+
 ## Kurulum
 
 Ana makinede, bir kez:

@@ -89,3 +89,25 @@ jobs:
             fi
             echo "Yalnizca uretim damgasi farkli; pano guncel."
           fi
+
+  # Python yan-servisi (P1-04). AYRI is: .NET derlemesine ihtiyaci yok ve
+  # bir tarayici ya da ASR modeli indirmiyor - testler agir bagimliliklara
+  # DOKUNMADAN kosuyor. Sinanan sey saf mantik: kapilar, ayristirma ve
+  # bozuk araliklarin duzeltilmesi.
+  tools:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Bagimliliklar
+        run: pip install -e ".[dev]"
+
+      - name: Test
+        run: python -m pytest -q

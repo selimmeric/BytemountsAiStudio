@@ -174,7 +174,7 @@ public sealed class WebFetchProvider(HttpClient http) : IWebFetchProvider
                     Url = response.RequestMessage?.RequestUri ?? url,
                     Title = title.Length > 0 ? title : url.Host,
                     MainText = text,
-                    ContentHash = Sha256(text),
+                    ContentHash = HtmlTextExtractor.Sha256(text),
                     FetchedAt = DateTimeOffset.UtcNow,
                     IsPaywalled = HtmlTextExtractor.LooksPaywalled(html, text),
                 },
@@ -310,9 +310,6 @@ public sealed class WebFetchProvider(HttpClient http) : IWebFetchProvider
     private static bool MatchesHost(IReadOnlySet<string> hosts, string host)
         => hosts.Contains(host)
            || hosts.Any(h => host.EndsWith($".{h}", StringComparison.OrdinalIgnoreCase));
-
-    private static string Sha256(string text)
-        => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
     private sealed record CachedRobots(RobotsTxt Robots, DateTimeOffset ExpiresAt);
 }

@@ -22,6 +22,21 @@ public sealed class HtmlTextExtractorTests
         Assert.Equal(string.Empty, HtmlTextExtractor.ExtractTitle("<html><body>metin</body></html>"));
     }
 
+    /// `<head>` icerigi GOVDE metnine karismamali: karisirsa ozetin
+    /// ilk cumlesi hep baslik cikar ve model ayni bilgiyi iki kez
+    /// okur. Python yan-servisinde de ayni kural (tools/extract.py).
+    [Fact]
+    public void BaslikVeMetaVerisi_GovdeMetnineKarismaz()
+    {
+        var text = HtmlTextExtractor.ExtractMainText(
+            "<html><head><title>SAYFA BASLIGI</title>"
+            + "<meta name=\"description\" content=\"ACIKLAMA\"></head>"
+            + "<body><p>Gercek metin.</p></body></html>");
+
+        Assert.DoesNotContain("SAYFA BASLIGI", text, StringComparison.Ordinal);
+        Assert.Equal("Gercek metin.", text);
+    }
+
     [Fact]
     public void BetikVeStil_Atilir()
     {

@@ -71,6 +71,34 @@ services:
       - ./docker/searxng:/etc/searxng:rw
       - searxng-data:/var/cache/searxng
 
+  # Araclar yan-servisi (P1-04): /search, /fetch (Playwright), /align.
+  # `tools` profilinde cunku bir tarayici ve (istege bagli) bir ASR
+  # modeli tasiyor - her gelistirme oturumunda gerekmiyor.
+  #
+  # `docker compose --profile tools up -d tools`
+  tools:
+    build:
+      context: ./tools
+      args:
+        # Hizalama varsayilan olarak KAPALI: ~1 GB bagimlilik ve
+        # yalnizca ses hizalayan makinede gerekiyor. Acmak icin
+        # `fetch,align` yazip yeniden derleyin.
+        EXTRAS: fetch
+    container_name: bmai-tools
+    profiles: ["tools"]
+    restart: unless-stopped
+    environment:
+      # Kap icinden SearXNG'ye servis adiyla ulasiliyor; localhost
+      # kabin kendisi olurdu.
+      BMAI_SEARXNG_URL: "http://searxng:8080"
+      BMAI_ALIGN_MODEL: "small"
+      BMAI_ALIGN_DEVICE: "cpu"
+    ports:
+      # 127.0.0.1'e bagli: bu servis disaridan gelen bir URL'yi acip
+      # metnini donduruyor. Yerel aga acmak, agdaki herkese bu
+      # makineden istek yaptirmak demekti.
+      - "127.0.0.1:8099:8099"
+
 volumes:
   postgres-data:
   seq-data:
