@@ -53,6 +53,20 @@ jobs:
             -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" \
             -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 
+      # ffmpeg KURULUYOR, testler atlanmasin diye.
+      #
+      # Bir dizi test "ffmpeg yoksa atla" diyor ve runner'da ffmpeg
+      # olmadigi icin bunlar CI'da HIC kosmuyordu: filtre grafini gercek
+      # ffmpeg'e dogrulatan testler, ses seviyesi olcumleri ve suresi
+      # ffprobe ile olculen TTS testleri. Yesil bir CI, o testlerin
+      # gectigi anlamina gelmiyordu - hic denenmedikleri anlamina
+      # geliyordu.
+      - name: ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
       - name: Restore
         run: dotnet restore BytemountsAiStudio.slnx
 
