@@ -21,7 +21,8 @@ return command switch
 {
     "version" => Version(),
     "pipeline" => await RunPipelineAsync(args).ConfigureAwait(false),
-    "run" => await RunWorkflowAsync(args).ConfigureAwait(false),
+    "run" => await RunWorkflowAsync(args, open: false).ConfigureAwait(false),
+    "real" => await RunWorkflowAsync(args, open: true).ConfigureAwait(false),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -43,7 +44,11 @@ static int Help()
           bmai pipeline [--topic "<konu>"] [--out <dosya.mp4>] [--lang tr-TR] [--dot <graf.dot>]
                                         sahte boru hatti: konu -> mp4
           bmai run [--topic "<konu>"] [--lang tr-TR]
-                                        workflow engine uzerinden kosar
+                                        sahte saglayicilarla kosar
+          bmai real [--topic "<konu>"] [--lang tr-TR]
+                                        ANAHTARSIZ gercek saglayicilar:
+                                        Ollama + Wikipedia + Pollinations +
+                                        Windows TTS
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -175,7 +180,7 @@ static async Task<int> RunPipelineAsync(string[] args)
 /// `pipeline` komutundan farki: adimlar dogrudan cagrilmiyor, kuyruga
 /// atiliyor ve engine tarafindan surukleniyor. Ayni is, gercek uretimdeki
 /// yoldan geciyor - kuyruk, node kaydi, idempotency, hata siniflandirmasi.
-static async Task<int> RunWorkflowAsync(string[] args)
+static async Task<int> RunWorkflowAsync(string[] args, bool open)
 {
     var topic = Option(args, "--topic", "Dunyanin En Tehlikeli 10 Yeri");
     var languageTag = Option(args, "--lang", "tr-TR");
@@ -194,8 +199,15 @@ static async Task<int> RunWorkflowAsync(string[] args)
     }
 
     var storage = new FileSystemAssetStore(db, StorageRoot());
-    var registry = NodeHandlerRegistration.BuildFakeRegistry(
-        storage, Path.Combine(Directory.GetCurrentDirectory(), "output"));
+    var outputDirectory = Path.Combine(Directory.GetCurrentDirectory(), "output");
+
+    // `run` sahte saglayicilarla, `real` anahtarsiz gercek saglayicilarla.
+    // Ikisi de AYNI graf ve AYNI engine uzerinden geciyor; degisen tek sey
+    // node kaydi. Provider soyutlamasinin kanti bu.
+    using var http = new HttpClient();
+    var registry = open
+        ? NodeHandlerRegistration.BuildOpenRegistry(storage, http, outputDirectory)
+        : NodeHandlerRegistration.BuildFakeRegistry(storage, outputDirectory);
 
     var queue = new JobQueue(db);
     var engine = new WorkflowEngine(db, queue, registry);
@@ -229,6 +241,8 @@ static async Task<int> RunWorkflowAsync(string[] args)
     var runId = started.Value;
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"run       : {runId}"));
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"konu      : {topic}"));
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"saglayici : {(open ? "GERCEK (Ollama + Wikipedia + Pollinations + Windows TTS)" : "sahte")}"));
 
     var stopwatch = Stopwatch.StartNew();
     var seen = new HashSet<string>(StringComparer.Ordinal);

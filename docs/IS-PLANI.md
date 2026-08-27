@@ -111,8 +111,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Kanal ayarından katman değişince kod değişmiyor
 - [ ] **P1-04** `5p` — **Tools-sidecar (Python):** `/search` (SearXNG), `/fetch` (Playwright render), `/align` (WhisperX)
   - *Bitti:* Üç uç nokta da durumsuz; sağlık kontrolü var; .NET tarafında `Fake` ile değiştirilebiliyor
-- [ ] **P1-05** `4p` — Search adaptörleri: SearXNG (self-host) + DuckDuckGo + **Wikipedia/Wikidata API**
-  - *Bitti:* Tek arama sorgusu üç kaynaktan da sonuç dönüyor; API anahtarı gerekmiyor
+- [x] **P1-05a** `2p` — Search adaptörü: **Wikipedia resmî API** (anahtarsız)
+  - *Bitti:* ✔ 27 Ağu 2026 — Arama + tam metin çekme tek sağlayıcıda. `extracts` düz metin dönüyor, HTML ayrıştırma gerekmiyor. Wikimedia'nın istediği tanımlayıcı User-Agent gönderiliyor — vermemek engellenme sebebi. 429/5xx geçici, diğerleri kalıcı
+- [ ] **P1-05** `2p` — Search adaptörleri: SearXNG (self-host) + DuckDuckGo + **Wikipedia/Wikidata API**
+  - *Bitti:* SearXNG (self-host) + DuckDuckGo ekleri. **Anahtarsız yapılabilir, sıradaki iş**
 - [ ] **P1-06** `3p` — WebFetch: robots.txt kontrolü, izinli alan listesi, ana içerik çıkarma, boyut/süre sınırı
   - *Bitti:* robots.txt yasaklı sayfa çekilmiyor; paywall tespit edilip atlanıyor
 - [ ] **P1-07** `4p` — Prompt registry: dosya bazlı sürümleme, run'a kayıt, eval fixture koşucusu
@@ -135,8 +137,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Knowledge base dışı iddia üretilirse QC yakalıyor
 - [x] **P1-13** `3p` — `ISpeechNormalizer`: dil başına sayı/tarih/kısaltma/para normalizasyonu
   - *Bitti:* ✔ 27 Ağu 2026 — Türkçe + İngilizce, kural tabanlı (LLM değil: aynı sayı her videoda aynı okunmalı). Türkçe'de bin/yüz önündeki "bir" düşüyor; İngilizce'de 1453 "fourteen fifty-three" okunuyor. Yüzde/para sayıdan önce işleniyor, binlik ayırıcı tek sayı sayılıyor. Desteklenmeyen dil metni olduğu gibi döndürüyor — üçüncü dili engellememek için. 30 test
-- [ ] **P1-14** `4p` — TTS adaptörü + segment üretimi + gerçek süre ölçümü
-  - *Bitti:* Segment süreleri ffprobe ile doğrulanıyor
+- [x] **P1-14a** `2p` — TTS adaptörü: **Windows yerel konuşma sentezi** (anahtarsız)
+  - *Bitti:* ✔ 27 Ağu 2026 — WinRT üzerinden `Microsoft Tolga` (tr-TR) ile GERÇEK Türkçe seslendirme. PowerShell alt süreci kullanılıyor ki Windows bağımlılığı derleme zamanına değil çalışma zamanına hapsedilsin — Linux CI derlemeye devam ediyor. Metin base64 ile geçiyor: senaryodaki bir tırnak betiği bozamaz
+- [ ] **P1-14** `2p` — TTS adaptörü + segment üretimi + gerçek süre ölçümü
+  - *Bitti:* ElevenLabs / OpenAI TTS. **API anahtarı bekliyor**
 - [ ] **P1-15** `3p` — Kelime zamanları: önce TTS'ten, yoksa ASR sidecar
   - *Bitti:* İki yol da aynı şemayı dönüyor; sidecar kapalıyken TTS yolu çalışıyor
 
@@ -146,8 +150,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Sahne sınırları senaryodan, süreler sesten geliyor (regresyon testi)
 - [ ] **P1-17** `3p` — Stok görsel adaptörü (Pexels) + indirme + **lisans kaydı**
   - *Bitti:* Her varlıkta lisans metni, yazar ve alınma tarihi dolu
-- [ ] **P1-18** `2p` — AI görsel adaptörü + stok bulunamazsa fallback
-  - *Bitti:* Yönlendirme politikasından açılıp kapanabiliyor
+- [x] **P1-18a** `1p` — AI görsel adaptörü: **Pollinations** (anahtarsız)
+  - *Bitti:* ✔ 27 Ağu 2026 — Ücretsiz kullanıma açık AI görsel üretimi. Tohum veriliyorsa aynı prompt aynı görseli veriyor — render önbelleğini anlamlı kılan şey bu. Sunucu bazen hata sayfasını 200 ile döndürüyor; boyut ve içerik tipi kontrolü bunu yakalıyor
+- [ ] **P1-18** `1p` — AI görsel adaptörü + stok bulunamazsa fallback
+  - *Bitti:* Ücretli sağlayıcı + yönlendirme politikasıyla fallback. **API anahtarı bekliyor**
 - [ ] **P1-19** `4p` — Timeline derleyici: ölçülen sürelerden sahne/altyazı/ducking üretimi
   - *Bitti:* Ses ile görsel kayması < 50 ms (otomatik ölçüm)
 - [ ] **P1-20** `3p` — Render preset `shorts-1080x1920`: Ken Burns, fade, yakılmış altyazı, watermark

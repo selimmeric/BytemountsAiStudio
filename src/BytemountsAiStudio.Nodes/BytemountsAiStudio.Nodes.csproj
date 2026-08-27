@@ -4,5 +4,7 @@
     <ProjectReference Include="..\BytemountsAiStudio.Media.Rendering\BytemountsAiStudio.Media.Rendering.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Providers.Fake\BytemountsAiStudio.Providers.Fake.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Providers.Open\BytemountsAiStudio.Providers.Open.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Providers.Llm\BytemountsAiStudio.Providers.Llm.csproj" />
   </ItemGroup>
 </Project>

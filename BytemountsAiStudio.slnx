@@ -10,6 +10,7 @@
     <Project Path="src/BytemountsAiStudio.Persistence/BytemountsAiStudio.Persistence.csproj" />
     <Project Path="src/BytemountsAiStudio.Providers.Fake/BytemountsAiStudio.Providers.Fake.csproj" />
     <Project Path="src/BytemountsAiStudio.Providers.Llm/BytemountsAiStudio.Providers.Llm.csproj" />
+    <Project Path="src/BytemountsAiStudio.Providers.Open/BytemountsAiStudio.Providers.Open.csproj" />
     <Project Path="src/BytemountsAiStudio.Queue/BytemountsAiStudio.Queue.csproj" />
     <Project Path="src/BytemountsAiStudio.Worker/BytemountsAiStudio.Worker.csproj" />
     <Project Path="src/BytemountsAiStudio.Workflow/BytemountsAiStudio.Workflow.csproj" />

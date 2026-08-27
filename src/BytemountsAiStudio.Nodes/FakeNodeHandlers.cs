@@ -83,7 +83,7 @@ public sealed class TopicSelectHandler : INodeHandler
 /// Sahte LLM'i GERÇEK yoldan kullanıyor: zorunlu araç çağrısı + şema
 /// doğrulaması (§7.2). Gerçek Script Agent aynı kodu koşacak, yalnızca
 /// sağlayıcı değişecek.
-public sealed class ScriptGenerateHandler(FakeLlmProvider llm) : INodeHandler
+public sealed class ScriptGenerateHandler(ILlmProvider llm) : INodeHandler
 {
     public string NodeType => "script.generate";
 
@@ -95,18 +95,28 @@ public sealed class ScriptGenerateHandler(FakeLlmProvider llm) : INodeHandler
 
         var topic = NodeJson.Text(context.RunContext, "topic.topic") ?? "konu";
         var language = NodeJson.Text(context.RunContext, "topic.language") ?? "tr-TR";
-        var sentences = BuildSentences(topic, language);
+        var research = ResearchDigest(context.RunContext);
 
-        llm.SetToolResponse("emit_script", JsonSerializer.Serialize(new { sentences }));
+        // §2.2/8: senaryo knowledge base dışına çıkamaz. Araştırma varsa
+        // isteme giriyor ve modele "yalnızca bunları kullan" deniyor.
+        // Kaynaksız iddia üretmenin önündeki ilk engel bu.
+        var instruction = research is null
+            ? $"'{topic}' konusunda {language} dilinde 3 kısa cümlelik senaryo yaz."
+            : $"'{topic}' konusunda {language} dilinde 3 kısa cümlelik senaryo yaz.\n"
+              + "YALNIZCA aşağıdaki kaynaklardaki bilgileri kullan, bilgi uydurma.\n\n"
+              + research;
 
         var response = await llm.CompleteAsync(
             new LlmRequest
             {
                 Tier = ModelTier.Strong,
+                Temperature = 0.3,
                 Messages =
                 [
-                    new(ChatRole.System, "Sen bir kısa video senaryo yazarısın."),
-                    new(ChatRole.User, $"'{topic}' konusunda {language} dilinde senaryo yaz."),
+                    new(ChatRole.System,
+                        "Sen bir kısa video senaryo yazarısın. Her cümle tek başına anlaşılır, "
+                        + "kısa ve seslendirilmeye uygun olmalı. Kaynak dışına çıkma."),
+                    new(ChatRole.User, instruction),
                 ],
                 ForcedTool = new ToolSchema("emit_script", "Senaryo cümleleri",
                     """{"type":"object","properties":{"sentences":{"type":"array","items":{"type":"string"}}}}"""),
@@ -132,13 +142,46 @@ public sealed class ScriptGenerateHandler(FakeLlmProvider llm) : INodeHandler
             : Result.Success(NodeJson.From(new { sentences = parsed }));
     }
 
+    /// Araştırma çıktısından modele verilecek özet.
+    ///
+    /// Null dönmesi normal: araştırma node'u olmayan bir grafta da senaryo
+    /// üretilebilmeli. Zorunlu kılmak, sahte hattı da kırardı.
+    private static string? ResearchDigest(JsonElement runContext)
+    {
+        if (!runContext.TryGetProperty("research", out var research)
+            || !research.TryGetProperty("sources", out var sources)
+            || sources.ValueKind != JsonValueKind.Array
+            || sources.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+
+        foreach (var source in sources.EnumerateArray().Take(3))
+        {
+            var title = source.TryGetProperty("title", out var t) ? t.GetString() : "kaynak";
+            var excerpt = source.TryGetProperty("excerpt", out var e) ? e.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(excerpt))
+            {
+                continue;
+            }
+
+            builder.Append("--- ").AppendLine(title)
+                .AppendLine(excerpt.Length > 700 ? excerpt[..700] : excerpt);
+        }
+
+        return builder.Length == 0 ? null : builder.ToString();
+    }
+
     internal static ProviderContext Context(NodeContext context) => new()
     {
         IdempotencyKey = context.IdempotencyKey,
         CorrelationId = context.CorrelationId,
     };
 
-    private static List<string> BuildSentences(string topic, string language) =>
+    public static List<string> BuildSentences(string topic, string language) =>
         language.StartsWith("tr", StringComparison.OrdinalIgnoreCase)
             ?
             [
@@ -160,7 +203,7 @@ public sealed class ScriptGenerateHandler(FakeLlmProvider llm) : INodeHandler
 /// dosyadan ffprobe ile ölçülüyor. Bu node'un çıktısı timeline'ın
 /// zaman eksenini belirliyor.
 public sealed class TtsSynthesizeHandler(
-    FakeTtsProvider tts, IStorageProvider storage, string ffprobePath = "ffprobe") : INodeHandler
+    ITtsProvider tts, IStorageProvider storage, string ffprobePath = "ffprobe") : INodeHandler
 {
     public string NodeType => "tts.synthesize";
 
@@ -263,7 +306,7 @@ public sealed class TtsSynthesizeHandler(
 
 /// Sahne görselleri.
 public sealed class VisualResolveHandler(
-    FakeImageProvider images, IStorageProvider storage) : INodeHandler
+    IImageProvider images, IStorageProvider storage) : INodeHandler
 {
     public string NodeType => "visual.resolve";
 

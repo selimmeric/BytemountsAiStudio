@@ -1,5 +1,7 @@
 using BytemountsAiStudio.Contracts.Providers;
 using BytemountsAiStudio.Providers.Fake;
+using BytemountsAiStudio.Providers.Llm;
+using BytemountsAiStudio.Providers.Open;
 using BytemountsAiStudio.Workflow.Engine;
 
 namespace BytemountsAiStudio.Nodes;
@@ -18,12 +20,55 @@ public static class NodeHandlerRegistration
         string outputDirectory,
         string ffmpegPath = "ffmpeg",
         string ffprobePath = "ffprobe")
-        => new NodeRegistry()
+    {
+        var llm = new FakeLlmProvider
+        {
+            // Sahte model senaryoyu istemden turetiyor: handler'in sahte
+            // saglayiciyi onceden doldurmasi gerekmiyor.
+            ToolResponder = (tool, messages) => tool.Name != "emit_script"
+                ? null
+                : System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    sentences = ScriptGenerateHandler.BuildSentences(
+                        messages.Count > 0 ? messages[^1].Content : "konu",
+                        messages.Count > 0 && messages[^1].Content.Contains("tr-TR", StringComparison.Ordinal)
+                            ? "tr-TR" : "en-US"),
+                }),
+        };
+
+        return new NodeRegistry()
             .Register(new TopicSelectHandler())
             .Register(new ResearchHandler())
-            .Register(new ScriptGenerateHandler(new FakeLlmProvider()))
+            .Register(new ScriptGenerateHandler(llm))
             .Register(new TtsSynthesizeHandler(new FakeTtsProvider(), storage, ffprobePath))
             .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
+            .Register(new TimelineCompileHandler(storage))
+            .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath));
+    }
+
+    /// ANAHTARSIZ GERÇEK hat (ADR-015).
+    ///
+    /// Hiçbiri API anahtarı istemiyor:
+    ///   - LLM     : Ollama, yerel, ücretsiz
+    ///   - Araştırma: Wikipedia resmî API
+    ///   - Görsel  : Pollinations, ücretsiz kullanıma açık
+    ///   - Ses     : Windows'un yerel konuşma sentezi (tr-TR: Microsoft Tolga)
+    ///
+    /// Kalite ücretli sağlayıcıların altında — özellikle seste. Ama sistemin
+    /// gerçek içerikle uçtan uca çalıştığını kanıtlıyor ve anahtar geldiğinde
+    /// değişecek tek şey bu metottaki satırlar olacak.
+    public static NodeRegistry BuildOpenRegistry(
+        IStorageProvider storage,
+        HttpClient http,
+        string outputDirectory,
+        string ffmpegPath = "ffmpeg",
+        string ffprobePath = "ffprobe")
+        => new NodeRegistry()
+            .Register(new TopicSelectHandler())
+            .Register(new WikipediaResearchHandler(WikipediaProviderAdapter.From(new WikipediaProvider(http))))
+            .Register(new ScriptGenerateHandler(new OllamaLlmProvider(http)))
+            .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath))
+            .Register(new VisualResolveHandler(new PollinationsImageProvider(http), storage))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath));
 

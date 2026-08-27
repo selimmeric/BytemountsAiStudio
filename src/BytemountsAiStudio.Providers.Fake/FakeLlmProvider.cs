@@ -38,6 +38,13 @@ public sealed class FakeLlmProvider : ILlmProvider
 
     private int _embeddingCount;
 
+    /// Kayitli cevap yoksa devreye giren uretici.
+    ///
+    /// Bunun olmasi, handler'larin sahte saglayiciyi ONCEDEN doldurmak
+    /// zorunda kalmamasini sagliyor: handler yalnizca ILlmProvider goruyor,
+    /// sahte ile gercek arasindaki fark kayit noktasinda kaliyor.
+    public Func<ToolSchema, IReadOnlyList<ChatMessage>, string?>? ToolResponder { get; set; }
+
     /// Belirli bir araç çağrıldığında dönecek JSON'u kaydeder.
     public FakeLlmProvider SetToolResponse(string toolName, string json)
     {
@@ -59,7 +66,10 @@ public sealed class FakeLlmProvider : ILlmProvider
 
         if (request.ForcedTool is { } tool)
         {
-            if (!_toolResponses.TryGetValue(tool.Name, out var json))
+            var json = _toolResponses.GetValueOrDefault(tool.Name)
+                       ?? ToolResponder?.Invoke(tool, request.Messages);
+
+            if (json is null)
             {
                 // Sessizce boş JSON dönmek, testin yanlış yerde patlamasına yol açar.
                 return Task.FromResult(Result.Failure<ProviderResponse<LlmResponse>>(
