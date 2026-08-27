@@ -18,9 +18,59 @@
       "requires_key": false,
       "cost": "ucretsiz",
       "endpoint": "http://localhost:11434",
+      "endpoint_env": "BMAI_OLLAMA_URL",
       "quality": "orta",
-      "setup": "ollama pull qwen2.5:7b-instruct",
-      "notes": "Yerel calisir, sinirsiz, ag gerektirmez. Coder modelleri senaryo icin zayif; genel bir instruct modeli belirgin fark yaratir.",
+      "setup": "ollama pull qwen2.5:7b-instruct && ollama pull paraphrase-multilingual",
+      "notes": "Yerel calisir, sinirsiz, ag gerektirmez. Adres UZAK OLABILIR: zayif makineler (2 GB ekran karti) hicbir model kosturamiyor ve BMAI_OLLAMA_URL ile guclu makineye ya da disaridaki bir servise baglaniyor. Bkz. docs/DONANIM-VE-MODEL.md.",
+      "models": [
+        {
+          "name": "qwen2.5:7b-instruct",
+          "tiers": ["cheap", "standard", "strong"],
+          "vram_gb": 5.5,
+          "context": 32768,
+          "default": true,
+          "notes": "8 GB karta sigan en iyi secenek. Turkcesi bu boyut sinifinda iyi, zorunlu JSON ciktisi guvenilir."
+        },
+        {
+          "name": "paraphrase-multilingual",
+          "role": "embedding",
+          "vram_gb": 0.6,
+          "dimensions": 768,
+          "default": true,
+          "notes": "COK DILLI olmak zorunda (S20.5) ve 768 boyutlu olmak zorunda (ADR-003). 1024 boyutlu modeller (bge-m3, arctic-embed2) daha iyi ama sema gocu gerektirir."
+        },
+        {
+          "name": "qwen2.5:14b-instruct",
+          "tiers": ["strong"],
+          "vram_gb": 10,
+          "context": 32768,
+          "default": false,
+          "notes": "8 GB karta SIGMAZ. 16 GB+ bir kart geldiginde yalnizca strong katmani icin BMAI_OLLAMA_MODEL_STRONG ile acilir."
+        },
+        {
+          "name": "qwen2.5-coder:7b",
+          "tiers": [],
+          "vram_gb": 5.5,
+          "default": false,
+          "notes": "KULLANILMIYOR. Kod icin egitilmis; anlatida ayni boyuttaki instruct modelinin gerisinde. Makinede kurulu oldugu icin listede - yanlislikla secilmesin diye."
+        }
+      ],
+      "vram_rule": "Q4 nicelemesinde gereken VRAM ~ parametre sayisi * 0.63 GB + baglam. Sigmayan model RAM'den kosuyor ve 10-40 kat yavasliyor; hata mesaji YOK, yalnizca kuyruk buyuyor.",
+      "limits": {
+        "requests_per_minute": null
+      }
+    },
+    {
+      "key": "ollama-remote",
+      "role": "llm",
+      "display_name": "Ollama (uzak / dis servis)",
+      "enabled": false,
+      "requires_key": false,
+      "cost": "degisken",
+      "endpoint": null,
+      "endpoint_env": "BMAI_OLLAMA_URL",
+      "quality": "modele bagli",
+      "notes": "AYNI istemci, farkli adres. Model bizde yoksa disaridan servis aliniyor; o zaman modelin bizim VRAM'imize sigma zorunlulugu ortadan kalkiyor. Ayri bir kayit olmasinin sebebi belgeleme: kod tarafinda ollama kaydiyla ayni.",
       "limits": {
         "requests_per_minute": null
       }

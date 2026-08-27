@@ -9,23 +9,96 @@ namespace BytemountsAiStudio.Providers.Llm;
 
 public sealed record OllamaOptions
 {
+    /// Ollama'nın adresi.
+    ///
+    /// UZAK OLABİLİR ve olması gerekiyor: bir donanım filosunda her
+    /// makinede model koşturmak mantıksız. Zayıf makineler (2 GB ekran
+    /// kartı) hiç model koşturamıyor; onlar güçlü makinedeki Ollama'ya
+    /// ya da dışarıdaki bir servise bağlanıyor. Adres koda gömülü
+    /// olsaydı bu dağıtım hiç mümkün olmazdı.
     public Uri BaseAddress { get; init; } = new("http://localhost:11434");
 
     /// Katman → model eşlemesi. ADR-015: hacimli işler yerel modele düşüyor.
-    /// Güçlü katman burada da tanımlı ama gerçek hatta ücretli sağlayıcıya
-    /// yönlendirilecek — yerel model senaryo kalitesinde yetmiyor.
+    ///
+    /// Varsayılanlar 8 GB ekran kartına göre seçildi (bkz.
+    /// `docs/DONANIM-VE-MODEL.md`). Coder modelleri anlatı yazmakta
+    /// zayıf; genel bir instruct modeli belirgin fark yaratıyor.
     public IReadOnlyDictionary<ModelTier, string> Models { get; init; } =
         new Dictionary<ModelTier, string>
         {
-            [ModelTier.Cheap] = "qwen2.5-coder:7b",
-            [ModelTier.Standard] = "qwen2.5-coder:7b",
-            [ModelTier.Strong] = "qwen2.5-coder:7b",
+            [ModelTier.Cheap] = "qwen2.5:7b-instruct",
+            [ModelTier.Standard] = "qwen2.5:7b-instruct",
+            [ModelTier.Strong] = "qwen2.5:7b-instruct",
         };
 
-    public string EmbeddingModel { get; init; } = "nomic-embed-text";
+    /// Gömme modeli ÇOK DİLLİ olmak zorunda (§20.5): dile özel bir
+    /// model kullanılırsa TR ve EN vektörleri aynı uzayda olmaz ve
+    /// diller arası tekillik karşılaştırması anlamsızlaşır.
+    ///
+    /// Boyut 768 olmalı — şema öyle (ADR-003). 1024 boyutlu bir model
+    /// (bge-m3, arctic-embed2) şema göçü gerektirir.
+    public string EmbeddingModel { get; init; } = "paraphrase-multilingual";
 
     /// Yerel model ilk çağrıda belleğe yükleniyor; bu birkaç dakika sürebilir.
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// Ortam değişkenlerinden yapılandırma.
+    ///
+    /// Filodaki her makine aynı ikiliyi koşuyor; farklı olan yalnızca
+    /// ortam. Zayıf bir makinede `BMAI_OLLAMA_URL` güçlü makineyi
+    /// gösteriyor, güçlü makinede tanımsız kalıp localhost'a düşüyor,
+    /// ve dışarıdan servis alındığında o servisin adresini gösteriyor.
+    /// Üç durum da KOD DEĞİŞİKLİĞİ GEREKTİRMİYOR.
+    public static OllamaOptions FromEnvironment() => From(Environment.GetEnvironmentVariable);
+
+    /// Okuma islevi disaridan veriliyor: yapilandirma mantigi, surec
+    /// geneli ortam degiskenlerine DOKUNMADAN sinanabilsin. Testte
+    /// `Environment.SetEnvironmentVariable` cagirmak, ayni surecte
+    /// kosan komsu testleri kirmanin sessiz bir yolu - bu hatayi bu
+    /// depoda iki kez yaptik (bkz. documents/02).
+    internal static OllamaOptions From(Func<string, string?> read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+
+        var options = new OllamaOptions();
+
+        if (read("BMAI_OLLAMA_URL") is { Length: > 0 } url
+            && Uri.TryCreate(url, UriKind.Absolute, out var address))
+        {
+            options = options with { BaseAddress = address };
+        }
+
+        // Katman başına model ayrı ayrı ezilebiliyor: 8 GB makinede
+        // üçü de 7B, 24 GB bir makinede Strong katmanı 14B olabilir.
+        var models = new Dictionary<ModelTier, string>(options.Models);
+        var changed = false;
+
+        foreach (var (tier, variable) in new[]
+        {
+            (ModelTier.Cheap, "BMAI_OLLAMA_MODEL_CHEAP"),
+            (ModelTier.Standard, "BMAI_OLLAMA_MODEL_STANDARD"),
+            (ModelTier.Strong, "BMAI_OLLAMA_MODEL_STRONG"),
+        })
+        {
+            if (read(variable) is { Length: > 0 } model)
+            {
+                models[tier] = model;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            options = options with { Models = models };
+        }
+
+        if (read("BMAI_OLLAMA_EMBEDDING") is { Length: > 0 } embedding)
+        {
+            options = options with { EmbeddingModel = embedding };
+        }
+
+        return options;
+    }
 }
 
 /// Yerel LLM sağlayıcısı (ADR-015).

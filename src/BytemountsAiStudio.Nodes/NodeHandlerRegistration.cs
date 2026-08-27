@@ -108,12 +108,26 @@ public static class NodeHandlerRegistration
         string outputDirectory,
         string ffmpegPath = "ffmpeg",
         string ffprobePath = "ffprobe")
-        => new NodeRegistry()
+    {
+        // Yerel LLM TEK YERDE kuruluyor.
+        //
+        // Dort ayri yerde `new OllamaLlmProvider(http)` yazmak, ortam
+        // degiskeni degistiginde birinin unutulmasi demekti - ve o biri
+        // sessizce localhost'a baglanmaya devam ederdi.
+        var llm = TieredLlmProvider.Single(
+            new OllamaLlmProvider(http, OllamaOptions.FromEnvironment()));
+
+        return new NodeRegistry()
             .Register(new TopicSelectHandler())
             // Wikipedia METIN, Wikidata OLGU veriyor. Ikisi birlikte:
             // metinden cikarilan bir tarih yanlis olabilir, alandan
             // okunan tarihte cikarim adimi hic yok (P1-05).
-            .Register(new WikipediaResearchHandler(
+            // PLANLI arastirma (P1-09). Onceki hal sabitti: "konuyu
+            // Wikipedia'da ara, ilk uc sonucu cek" - bir konu icin
+            // calisiyor, digeri icin hic sonuc vermiyordu ve neden
+            // vermedigini soyleyecek bir sey yoktu.
+            .Register(new ResearchAgentHandler(
+                llm,
                 WikipediaProviderAdapter.From(new WikipediaProvider(http)),
                 new WikidataProvider(http)))
             // Katmanlı sağlayıcı TEK sağlayıcıyla bile devrede (P1-03):
@@ -121,8 +135,7 @@ public static class NodeHandlerRegistration
             // taraf hiç değişmesin. Strong katmanı tanımlı değil, o yüzden
             // senaryo isteği Cheap'e düşüyor ve bu çıktıya yazılıyor —
             // "senaryo yerel modelle üretildi" bilgisi kayda geçsin.
-            .Register(new ScriptGenerateHandler(
-                TieredLlmProvider.Single(new OllamaLlmProvider(http))))
+            .Register(new ScriptGenerateHandler(llm))
             .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath))
             // ONCE STOK, BULUNAMAZSA URET (P1-18).
             //
@@ -139,8 +152,9 @@ public static class NodeHandlerRegistration
                 storage))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
-            .Register(new ClaimCheckHandler(TieredLlmProvider.Single(new OllamaLlmProvider(http))))
-            .Register(new SeoGenerateHandler(TieredLlmProvider.Single(new OllamaLlmProvider(http))));
+            .Register(new ClaimCheckHandler(llm))
+            .Register(new SeoGenerateHandler(llm));
+    }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
     /// Depolama gerektirmediği için konfigürasyon aşamasında kullanılabilir.
