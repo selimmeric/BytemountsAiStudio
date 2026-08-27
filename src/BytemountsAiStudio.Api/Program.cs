@@ -48,6 +48,7 @@ builder.Services.AddScoped<NodeRegistry>(services =>
 
 builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<ApprovalService>();
+builder.Services.AddScoped<DeadLetterTriage>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();
@@ -167,6 +168,23 @@ app.MapPost("/approvals/{id:guid}/reject", async (
 app.MapGet("/dlq", async (StudioDbContext db, CancellationToken cancellationToken, int limit = 50) =>
     Results.Ok(await RunQueries.DeadLettersAsync(db, limit, cancellationToken)));
 
+// DLQ triyaji (P2-10): uc eylem, uc farkli soruya cevap.
+//
+//   retry  : "gecici bir arizaydi, artik duzeldi"
+//   skip   : "bu adim bu kosuda calismayacak ama video kurtarilabilir"
+//   cancel : "bu video kurtarilamaz"
+app.MapPost("/dlq/{id:guid}/retry", async (
+    Guid id, ApprovalDecisionRequest request, DeadLetterTriage triage, CancellationToken cancellationToken) =>
+    Triage(await triage.RetryAsync(id, request.DecidedBy, cancellationToken)));
+
+app.MapPost("/dlq/{id:guid}/skip", async (
+    Guid id, ApprovalDecisionRequest request, DeadLetterTriage triage, CancellationToken cancellationToken) =>
+    Triage(await triage.SkipNodeAsync(id, request.DecidedBy, cancellationToken)));
+
+app.MapPost("/dlq/{id:guid}/cancel", async (
+    Guid id, ApprovalDecisionRequest request, DeadLetterTriage triage, CancellationToken cancellationToken) =>
+    Triage(await triage.CancelRunAsync(id, request.DecidedBy, cancellationToken)));
+
 // ---- Maliyet ----
 
 app.MapGet("/cost", async (StudioDbContext db, CancellationToken cancellationToken, Guid? runId = null) =>
@@ -204,6 +222,27 @@ static IResult Decision(BytemountsAiStudio.Core.Result result)
     {
         "approval.not_found" or "approval.no_run" => Results.NotFound(new { error = result.Error.Message }),
         "approval.already_decided" => Results.Conflict(new { error = result.Error.Message }),
+        _ => Results.BadRequest(new { error = result.Error.Message }),
+    };
+}
+
+/// DLQ triyaj sonucunu HTTP'ye çevirir.
+///
+/// "Bu iş ölü mektup kuyruğunda değil" 409: istek geçerli ama
+/// durum uygun değil. 400 yapmak, istemcinin isteği düzeltmesi
+/// gerektiğini ima ederdi — oysa düzeltilecek bir şey yok, iş başka
+/// birinin eylemiyle zaten çözülmüş olabilir.
+static IResult Triage(BytemountsAiStudio.Core.Result result)
+{
+    if (result.IsSuccess)
+    {
+        return Results.NoContent();
+    }
+
+    return result.Error.Code switch
+    {
+        "dlq.not_found" or "dlq.no_run" or "dlq.no_graph" => Results.NotFound(new { error = result.Error.Message }),
+        "dlq.not_dead_lettered" => Results.Conflict(new { error = result.Error.Message }),
         _ => Results.BadRequest(new { error = result.Error.Message }),
     };
 }

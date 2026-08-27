@@ -76,6 +76,8 @@ button.act{background:var(--signal);color:#fff;border:0;padding:5px 12px;border-
   cursor:pointer;font:inherit;font-size:12.5px}
 button.act.ghost{background:transparent;color:var(--bad);border:1px solid var(--bad)}
 button.act[disabled]{opacity:.5;cursor:default}
+button.act.warn{color:var(--warn);border-color:var(--warn)}
+.nowrap{white-space:nowrap}
 .log{max-height:280px;overflow:auto}
 .log div{padding:4px 14px;border-bottom:1px solid var(--rule);font-size:12.5px}
 .log .lvl{display:inline-block;min-width:44px}
@@ -350,10 +352,43 @@ async function showDlq() {
       <td class="mono">${j.attempt}/${j.maxAttempts}</td>
       <td class="s-Failed">${esc(j.lastError ?? "—")}</td>
       <td class="muted">${esc(when(j.createdAt))}</td>
+      <td class="nowrap">
+        <button class="act" data-dlq="retry" data-id="${esc(j.id)}"
+          title="Geçici bir arızaydı, artık düzeldi">Yeniden dene</button>
+        <button class="act ghost warn" data-dlq="skip" data-id="${esc(j.id)}"
+          title="Bu adım çalışmayacak ama videonun geri kalanı kurtarılabilir">Node'u atla</button>
+        <button class="act ghost" data-dlq="cancel" data-id="${esc(j.id)}"
+          title="Bu video kurtarılamaz">Koşuyu iptal et</button>
+      </td>
     </tr>`);
 
   view.innerHTML = panel("Kalıcı olarak düşen işler", table(
-    ["Kuyruk", "Koşu", "Node", "Deneme", "Son hata", "Zaman"], rows));
+    ["Kuyruk", "Koşu", "Node", "Deneme", "Son hata", "Zaman", "Triyaj"], rows));
+
+  view.querySelectorAll("[data-dlq]").forEach((button) =>
+    button.addEventListener("click", async () => {
+      // İptal GERİ ALINAMAZ: koşu kapanıyor ve bekleyen bütün işleri
+      // de kapanıyor. Yanlış satıra tıklamak kolay, geri almak
+      // imkânsız.
+      if (button.dataset.dlq === "cancel"
+          && !confirm("Koşu iptal edilecek ve bekleyen bütün işleri kapatılacak. Emin misiniz?")) {
+        return;
+      }
+
+      view.querySelectorAll("button.act").forEach((b) => (b.disabled = true));
+
+      try {
+        await api(`/dlq/${button.dataset.id}/${button.dataset.dlq}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decidedBy: "panel", note: null }),
+        });
+
+        await showDlq();
+      } catch (error) {
+        fail(error);
+      }
+    }));
 }
 
 /* ---- Maliyet ---- */
