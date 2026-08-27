@@ -16,7 +16,12 @@ public static class DatabaseSeeder
     /// Faz 0'ın yürüyen iskeleti: tüm node'lar sahte sağlayıcılarla çalışır.
     /// Gerçek grafın yapısını birebir taşır — sonradan sağlayıcıları
     /// değiştirmek graf değişikliği değil, konfigürasyon değişikliği olsun.
-    private const string FakeGraphJson = """
+    ///
+    /// PUBLIC: graftaki node tiplerinin kayıtlı olup olmadığı
+    /// veritabanı gerektirmeden sınanabilsin. Kayıtlı olmayan bir tip
+    /// run'ı çalışma ortasında düşürürdü (§6.2) ve bunu yakalamak için
+    /// Postgres ayağa kaldırmak gereksiz.
+    public const string FakeGraphJson = """
         {
           "schema_version": 1,
           "key": "shorts-fake",
@@ -29,7 +34,8 @@ public static class DatabaseSeeder
             { "id": "tts",      "type": "tts.synthesize",   "config": { "voice_id": "fake-tr-f1" } },
             { "id": "timeline", "type": "timeline.compile", "config": { "aspect": "9:16" } },
             { "id": "visuals",  "type": "visual.resolve",   "config": { "order": ["fake-stock", "fake-imagegen"] } },
-            { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } }
+            { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
+            { "id": "seo",      "type": "seo.generate",     "config": {} }
           ],
           "edges": [
             { "from": "topic",    "to": "research" },
@@ -37,7 +43,8 @@ public static class DatabaseSeeder
             { "from": "script",   "to": "tts" },
             { "from": "tts",      "to": "visuals" },
             { "from": "visuals",  "to": "timeline" },
-            { "from": "timeline", "to": "render" }
+            { "from": "timeline", "to": "render" },
+            { "from": "render",   "to": "seo" }
           ]
         }
         """;
@@ -87,28 +94,58 @@ public static class DatabaseSeeder
         return 1;
     }
 
+    /// Grafı İÇERİĞE göre tohumlar.
+    ///
+    /// Önceden yalnızca anahtarın varlığına bakılıyordu ve bu bir tuzaktı:
+    /// koddaki grafı değiştirmek MEVCUT bir veritabanında hiçbir şey
+    /// yapmıyordu. Yeni bir node eklendiğinde CI (boş veritabanı) yeşil
+    /// yanıyor, geliştirme makinesi (tohumlanmış veritabanı) eski grafla
+    /// koşmaya devam ediyor ve fark hiçbir yerde görünmüyordu.
+    ///
+    /// Artık graf değiştiğinde YENİ BİR SÜRÜM ekleniyor. Eski sürüm
+    /// SİLİNMİYOR: hâlihazırda koşan run'lar ona bağlı ve "bu video hangi
+    /// grafla üretildi" sorusunun cevabı o kayıt (§6.2).
     private static async Task<int> EnsureFakeWorkflowAsync(StudioDbContext db, CancellationToken cancellationToken)
     {
-        if (await db.Workflows.AnyAsync(w => w.Key == FakeWorkflowKey, cancellationToken).ConfigureAwait(false))
+        var workflow = await db.Workflows
+            .Include(w => w.Versions)
+            .FirstOrDefaultAsync(w => w.Key == FakeWorkflowKey, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (workflow is null)
+        {
+            var created = new Workflow
+            {
+                Key = FakeWorkflowKey,
+                Name = "Sahte Shorts (Faz 0 iskeleti)",
+                ContentKind = ContentKind.Short,
+                CurrentVersion = 1,
+            };
+
+            created.Versions.Add(new WorkflowVersion { Version = 1, GraphJson = FakeGraphJson });
+            db.Workflows.Add(created);
+
+            return 1;
+        }
+
+        var current = workflow.Versions.MaxBy(v => v.Version);
+
+        // Karşılaştırma satır sonu normalize edilerek: aynı graf
+        // Windows ve Linux'ta farklı sayılmasın, yoksa her makinede bir
+        // sürüm daha eklenirdi.
+        if (current is not null && Normalize(current.GraphJson) == Normalize(FakeGraphJson))
         {
             return 0;
         }
 
-        var workflow = new Workflow
-        {
-            Key = FakeWorkflowKey,
-            Name = "Sahte Shorts (Faz 0 iskeleti)",
-            ContentKind = ContentKind.Short,
-            CurrentVersion = 1,
-        };
+        var next = (current?.Version ?? 0) + 1;
 
-        workflow.Versions.Add(new WorkflowVersion
-        {
-            Version = 1,
-            GraphJson = FakeGraphJson,
-        });
+        workflow.Versions.Add(new WorkflowVersion { Version = next, GraphJson = FakeGraphJson });
+        workflow.CurrentVersion = next;
 
-        db.Workflows.Add(workflow);
         return 1;
     }
+
+    private static string Normalize(string json)
+        => json.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 }

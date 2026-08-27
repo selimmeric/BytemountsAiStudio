@@ -14,6 +14,10 @@ namespace BytemountsAiStudio.Nodes;
 /// run'ın ortasında ortaya çıkardı.
 public static class NodeHandlerRegistration
 {
+    private static readonly string[] TurkishTags = ["sahte", "test"];
+
+    private static readonly string[] EnglishTags = ["fake", "test"];
+
     /// Faz 0'ın sahte hattı: tüm sağlayıcılar fake, ağa çıkılmıyor.
     public static NodeRegistry BuildFakeRegistry(
         IStorageProvider storage,
@@ -25,15 +29,33 @@ public static class NodeHandlerRegistration
         {
             // Sahte model senaryoyu istemden turetiyor: handler'in sahte
             // saglayiciyi onceden doldurmasi gerekmiyor.
-            ToolResponder = (tool, messages) => tool.Name != "emit_script"
-                ? null
-                : System.Text.Json.JsonSerializer.Serialize(new
+            ToolResponder = (tool, messages) =>
+            {
+                var last = messages.Count > 0 ? messages[^1].Content : "konu";
+                var turkish = last.Contains("tr-TR", StringComparison.Ordinal);
+
+                return tool.Name switch
                 {
-                    sentences = ScriptGenerateHandler.BuildSentences(
-                        messages.Count > 0 ? messages[^1].Content : "konu",
-                        messages.Count > 0 && messages[^1].Content.Contains("tr-TR", StringComparison.Ordinal)
-                            ? "tr-TR" : "en-US"),
-                }),
+                    "emit_script" => System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        sentences = ScriptGenerateHandler.BuildSentences(last, turkish ? "tr-TR" : "en-US"),
+                    }),
+
+                    // Sahte metadata GERCEKCI uzunlukta: sinirlarin
+                    // altinda kalan bir baslik, kirpma yolunu hic
+                    // sinamazdi. Kirpmanin kendi testleri ayri
+                    // (SeoGenerateHandlerTests); burada amac hattin
+                    // ucundan ucuna kosmasi.
+                    "emit_metadata" => System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        title = turkish ? "Sahte Baslik: Kisa Video" : "Fake Title: Short Video",
+                        description = turkish ? "Sahte aciklama." : "Fake description.",
+                        tags = turkish ? TurkishTags : EnglishTags,
+                    }),
+
+                    _ => null,
+                };
+            },
         };
 
         return new NodeRegistry()
@@ -43,7 +65,8 @@ public static class NodeHandlerRegistration
             .Register(new TtsSynthesizeHandler(new FakeTtsProvider(), storage, ffprobePath))
             .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
             .Register(new TimelineCompileHandler(storage))
-            .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath));
+            .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
+            .Register(new SeoGenerateHandler(llm));
     }
 
     /// ANAHTARSIZ GERÇEK hat (ADR-015).
@@ -81,7 +104,8 @@ public static class NodeHandlerRegistration
             .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath))
             .Register(new VisualResolveHandler(new PollinationsImageProvider(http), storage))
             .Register(new TimelineCompileHandler(storage))
-            .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath));
+            .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
+            .Register(new SeoGenerateHandler(TieredLlmProvider.Single(new OllamaLlmProvider(http))));
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
     /// Depolama gerektirmediği için konfigürasyon aşamasında kullanılabilir.
@@ -94,5 +118,6 @@ public static class NodeHandlerRegistration
         "visual.resolve",
         "timeline.compile",
         "media.render",
+        "seo.generate",
     };
 }

@@ -1,0 +1,14 @@
+{
+  "prompt_key": "seo.generate",
+  "values": {
+    "topic": "Göbeklitepe",
+    "language": "tr-TR",
+    "script": "Göbeklitepe dünyanın bilinen en eski tapınağıdır.\nYaklaşık on bir bin yıl önce inşa edilmiştir."
+  },
+  "expect": {
+    "contains": ["Göbeklitepe", "tr-TR", "YANILTMAMALI", "90 karakter"],
+    "not_contains": ["{{"],
+    "max_chars": 2000,
+    "min_chars": 300
+  }
+}
