@@ -88,7 +88,8 @@ public static class NodeHandlerRegistration
             // Cikarim ve dogrulama AYNI sahte modelden; gercek hatta
             // da su an oyle. Ayrimin gerekcesi ClaimCheckHandler'da.
             .Register(new ClaimCheckHandler(llm))
-            .Register(new SeoGenerateHandler(llm));
+            .Register(new SeoGenerateHandler(llm))
+            .Register(new ApprovalGateHandler());
     }
 
     /// ANAHTARSIZ GERÇEK hat (ADR-015).
@@ -174,7 +175,11 @@ public static class NodeHandlerRegistration
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new ClaimCheckHandler(llm))
-            .Register(new SeoGenerateHandler(llm));
+            .Register(new SeoGenerateHandler(llm))
+            // Onay kapısı HER İKİ hatta da kayıtlı: sahte hatta
+            // kayıtlı olmasaydı onay içeren bir graf sahte koşuda
+            // "bilinmeyen node tipi" diye reddedilirdi.
+            .Register(new ApprovalGateHandler());
     }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
@@ -190,5 +195,6 @@ public static class NodeHandlerRegistration
         "media.render",
         "seo.generate",
         "claim.check",
+        "human.approval",
     };
 }

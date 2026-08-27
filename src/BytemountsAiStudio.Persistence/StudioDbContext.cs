@@ -32,6 +32,8 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
 
     public DbSet<ClaimRecord> Claims => Set<ClaimRecord>();
 
+    public DbSet<Approval> Approvals => Set<Approval>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -204,6 +206,34 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
             // tamamen kaybettirirdi.
             e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Approval>(e =>
+        {
+            e.Property(x => x.NodeId).HasMaxLength(128);
+            e.Property(x => x.Reason).HasMaxLength(1000);
+            e.Property(x => x.DecidedBy).HasMaxLength(128);
+            e.Property(x => x.Note).HasMaxLength(2000);
+
+            // KISMI INDEKS: onay kuyrugu ekrani yalnizca BEKLEYENLERI
+            // listeliyor ve karara baglanmis satirlar zamanla birikip
+            // buyuyor. Tam indeks, her gecen gun daha yavas cevap
+            // verirdi - oysa sorgu her zaman ayni buyuklukte bir
+            // kumeye bakiyor.
+            e.HasIndex(x => x.CreatedAt)
+                .HasFilter("state = 0")
+                .HasDatabaseName("ix_approvals_pending");
+
+            // Bir run'in ayni node'unda ikinci bir bekleyen onay
+            // OLAMAZ: motor yeniden denerse ya da iki worker ayni isi
+            // alirsa, panelde ayni video iki kez gorunurdu.
+            e.HasIndex(x => new { x.RunId, x.NodeId })
+                .IsUnique()
+                .HasFilter("state = 0")
+                .HasDatabaseName("ux_approvals_pending_node");
+
+            e.HasOne(x => x.Run).WithMany().HasForeignKey(x => x.RunId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<Credential>(e =>

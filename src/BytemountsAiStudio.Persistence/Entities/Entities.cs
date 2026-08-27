@@ -379,3 +379,45 @@ public sealed class ClaimRecord : EntityBase
     /// güvenilirdi.
     public bool SameModel { get; set; }
 }
+
+/// Bir onay isteğinin durumu (P1-27).
+public enum ApprovalState
+{
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2,
+}
+
+/// İnsan onayı isteği (P1-27, §22).
+///
+/// Ayrı bir tablo, `runs` üzerinde bir bayrak DEĞİL. Sebebi onay
+/// kuyruğunun kendisi: "bekleyen onaylar" bir liste ekranı ve o listenin
+/// sorgusu run tablosunu taramamalı. Ayrıca karar KAYIT: kim, ne zaman,
+/// hangi gerekçeyle onayladı — bir video sorun çıkardığında ilk
+/// sorulacak şey bu.
+public sealed class Approval : EntityBase
+{
+    public Guid RunId { get; set; }
+
+    public Run? Run { get; set; }
+
+    /// Hangi node park etti. Onay verilince buradan sonrası kuyruğa
+    /// giriyor; bilinmezse run nerede devam edeceğini bilemezdi.
+    public required string NodeId { get; set; }
+
+    public ApprovalState State { get; set; } = ApprovalState.Pending;
+
+    /// Neden insana soruldu. Panelde bakan kişinin göreceği ilk şey.
+    public required string Reason { get; set; }
+
+    /// Kararı veren. Otomatik geçilen kapılarda bu kayıt hiç oluşmuyor —
+    /// yalnızca gerçekten bir insanın baktığı kararlar burada.
+    public string? DecidedBy { get; set; }
+
+    /// Reddetme gerekçesi ya da onay notu. Öğrenen sistemin (Faz 5)
+    /// besleneceği yer: "neden reddedildi" verisi olmadan model
+    /// iyileştirilemez.
+    public string? Note { get; set; }
+
+    public DateTimeOffset? DecidedAt { get; set; }
+}

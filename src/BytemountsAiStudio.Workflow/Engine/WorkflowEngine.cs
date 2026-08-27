@@ -253,6 +253,27 @@ public sealed class WorkflowEngine(
         run.ContextJson = MergeContext(run.ContextJson, node.Id, outcome.Value);
         run.State = RunState.Running;
 
+        // ---- ONAY KAPISI: RUN PARK EDİLİYOR (P1-27) ----
+        //
+        // Node BAŞARIYLA bitti; devam etmiyoruz çünkü sıradaki adım bir
+        // insanın kararına bağlı. Sonraki node'lar kuyruğa GİRMİYOR ve
+        // bu işin kirası kapanıyor: onay bekleyen bir run hiçbir worker
+        // kaynağı tüketmiyor.
+        //
+        // Alternatifi — işin içinde uyuyup tekrar bakmak — bir worker'ı
+        // saatlerce, belki günlerce tutardı ve o worker'ın sınıfındaki
+        // bütün işler beklerdi.
+        if (ApprovalGate.Awaits(outcome.Value))
+        {
+            await ParkForApprovalAsync(run, node.Id, outcome.Value, cancellationToken).ConfigureAwait(false);
+
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _queue.CompleteAsync(handlerLease.Id, cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+            return Result.Success();
+        }
+
         var next = await ResolveNextNodesAsync(run, graph, node.Id, cancellationToken).ConfigureAwait(false);
 
         if (next.Count == 0 && await IsRunCompleteAsync(run, graph, cancellationToken).ConfigureAwait(false))
@@ -270,6 +291,44 @@ public sealed class WorkflowEngine(
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
+    }
+
+    /// Run'ı park eder ve onay kaydını oluşturur.
+    private async Task ParkForApprovalAsync(
+        Run run, string nodeId, JsonElement output, CancellationToken cancellationToken)
+    {
+        run.State = RunState.WaitingApproval;
+
+        // AYNI NODE İÇİN İKİNCİ BİR BEKLEYEN KAYIT AÇILMIYOR.
+        //
+        // Motor bu node'u yeniden çalıştırabiliyor (kira süresi dolar,
+        // iş yeniden kiralanır) ve o zaman panelde aynı video iki kez
+        // görünürdü. Veritabanında da kısmi eşsiz indeks var; buradaki
+        // kontrol, o kısıtın bir istisnaya dönüşmesini engelliyor.
+        var existing = await db.Approvals
+            .FirstOrDefaultAsync(
+                a => a.RunId == run.Id && a.NodeId == nodeId && a.State == ApprovalState.Pending,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var reason = output.TryGetProperty("reason", out var text) ? text.GetString() : null;
+
+        if (existing is not null)
+        {
+            existing.Reason = reason ?? existing.Reason;
+            return;
+        }
+
+        db.Approvals.Add(new Approval
+        {
+            RunId = run.Id,
+            NodeId = nodeId,
+            State = ApprovalState.Pending,
+            Reason = reason ?? "onay bekleniyor",
+        });
+
+        await LogAsync(run.Id, nodeId, "info",
+            $"Onay bekleniyor: {reason}", cancellationToken).ConfigureAwait(false);
     }
 
     /// Bir node bittiğinde hangi node'lar tetiklenir.
@@ -349,6 +408,23 @@ public sealed class WorkflowEngine(
 
         // Kendi işimiz hâlâ 'Leased' görünüyor; onu saymıyoruz.
         return pending <= 1;
+    }
+
+    /// Bir node'dan SONRAKİ node'ları kuyruğa atar.
+    ///
+    /// Onay servisi bunu çağırıyor. Kendi eşlemesini yazması ilk
+    /// tasarımdı ve yanlıştı: kuyruk sınıfı işleyici kaydından geliyor
+    /// ve elle yazılmış ikinci bir eşleme er geç ayrışırdı — o gün
+    /// onaydan sonra devam eden iş yanlış kuyruğa düşer ve orada
+    /// kalırdı, çünkü o kuyruğun worker'ları o tipi hiç beklemiyor.
+    internal async Task<int> EnqueueAfterAsync(
+        Run run, WorkflowGraph graph, string nodeId, CancellationToken cancellationToken)
+    {
+        var next = graph.OutgoingEdges(nodeId).Select(e => e.To).Distinct().ToList();
+
+        await EnqueueNodesAsync(run, graph, next, cancellationToken).ConfigureAwait(false);
+
+        return next.Count;
     }
 
     private async Task EnqueueNodesAsync(
