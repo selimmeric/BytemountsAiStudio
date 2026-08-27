@@ -1,0 +1,25 @@
+{
+  "prompt_key": "script.generate",
+  "version": 3,
+  "values": {
+    "topic": "Dünyanın En Tehlikeli 10 Yeri",
+    "language": "tr-TR",
+    "sentence_count": "7",
+    "format_structure": "1. KANCA: ilk cümle listenin neden ilginç olduğunu söylemeli.\n2. LİSTE: her madde AYRI bir cümle olmalı; maddeleri birleştirme.\n3. KAPANIŞ: son cümle listeyi toparlamalı.",
+    "research": "--- Kaynak\nBazı bölgeler radyasyon, iklim ya da yaban hayatı nedeniyle tehlikeli sayılıyor."
+  },
+  "expect": {
+    "contains": [
+      "Dünyanın En Tehlikeli 10 Yeri",
+      "KANCA",
+      "LİSTE",
+      "KAPANIŞ",
+      "Toplam 7 cümle",
+      "bilgi uydurma",
+      "Kaynak dışına çıkma"
+    ],
+    "not_contains": ["{{"],
+    "max_chars": 5000,
+    "min_chars": 400
+  }
+}

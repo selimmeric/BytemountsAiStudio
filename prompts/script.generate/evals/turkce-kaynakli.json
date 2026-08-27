@@ -1,5 +1,6 @@
 {
   "prompt_key": "script.generate",
+  "version": 2,
   "values": {
     "topic": "Göbeklitepe",
     "language": "tr-TR",
@@ -14,7 +15,10 @@
       "bilgi uydurma",
       "Dünyanın bilinen en eski"
     ],
-    "not_contains": ["undefined", "null"],
+    "not_contains": [
+      "undefined",
+      "null"
+    ],
     "max_chars": 4000,
     "min_chars": 200
   }

@@ -103,11 +103,11 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
         var research = ResearchDigest(context.RunContext);
 
         // §2.2/8: senaryo knowledge base dışına çıkamaz. Araştırma varsa
-        // "yalnızca bunları kullan" diyen v2 istemi, yoksa v1 seçiliyor.
-        // Kaynaksız iddia üretmenin önündeki ilk engel bu.
+        // "yalnızca bunları kullan" diyen biçimli istem, yoksa sade olan
+        // seçiliyor. Kaynaksız iddia üretmenin önündeki ilk engel bu.
         //
-        // Sürüm burada AÇIKÇA seçiliyor, "en yeni" değil: iki sürüm iki
-        // ayrı duruma ait, ve birine yeni bir sürüm eklemek diğerinin
+        // Sürüm AÇIKÇA seçiliyor, "en yeni" değil: sürümler farklı
+        // durumlara ait ve birine yeni sürüm eklemek diğerinin
         // davranışını sessizce değiştirmemeli.
         var registry = prompts is not null
             ? Result.Success(prompts)
@@ -118,20 +118,32 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
             return Result.Failure<JsonElement>(registry.Error);
         }
 
-        var template = registry.Value.Get("script.generate", research is null ? 1 : 2);
+        // Biçim şablonu (P1-12). Yapıyı İSTEM taşıyor, kod değil: yeni
+        // bir biçim eklemek bir kayıt yazmak olmalı, `switch` koluna
+        // dokunmak değil.
+        var format = ScriptFormat.Get(
+            NodeJson.Text(context.RunContext, "input.format") ?? NodeJson.Text(context.Config, "format"));
+
+        // Araştırma yoksa biçimli v3 istemi kullanılamıyor: kaynağı
+        // olmayan bir yapıyı doldurmak modeli uydurmaya iter.
+        var version = research is null ? 1 : 3;
+        var template = registry.Value.Get("script.generate", version);
 
         if (template.IsFailure)
         {
             return Result.Failure<JsonElement>(template.Error);
         }
 
-        var rendered = template.Value.Render(new Dictionary<string, string>(StringComparer.Ordinal)
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["topic"] = topic,
             ["language"] = language,
-            ["sentence_count"] = SentenceCount.ToString(CultureInfo.InvariantCulture),
+            ["sentence_count"] = format.TargetSentences.ToString(CultureInfo.InvariantCulture),
+            ["format_structure"] = format.Structure,
             ["research"] = research ?? string.Empty,
-        });
+        };
+
+        var rendered = template.Value.Render(values);
 
         if (rendered.IsFailure)
         {
@@ -174,6 +186,21 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
             return Error.Permanent("script.empty", "Senaryo boş döndü.");
         }
 
+        // Cümle sayısı biçimin sınırları içinde mi.
+        //
+        // GEÇİCİ hata olarak sınıflandırılıyor, kalıcı değil: istek
+        // geçerli, model bu sefer uymadı. Aynı istemle ikinci deneme
+        // farklı bir cevap veriyor ve genellikle uyuyor. Kalıcı desek
+        // run düşerdi; hiç denetlemesek biçim şablonu yalnızca bir
+        // temenni olurdu.
+        if (!format.Accepts(parsed.Count))
+        {
+            return Error.Transient(
+                "script.wrong_length",
+                FormattableString.Invariant(
+                    $"'{format.Name}' bicimi {format.MinSentences}-{format.MaxSentences} cumle bekliyor, model {parsed.Count} dondu."));
+        }
+
         // Damga ve model kimliği çıktıya giriyor: "bu video hangi
         // istemle ve hangi modelle üretildi" sorusunun cevabı
         // `node_executions.output` içinde duruyor ve ayrı bir şema göçü
@@ -188,15 +215,12 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
         {
             sentences = parsed,
             prompt = prompt.Stamp,
+            format = format.Name,
             model = response.Value.Value.ModelId,
             provider = route?.ProviderKey ?? llm.Key,
             fell_over_from = route?.FellOverFrom ?? [],
         }));
     }
-
-    /// Varsayılan cümle sayısı. Sabit, çünkü sahne planlayıcısı (P1-16)
-    /// devreye girene kadar süre bütçesini burası belirliyor.
-    private const int SentenceCount = 3;
 
     /// Araştırma çıktısından modele verilecek özet.
     ///

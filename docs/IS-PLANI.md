@@ -137,8 +137,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 1.C Senaryo ve ses
 
-- [ ] **P1-12** `4p` — Script Agent + format şablonları (hook–list–payoff), `display_text`/`speech_text` ayrımı
-  - *Bitti:* Knowledge base dışı iddia üretilirse QC yakalıyor
+- [x] **P1-12** `4p` — Script Agent + format şablonları (hook–list–payoff), `display_text`/`speech_text` ayrımı
+  - *Bitti:* ✔ 27 Ağu 2026 — Üç biçim: `hook-payoff`, `hook-list-payoff`, `explainer`. Yapıyı İSTEM taşıyor, kod değil — yeni bir biçim eklemek bir kayıt yazmak, `switch` koluna dokunmak değil; ayrıca biçim metni istem dosyasında olduğu için `git diff`'te görünüyor ve fixture'la denetleniyor. Cümle SAYISI da biçimin parçası: liste biçimi üç cümleye sığmıyor, her madde kendi cümlesini istiyor. Modele aralık değil TEK hedef sayı veriliyor — aralık dağınık uzunluk üretiyor. Sayı sınırların dışında kalırsa hata GEÇİCİ sınıfında: istek geçerli, model bu sefer uymadı ve ikinci deneme genellikle uyuyor; kalıcı desek run düşerdi, hiç denetlemesek şablon yalnızca bir temenni olurdu. `display_text`/`speech_text` ayrımı P1-13b'de bağlandı. **Fixture koşucusu işini yaptı:** v3 eklenince sürüm sabitlemeyen iki eski fixture yeni yer tutucuda kırıldı ve düzeltildi — istem regresyonu canlı koşuda değil, saniyeler içinde yakalandı
 - [x] **P1-13b** `1p` — Normalizasyonun BAĞLANMASI + `display_text`/`speech_text` ayrımı
   - *Bitti:* ✔ 27 Ağu 2026 — P1-13 yazılmıştı ama **bağlanmamıştı**: ham cümle doğrudan TTS'e gidiyordu, yani "1453" harf harf okunuyordu. Artık ekranda görünen ve seslendirilen metin ayrı ve ikisi de kayda giriyor. Altyazı EKRANDAKİ metni gösteriyor: sağlayıcının kelime zamanlaması seslendirilen metne ait ve normalizasyon metni değiştirdiyse o zamanlamalar başka sözcüklere işaret ediyor ("1453" tek kelime, karşılığı beş kelime) — bire bir eşlemeye kalkmak hem altyazıyı kaydırır hem ekranda sayının harfe açılmış hâlini yazardı
 - [x] **P1-13** `3p` — `ISpeechNormalizer`: dil başına sayı/tarih/kısaltma/para normalizasyonu
