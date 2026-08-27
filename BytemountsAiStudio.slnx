@@ -9,6 +9,7 @@
     <Project Path="src/BytemountsAiStudio.Nodes/BytemountsAiStudio.Nodes.csproj" />
     <Project Path="src/BytemountsAiStudio.Persistence/BytemountsAiStudio.Persistence.csproj" />
     <Project Path="src/BytemountsAiStudio.Providers.Fake/BytemountsAiStudio.Providers.Fake.csproj" />
+    <Project Path="src/BytemountsAiStudio.Providers.Llm/BytemountsAiStudio.Providers.Llm.csproj" />
     <Project Path="src/BytemountsAiStudio.Queue/BytemountsAiStudio.Queue.csproj" />
     <Project Path="src/BytemountsAiStudio.Worker/BytemountsAiStudio.Worker.csproj" />
     <Project Path="src/BytemountsAiStudio.Workflow/BytemountsAiStudio.Workflow.csproj" />
@@ -20,6 +21,7 @@
     <Project Path="tests/BytemountsAiStudio.Media.Tests/BytemountsAiStudio.Media.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Persistence.Tests/BytemountsAiStudio.Persistence.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Providers.Fake.Tests/BytemountsAiStudio.Providers.Fake.Tests.csproj" />
+    <Project Path="tests/BytemountsAiStudio.Providers.Llm.Tests/BytemountsAiStudio.Providers.Llm.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Queue.Tests/BytemountsAiStudio.Queue.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.TestSupport/BytemountsAiStudio.TestSupport.csproj" />
     <Project Path="tests/BytemountsAiStudio.Workflow.Tests/BytemountsAiStudio.Workflow.Tests.csproj" />

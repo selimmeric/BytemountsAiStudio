@@ -103,8 +103,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [ ] **P1-01** `3p` — Kimlik deposu: şifreli credential (ASP.NET Data Protection), kanal başına set, redaction
   - *Bitti:* Anahtarlar DB'de düz metin değil; loglara sızmıyor (test)
-- [ ] **P1-02** `4p` — LLM adaptörleri: **Ollama (yerel)** + Gemini/OpenAI + OpenRouter
-  - *Bitti:* Aynı prompt üç sağlayıcıda da şemaya uygun çıktı veriyor
+- [x] **P1-02a** `2p` — LLM adaptörü: **Ollama (yerel)**
+  - *Bitti:* ✔ 27 Ağu 2026 — Gerçek yerel modele karşı doğrulandı: `qwen2.5-coder:7b`, şemaya uygun JSON, 45→120 token, sıfır maliyet. Zorunlu araç Ollama'nın `format` alanıyla yapılıyor — `tools` desteği modele göre değişiyor, `format` her modelde aynı çalışıyor. 5xx geçici / 4xx kalıcı ayrımı testli
+- [ ] **P1-02b** `2p` — LLM adaptörleri: Gemini / OpenAI / OpenRouter
+  - *Bitti:* Aynı prompt bulut sağlayıcılarda da şemaya uygun çıktı veriyor. **API anahtarı bekliyor**
 - [ ] **P1-03** `2p` — Model katmanlama (cheap/standard/strong) + yönlendirme politikası + fallback
   - *Bitti:* Kanal ayarından katman değişince kod değişmiyor
 - [ ] **P1-04** `5p` — **Tools-sidecar (Python):** `/search` (SearXNG), `/fetch` (Playwright render), `/align` (WhisperX)
