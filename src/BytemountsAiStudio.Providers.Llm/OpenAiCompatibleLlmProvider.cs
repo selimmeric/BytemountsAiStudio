@@ -421,13 +421,3 @@ public sealed class OpenAiCompatibleLlmProvider(
 
     internal sealed record EmbeddingItem(List<float>? Embedding);
 }
-
-/// Anahtarın nereden okunacağı.
-///
-/// Ortam değişkeni VARSAYILAN ama tek yol değil: anahtarlar şifreli
-/// depoda duruyor (P1-01) ve orası da bu arayüzü gerçekliyor. Sağlayıcı
-/// hangisinin kullanıldığını bilmiyor.
-public interface ICredentialSource
-{
-    string? Get(string name);
-}

@@ -240,7 +240,7 @@
       "key_env": "PEXELS_API_KEY",
       "cost": "ucretsiz (anahtar gerekli)",
       "quality": "yuksek",
-      "notes": "Gorsel kalitesi acik ara en iyisi. Anahtar almak ucretsiz ve dakikalar suruyor.",
+      "notes": "ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-17); anahtar yalnizca canli dogrulama icin. Openverse'e gore fark KALITE: sonuclar elle kuratorlenmis. Lisans kaydi her sonucla saklaniyor (S2.3/14) - Pexels atif zorunlu kilmiyor ama kurallar degisebiliyor ve o gun ne yazdigi ancak alindigi anda saklanmissa var. Dikey videoda orientation=portrait isteniyor: yatay bir kareyi 9:16'ya kirpmak karenin cogunu atmak demek. Kota 429 + X-Ratelimit-Reset ile KAYNAK hatasi.",
       "limits": {
         "requests_per_hour": 200
       }
@@ -268,7 +268,7 @@
       "key_env": "FLUX_API_KEY",
       "cost": "ucretli (~0.003-0.04 USD/gorsel)",
       "quality": "yuksek",
-      "notes": "Kalite ve hiz farki buyuk. Butce acildiginda ilk yukseltilecek kalem.",
+      "notes": "Kalite ve hiz farki buyuk. Butce acildiginda ilk yukseltilecek kalem. ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-14). TEK CAGRIDA hem ses hem KELIME ZAMANLAMASI veriyor (with-timestamps ucu) - asil degeri bu: kullanildiginda ASR hizalama adimi HIC calismiyor (P1-15). Kota bitince de 401 donuyor ve tek ayirt edici govdedeki quota_exceeded; o durumda KAYNAK hatasi.",
       "limits": {
         "requests_per_minute": 60
       }

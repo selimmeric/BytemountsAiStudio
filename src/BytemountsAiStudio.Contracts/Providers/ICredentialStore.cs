@@ -52,3 +52,18 @@ public sealed record CredentialInfo
 
     public DateTimeOffset? LastUsedAt { get; init; }
 }
+
+/// Anahtarın nereden okunacağı.
+///
+/// Ortam değişkeni VARSAYILAN ama tek yol değil: anahtarlar şifreli
+/// depoda duruyor (P1-01) ve orası da bu arayüzü gerçekliyor.
+/// Sağlayıcı hangisinin kullanıldığını bilmiyor.
+///
+/// `ICredentialStore`'dan AYRI ve daha dar: depo yazma, silme ve
+/// maskeleme de yapıyor; sağlayıcının tek ihtiyacı okumak. Geniş
+/// arayüzü sağlayıcıya vermek, bir sağlayıcı hatasının kimlik
+/// bilgilerini silebilmesi demekti.
+public interface ICredentialSource
+{
+    string? Get(string name);
+}
