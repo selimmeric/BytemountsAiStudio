@@ -92,6 +92,13 @@ def pct(earned: int, total: int) -> float:
     return 100.0 * earned / total if total else 0.0
 
 
+def inline(text: str) -> str:
+    """Gorev basligini HTML'e cevirir: once kacis, sonra `kod` -> <code>."""
+    escaped = html.escape(text)
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+
+
 # --------------------------------------------------------------------------- HTML
 
 CSS = """
@@ -186,6 +193,8 @@ h1{font-size:30px;line-height:1.15}
 .row .p{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--ink-faint);
   font-variant-numeric:tabular-nums}
 .row.ms .t{font-weight:600}
+.row .t code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;
+  background:var(--signal-soft);color:var(--ink-soft);padding:1px 5px;border-radius:3px}
 .foot{font-size:12.5px;color:var(--ink-faint);text-align:center}
 @media (max-width:620px){
   .row{grid-template-columns:20px 1fr auto;gap:9px}
@@ -238,7 +247,7 @@ def render_html(phases: list[Phase]) -> str:
             rows.append(
                 f'<div class="{cls}"><span class="box">{box}</span>'
                 f'<span class="c">{html.escape(t.code)}</span>'
-                f'<span class="t">{html.escape(t.title)}</span>'
+                f'<span class="t">{inline(t.title)}</span>'
                 f'<span class="p">{t.points}p</span></div>'
             )
         sections.append(
