@@ -13,6 +13,8 @@ using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Contracts.Prompts;
+using BytemountsAiStudio.Contracts.Providers;
+using BytemountsAiStudio.Providers.Open;
 using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Persistence.Storage;
 using BytemountsAiStudio.Core.Observability;
@@ -29,6 +31,7 @@ return command switch
     "providers" => ShowProviders(),
     "credential" => await RunCredentialAsync(args).ConfigureAwait(false),
     "prompt" => RunPrompt(args),
+    "fetch" => await RunFetchAsync(args).ConfigureAwait(false),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -64,6 +67,7 @@ static int Help()
           bmai credential rm <saglayici> [--channel <id>]
           bmai prompt list              istem surumlerini goster
           bmai prompt eval              fixture'lari kosar (model cagirmaz)
+          bmai fetch <url>              sayfayi ceker (robots.txt kontrollu)
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -435,6 +439,48 @@ static async Task<int> RunCredentialAsync(string[] args)
 ///
 /// "Su an ne ile calisabiliyorum" ve "anahtar gelirse ne acilir" sorularinin
 /// tek cevap noktasi.
+/// Tek bir sayfayi ceker ve ne cikardigini gosterir (P1-06).
+///
+/// Arastirma sonuclari bozuk geldiginde ilk bakilacak yer burasi:
+/// sorun aramada mi, cekimde mi, yoksa metin cikariminda mi.
+static async Task<int> RunFetchAsync(string[] args)
+{
+    if (args.Length < 2 || !Uri.TryCreate(args[1], UriKind.Absolute, out var url))
+    {
+        Console.Error.WriteLine("Kullanim: bmai fetch <url>");
+        return 2;
+    }
+
+    using var http = new HttpClient();
+    var provider = new WebFetchProvider(http);
+
+    var result = await provider
+        .FetchAsync(url, ProviderContext.ForTest("cli-fetch"), CancellationToken.None)
+        .ConfigureAwait(false);
+
+    if (result.IsFailure)
+    {
+        Console.Error.WriteLine($"Cekilemedi: {result.Error}");
+        return 1;
+    }
+
+    var document = result.Value.Value;
+
+    Console.WriteLine();
+    Console.WriteLine($"  adres   : {document.Url}");
+    Console.WriteLine($"  baslik  : {document.Title}");
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"  metin   : {document.MainText.Length} karakter"));
+    Console.WriteLine($"  ozet    : {document.ContentHash[..16]}");
+    Console.WriteLine($"  duvar   : {(document.IsPaywalled ? "ODEME DUVARI SUPHESI" : "yok")}");
+    Console.WriteLine();
+    Console.WriteLine("  --- ilk 600 karakter ---");
+    Console.WriteLine(document.MainText.Length > 600 ? document.MainText[..600] : document.MainText);
+    Console.WriteLine();
+
+    return 0;
+}
+
 /// Istem kayit defteri (P1-07).
 ///
 /// `bmai prompt eval` CI'da kosuyor: bir istem duzenlendiginde
