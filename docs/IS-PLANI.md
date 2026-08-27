@@ -171,8 +171,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 1.E Kalite, yayın, panel
 
-- [ ] **P1-21** `4p` — Mekanik QC: 12 bloklayıcı kontrol + skor hesaplama + `retry_target`
-  - *Bitti:* Bilerek bozulmuş 12 timeline'ın hepsi yakalanıyor
+- [x] **P1-21** `4p` — Mekanik QC: 12 bloklayıcı kontrol + skor hesaplama + `retry_target`
+  - *Bitti:* ✔ 27 Ağu 2026 — §14.1'in on iki kontrolü, hepsi SAF FONKSİYON: model çağırmıyor, para harcamıyor, aynı girdiye aynı cevabı veriyor. Ölçüm YAPMIYOR, ölçülmüş değeri alıyor — ffprobe çağırsaydı testler dış süreç gerektirirdi; şimdi 12 bozuk senaryo milisaniyelerde koşuyor. **"Ölçemedim" ile "geçti" ayrı:** eşitlemek, thumbnail üretilmediği için hiç bakılmayan bir videonun tam puanla geçmesi demek olurdu. Bloklayıcı düşerse skor ANLAMSIZ ve sıfır — yüksek skorla birlikte "ama bloklayıcı düştü" demek ikisinden birinin gözden kaçmasına davetiye. `retry_target` boru hattında EN ERKEN düşen node: senaryo bozukken render'a dönmek iki tur harcar ve ikinci turda yine aynı senaryo hatasına düşer. Şartnamedeki "her sahnede görsel var" kontrolünü tip sistemi zaten garanti ediyordu, o yüzden gerçekte olabilecek üç şeye bakıyor: sıfır sahne, boş varlık referansı, sahneler arası boşluk (= siyah kare). 43 test
 - [ ] **P1-22** `2p` — SEO Agent + platform sınırlarının kod tarafında uygulanması
   - *Bitti:* 100 karakteri aşan başlık kırpılıyor, upload reddi olmuyor
 - [ ] **P1-23** `3p` — Thumbnail üretimi (Skia şablonu, dile duyarlı metin)
