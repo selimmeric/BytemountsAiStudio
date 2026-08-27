@@ -33,49 +33,66 @@ public static class TimelineBuilder
             NodeJson.Text(runContext, "topic.language") ?? "tr-TR");
 
         var canvas = Canvas.Shorts1080;
-        var images = imagesJson.EnumerateArray()
-            .ToDictionary(
-                e => e.GetProperty("scene").GetInt32(),
-                e => AssetRef.Create(e.GetProperty("asset").GetString()!));
 
+        // SES ve SAHNE ayrı listeler.
+        //
+        // Eskiden birebir varsayılıyordu: her ses parçası bir sahne.
+        // Sahne planlayıcı (P1-16) kısa cümleleri birleştirmeye başlayınca
+        // bu varsayım kırıldı — ve kırılması yalnızca kısa cümle içeren
+        // senaryolarda görülecekti, yani seyrek ve zor fark edilen bir
+        // ses–görsel kayması olarak.
         var segments = new List<VoiceSegment>();
-        var scenes = new List<Scene>();
-        var index = 0;
-        var total = Ms.Zero;
 
         foreach (var element in segmentsJson.EnumerateArray())
         {
-            var id = element.GetProperty("id").GetString()!;
-            var start = new Ms(element.GetProperty("start_ms").GetInt32());
-            var duration = new Ms(element.GetProperty("duration_ms").GetInt32());
-
             segments.Add(new VoiceSegment
             {
-                Id = id,
+                Id = element.GetProperty("id").GetString()!,
                 Asset = AssetRef.Create(element.GetProperty("asset").GetString()!),
-                Start = start,
-                Duration = duration,
+                Start = new Ms(element.GetProperty("start_ms").GetInt32()),
+                Duration = new Ms(element.GetProperty("duration_ms").GetInt32()),
                 SpeechText = element.TryGetProperty("speech_text", out var speech)
                     ? speech.GetString()
                     : null,
             });
+        }
 
-            if (!images.TryGetValue(index, out var image))
+        if (segments.Count == 0)
+        {
+            return Error.Permanent("timeline.no_audio", "Ses parçaları bulunamadı.");
+        }
+
+        var planned = imagesJson.EnumerateArray().OrderBy(e => e.GetProperty("scene").GetInt32()).ToList();
+
+        if (planned.Count == 0)
+        {
+            return Error.Permanent("timeline.no_visuals", "Sahne görselleri bulunamadı.");
+        }
+
+        var scenes = new List<Scene>(planned.Count);
+        var total = Ms.Zero;
+
+        for (var index = 0; index < planned.Count; index++)
+        {
+            var element = planned[index];
+            var scene = ReadScene(element, index, segments);
+
+            if (scene.IsFailure)
             {
-                return Error.Permanent("timeline.missing_visual",
-                    $"{index}. sahne için görsel yok.");
+                return Result.Failure<TimelineDocument>(scene.Error);
             }
 
-            var isLast = index == segmentsJson.GetArrayLength() - 1;
+            var (start, duration, ids, asset) = scene.Value;
+            var isLast = index == planned.Count - 1;
 
             scenes.Add(new Scene
             {
                 Index = index,
                 Range = TimeRange.FromDuration(start, duration),
-                VoiceSegmentIds = [id],
+                VoiceSegmentIds = ids,
                 Visual = new SceneVisual
                 {
-                    Asset = image,
+                    Asset = asset,
                     // Dönüşümlü yakınlaşma/uzaklaşma: hepsi aynı yönde
                     // olsaydı video tekdüze görünürdü.
                     Motion = index % 2 == 0
@@ -86,7 +103,6 @@ public static class TimelineBuilder
             });
 
             total = start + duration;
-            index++;
         }
 
         var cues = new List<CaptionCue>();
@@ -141,12 +157,59 @@ public static class TimelineBuilder
             Output = new OutputSpec { Preset = "shorts-1080x1920" },
             Provenance = new Provenance
             {
+                // İstem damgası artık gerçek (P1-07): senaryo node'u
+                // hangi istem sürümüyle üretildiğini çıktısına yazıyor
+                // ve buraya olduğu gibi taşınıyor.
                 PromptVersions = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["script.generate"] = "fake-v1",
+                    ["script.generate"] = NodeJson.Text(runContext, "script.prompt") ?? "bilinmiyor",
                 },
                 EngineMinVersion = "0.1.0",
             },
         };
+    }
+
+    /// Bir sahne kaydını okur.
+    ///
+    /// Zamanlama görsel node'unun yazdığı plandan geliyor; yoksa ses
+    /// parçasından türetiliyor. Yedek yol GEÇİŞ İÇİN: eski bir run
+    /// bağlamı yeniden derlendiğinde kırılmasın.
+    private static Result<(Ms Start, Ms Duration, IReadOnlyList<string> Ids, AssetRef Asset)> ReadScene(
+        JsonElement element, int index, List<VoiceSegment> segments)
+    {
+        if (!element.TryGetProperty("asset", out var assetJson) || assetJson.GetString() is not { } assetText)
+        {
+            return Error.Permanent("timeline.missing_visual", $"{index}. sahne için görsel yok.");
+        }
+
+        var ids = element.TryGetProperty("segments", out var segmentsJson)
+            ? segmentsJson.EnumerateArray().Select(e => e.GetString() ?? string.Empty).ToList()
+            : [];
+
+        if (ids.Count == 0)
+        {
+            // Plan bilgisi yoksa birebir eşleşmeye düşülüyor.
+            if (index >= segments.Count)
+            {
+                return Error.Permanent("timeline.scene_without_audio",
+                    $"{index}. sahnenin sesi yok.");
+            }
+
+            var fallback = segments[index];
+
+            return Result.Success<(Ms, Ms, IReadOnlyList<string>, AssetRef)>(
+                (fallback.Start, fallback.Duration, [fallback.Id], AssetRef.Create(assetText)));
+        }
+
+        var start = element.TryGetProperty("start_ms", out var startJson)
+            ? new Ms(startJson.GetInt32())
+            : segments.First(s => s.Id == ids[0]).Start;
+
+        var duration = element.TryGetProperty("duration_ms", out var durationJson)
+            ? new Ms(durationJson.GetInt32())
+            : segments.Where(s => ids.Contains(s.Id)).Aggregate(Ms.Zero, (a, s) => a + s.Duration);
+
+        return Result.Success<(Ms, Ms, IReadOnlyList<string>, AssetRef)>(
+            (start, duration, ids, AssetRef.Create(assetText)));
     }
 }

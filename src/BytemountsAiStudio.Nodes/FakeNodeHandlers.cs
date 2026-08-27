@@ -381,7 +381,20 @@ public sealed class VisualResolveHandler(
             return Error.Permanent("visual.no_segments", "Ses parçaları bulunamadı.");
         }
 
-        var sceneCount = segments.GetArrayLength();
+        // P1-16: görsel yönergesi artık sahne planından geliyor.
+        //
+        // Önceden istem `"{konu} — sahne {n}"` idi ve üretilen kareler
+        // cümleyle hiç ilgili değildi — konu doğru, sahne rastgeleydi.
+        // Plan her sahneye kendi cümlesinden türetilmiş bir istem veriyor.
+        var plan = BuildPlan(context.RunContext, tts, topic);
+
+        if (plan.IsFailure)
+        {
+            return Result.Failure<JsonElement>(plan.Error);
+        }
+
+        var scenes = plan.Value.Scenes;
+        var sceneCount = scenes.Count;
 
         // Gorsel uretimi PARALEL: her biri 20-40 saniye suruyor ve birbirinden
         // bagimsiz. Sirali yapildiginda uc gorsel 93 saniye aliyordu.
@@ -403,7 +416,7 @@ public sealed class VisualResolveHandler(
                 }
 
                 return (Index: index, Result: await GenerateAndStoreAsync(
-                    topic, index, canvas, context, cancellationToken).ConfigureAwait(false));
+                    scenes[index].Direction, canvas, context, cancellationToken).ConfigureAwait(false));
             }
             finally
             {
@@ -423,12 +436,58 @@ public sealed class VisualResolveHandler(
 
         // Paralel calistiklari icin sira karisik gelebilir; sahne indeksine
         // gore siralaniyor.
+        // SAHNE LİSTESİ çıktıya giriyor, yalnızca görseller değil.
+        //
+        // Sahne sayısı ses parçası sayısıyla aynı OLMAYABİLİR: kısa
+        // cümleler birleşiyor. Timeline birebir varsayarsa birleşen
+        // sahnelerde eşleşme kayar ve ses ile görsel ayrışır — üstelik
+        // yalnızca kısa cümle içeren senaryolarda, yani seyrek ve zor
+        // fark edilen bir hata olurdu.
+        //
+        // Yönerge de yazılıyor: bir görsel konuyla ilgisiz çıktığında
+        // "hangi istemle üretildi" sorusu kayıttan cevaplanabilsin.
         var assets = results
             .OrderBy(r => r.Index)
-            .Select(r => (object)new { scene = r.Index, asset = r.Result.Value })
+            .Select(r => (object)new
+            {
+                scene = r.Index,
+                asset = r.Result.Value,
+                start_ms = scenes[r.Index].Start.Value,
+                duration_ms = scenes[r.Index].Duration.Value,
+                segments = scenes[r.Index].SourceSegments
+                    .Select(i => $"s{i.ToString(CultureInfo.InvariantCulture)}")
+                    .ToList(),
+                query = scenes[r.Index].Direction.SearchQuery,
+                prompt = scenes[r.Index].Direction.ImagePrompt,
+            })
             .ToList();
 
-        return Result.Success(NodeJson.From(new { images = assets }));
+        return Result.Success(NodeJson.From(new { images = assets, style = plan.Value.Style }));
+    }
+
+    /// Ses parçalarının ÖLÇÜLEN sürelerinden sahne planı kurar.
+    ///
+    /// Süre buradan geliyor, senaryodan tahmin edilmiyor (ADR-006).
+    /// Sahne metni de ses parçasının kendi metninden okunuyor: senaryoyu
+    /// ikinci kez bölmek, iki bölmenin ayrışma riskini getirirdi.
+    private static Result<ScenePlan> BuildPlan(JsonElement runContext, JsonElement tts, string topic)
+    {
+        var language = LanguageTag.Create(NodeJson.Text(runContext, "topic.language") ?? "tr-TR");
+        var style = VisualStyle.Get(NodeJson.Text(runContext, "input.style"));
+
+        var sentences = new List<string>();
+        var durations = new List<Ms>();
+
+        foreach (var segment in tts.GetProperty("segments").EnumerateArray())
+        {
+            sentences.Add(segment.TryGetProperty("speech_text", out var text)
+                ? text.GetString() ?? string.Empty
+                : string.Empty);
+
+            durations.Add(new Ms(segment.GetProperty("duration_ms").GetInt32()));
+        }
+
+        return ScenePlanner.Plan(sentences, durations, topic, language, style);
     }
 
     /// Es zamanli gorsel uretim siniri.
@@ -442,15 +501,17 @@ public sealed class VisualResolveHandler(
     private static readonly TimeSpan LaunchStagger = TimeSpan.FromMilliseconds(400);
 
     private async Task<Result<string>> GenerateAndStoreAsync(
-        string topic, int index, Canvas canvas, NodeContext context, CancellationToken cancellationToken)
+        VisualDirection direction, Canvas canvas, NodeContext context, CancellationToken cancellationToken)
     {
+        var index = direction.SceneIndex;
+
         var image = await images.GenerateAsync(
             new ImagePrompt
             {
-                Text = $"{topic} — sahne {index.ToString(CultureInfo.InvariantCulture)}",
+                Text = direction.ImagePrompt,
                 Width = canvas.Width,
                 Height = canvas.Height,
-                Seed = index,
+                Seed = direction.Seed,
             },
             // Idempotency anahtarina sahne indeksi ekleniyor: eklenmezse uc
             // sahne ayni anahtari paylasir ve onbellek hepsine ayni gorseli

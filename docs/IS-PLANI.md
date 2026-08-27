@@ -150,8 +150,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 1.D Görsel, timeline, render
 
-- [ ] **P1-16** `3p` — Scene Planner + Visual Director (arama terimi + AI prompt + stil)
-  - *Bitti:* Sahne sınırları senaryodan, süreler sesten geliyor (regresyon testi)
+- [x] **P1-16** `3p` — Scene Planner + Visual Director (arama terimi + AI prompt + stil)
+  - *Bitti:* ✔ 27 Ağu 2026 — Sahne SINIRLARI senaryodan, SÜRELER ölçülen sesten (ADR-006); regresyon testi ters ölçümle de sabitliyor, yoksa metin uzunluğuyla tesadüfen aynı yönde çıkıp geçerdi. Görsel yönetmen iki AYRI çıktı veriyor: stok araması için kısa terim, AI üretimi için bağlamlı istem — ihtiyaçları zıt, tek metin ikisini de kötüleştirirdi (ilk hâlde istem `"{konu} — sahne {n}"` idi ve kareler cümleyle ilgisizdi). Kural tabanlı, model çağırmıyor: sahne başına LLM çağrısının kazancı belirsiz ve aynı senaryo her koşuda aynı görseli vermeli. Olumsuz yönerge (`no text, no watermark`) her istemde — üretilen görseldeki uydurma yazı en sık kusur ve videoda okunuyor. Çok kısa sahneler İLERİ yönde birleşiyor (geriye birleştirmek ilk cümleyi açıkta bırakırdı) ve toplam süre korunuyor. Birleşme sahne sayısını ses parçası sayısından ayırdığı için `TimelineBuilder` birebir varsayımından kurtarıldı — o varsayım yalnızca kısa cümleli senaryolarda, seyrek ve teşhisi zor bir ses–görsel kayması olarak kırılacaktı. 41 test (26 planlayıcı/yönetmen + 13 timeline + 2 regresyon)
 - [x] **P1-17a** `2p` — Stok görsel adaptörü: **Openverse** (Creative Commons, anahtarsız) + lisans filtresi
   - *Bitti:* ✔ 27 Ağu 2026 — Openverse'ün varsayılan sonuçları `by-nc-nd` geliyor ve **NoDerivatives kuralı Ken Burns hareketini bile ihlal eder**. Bu yüzden `license_type=commercial,modification` filtresi koda gömüldü ve konfigürasyondan kapatılamıyor; dönen her sonuç ayrıca `by/by-sa/cc0/pdm` listesine karşı ikinci kez doğrulanıyor — API davranışı değişirse sessizce ihlal etmeyelim. Atıf bilgisi varlıkla birlikte saklanıyor
 - [ ] **P1-17** `3p` — Stok görsel adaptörü (Pexels) + indirme + **lisans kaydı**
