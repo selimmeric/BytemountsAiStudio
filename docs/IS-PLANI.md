@@ -139,14 +139,18 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [ ] **P1-12** `4p` — Script Agent + format şablonları (hook–list–payoff), `display_text`/`speech_text` ayrımı
   - *Bitti:* Knowledge base dışı iddia üretilirse QC yakalıyor
+- [x] **P1-13b** `1p` — Normalizasyonun BAĞLANMASI + `display_text`/`speech_text` ayrımı
+  - *Bitti:* ✔ 27 Ağu 2026 — P1-13 yazılmıştı ama **bağlanmamıştı**: ham cümle doğrudan TTS'e gidiyordu, yani "1453" harf harf okunuyordu. Artık ekranda görünen ve seslendirilen metin ayrı ve ikisi de kayda giriyor. Altyazı EKRANDAKİ metni gösteriyor: sağlayıcının kelime zamanlaması seslendirilen metne ait ve normalizasyon metni değiştirdiyse o zamanlamalar başka sözcüklere işaret ediyor ("1453" tek kelime, karşılığı beş kelime) — bire bir eşlemeye kalkmak hem altyazıyı kaydırır hem ekranda sayının harfe açılmış hâlini yazardı
 - [x] **P1-13** `3p` — `ISpeechNormalizer`: dil başına sayı/tarih/kısaltma/para normalizasyonu
   - *Bitti:* ✔ 27 Ağu 2026 — Türkçe + İngilizce, kural tabanlı (LLM değil: aynı sayı her videoda aynı okunmalı). Türkçe'de bin/yüz önündeki "bir" düşüyor; İngilizce'de 1453 "fourteen fifty-three" okunuyor. Yüzde/para sayıdan önce işleniyor, binlik ayırıcı tek sayı sayılıyor. Desteklenmeyen dil metni olduğu gibi döndürüyor — üçüncü dili engellememek için. 30 test
 - [x] **P1-14a** `2p` — TTS adaptörü: **Windows yerel konuşma sentezi** (anahtarsız)
   - *Bitti:* ✔ 27 Ağu 2026 — WinRT üzerinden `Microsoft Tolga` (tr-TR) ile GERÇEK Türkçe seslendirme. PowerShell alt süreci kullanılıyor ki Windows bağımlılığı derleme zamanına değil çalışma zamanına hapsedilsin — Linux CI derlemeye devam ediyor. Metin base64 ile geçiyor: senaryodaki bir tırnak betiği bozamaz
 - [ ] **P1-14** `2p` — TTS adaptörü + segment üretimi + gerçek süre ölçümü
   - *Bitti:* ElevenLabs / OpenAI TTS. **API anahtarı bekliyor**
+- [x] **P1-15a** `2p` — Kelime zamanları: **ölçüm yoksa dağıtım** (ara çözüm)
+  - *Bitti:* ✔ 27 Ağu 2026 — Bu iş, gerçek bir kusuru kapatmak için öne alındı: Windows TTS kelime zamanlaması vermiyor, zamanlama olmayınca ipucu üretilemiyordu ve **GERÇEK videolar altyazısız çıkıyordu** — sahte hatta altyazı vardı, gerçek hatta yoktu, ve bu fark hiçbir yerde görünmüyordu. Süre kelimelere karakter sayısına göre dağıtılıyor (eşit paylaştırmak "bir" ile "arkeologların"a aynı süreyi verirdi) ve noktalama sonrasına es ağırlığı konuyor — saymazsak altyazı sesin ÖNÜNE geçiyor, ki arkada kalmaktan daha rahatsız edici. Dağıtım bir hizalama DEĞİL ve öyle iddia edilmiyor: çıktıda `timings_estimated` bayrağı var, bir kayma araştırılırken ilk bakılacak şey o
 - [ ] **P1-15** `3p` — Kelime zamanları: önce TTS'ten, yoksa ASR sidecar
-  - *Bitti:* İki yol da aynı şemayı dönüyor; sidecar kapalıyken TTS yolu çalışıyor
+  - *Bitti:* Gerçek hizalama: ElevenLabs'in kendi zamanlaması ya da WhisperX (P1-04). Öncelik sırası kodda kurulu; P1-15a üçüncü sıradaki yedek
 
 ### 1.D Görsel, timeline, render
 

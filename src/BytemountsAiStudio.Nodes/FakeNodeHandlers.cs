@@ -265,6 +265,12 @@ public sealed class TtsSynthesizeHandler(
 
     public QueueClass Queue => QueueClass.Tts;
 
+    /// Dil başına konuşma normalizasyonu (P1-13).
+    ///
+    /// Kayıt uzun süre YAZILI ama BAĞLANMAMIŞ durdu: ham cümle doğrudan
+    /// TTS'e gidiyordu, yani "1453" harf harf okunuyordu. Bağlantı burada.
+    private static readonly SpeechNormalizerRegistry Speech = SpeechNormalizerRegistry.Default();
+
     public async Task<Result<JsonElement>> ExecuteAsync(NodeContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -282,13 +288,18 @@ public sealed class TtsSynthesizeHandler(
         var cues = new List<object>();
         var cursor = Ms.Zero;
         var index = 0;
+        var estimated = false;
 
         foreach (var element in sentences.EnumerateArray())
         {
-            var text = element.GetString() ?? string.Empty;
+            // §20.3'ün ayrımı: EKRANDA görünen metin ile SESLENDİRİLEN
+            // metin aynı değil. "1453" ekranda öyle yazılır, "bin dört
+            // yüz elli üç" diye okunur.
+            var displayText = element.GetString() ?? string.Empty;
+            var speechText = Speech.Normalize(language, displayText);
 
             var speech = await tts.SynthesizeAsync(
-                new TtsRequest { SpeechText = text, VoiceId = voiceId, Language = language },
+                new TtsRequest { SpeechText = speechText, VoiceId = voiceId, Language = language },
                 ScriptGenerateHandler.Context(context),
                 cancellationToken).ConfigureAwait(false);
 
@@ -330,13 +341,29 @@ public sealed class TtsSynthesizeHandler(
                 asset = stored.Value.Ref.ToString(),
                 start_ms = cursor.Value,
                 duration_ms = measured.Value,
-                speech_text = text,
+                // İkisi de yazılıyor: sahne planlayıcı ekranda görüneni,
+                // sorun giderme okunanı istiyor.
+                display_text = displayText,
+                speech_text = speechText,
             });
+
+            // ALTYAZI EKRANDAKİ METNİ GÖSTERİYOR, okunanı değil.
+            //
+            // Sağlayıcının kelime zamanlaması SESLENDİRİLEN metne ait.
+            // Normalizasyon metni değiştirdiyse o zamanlamalar başka
+            // sözcüklere işaret ediyor: "1453" tek kelime, karşılığı beş
+            // kelime. Bire bir eşlemeye kalkmak altyazıyı kaydırırdı, ve
+            // ekranda "bin dört yüz elli üç" yazması da yanlış olurdu.
+            var normalizationChangedText = !string.Equals(displayText, speechText, StringComparison.Ordinal);
+
+            var timings = speech.Value.Value.WordTimings.Count > 0 && !normalizationChangedText
+                ? speech.Value.Value.WordTimings
+                : WordTimingEstimator.Distribute(displayText, measured);
 
             // Kelime zamanları segment içinde 0'dan başlıyor; mutlak zamana
             // kaydırılıyor. Kaydırmayı unutmak tüm altyazıyı videonun başına
             // toplardı.
-            foreach (var word in speech.Value.Value.WordTimings)
+            foreach (var word in timings)
             {
                 cues.Add(new
                 {
@@ -347,6 +374,10 @@ public sealed class TtsSynthesizeHandler(
                 });
             }
 
+            // Zamanlamanın ÖLÇÜLDÜĞÜ mü DAĞITILDIĞI mı kayda giriyor.
+            // Bir altyazı kayması araştırılırken ilk bakılacak şey bu.
+            estimated |= speech.Value.Value.WordTimings.Count == 0 || normalizationChangedText;
+
             cursor += measured;
             index++;
         }
@@ -356,6 +387,10 @@ public sealed class TtsSynthesizeHandler(
             segments,
             cues,
             total_ms = cursor.Value,
+            // true = kelime zamanlari OLCULMEDI, dagitildi (P1-15 ara
+            // cozum). Gercek hizalama TTS'in kendi zamanlamasindan ya da
+            // ASR yan servisinden gelir.
+            timings_estimated = estimated,
         }));
     }
 }
@@ -480,10 +515,16 @@ public sealed class VisualResolveHandler(
 
         foreach (var segment in tts.GetProperty("segments").EnumerateArray())
         {
-            sentences.Add(segment.TryGetProperty("speech_text", out var text)
-                ? text.GetString() ?? string.Empty
-                : string.Empty);
+            // EKRANDAKİ metin isteniyor, okunan değil: görsel yönergesi
+            // "bin dört yüz elli üç"ten değil "1453"ten türemeli — sayının
+            // harfe açılmış hâli anahtar kelime çıkarımını bozar.
+            var text = segment.TryGetProperty("display_text", out var display)
+                ? display.GetString()
+                : segment.TryGetProperty("speech_text", out var speech)
+                    ? speech.GetString()
+                    : null;
 
+            sentences.Add(text ?? string.Empty);
             durations.Add(new Ms(segment.GetProperty("duration_ms").GetInt32()));
         }
 
