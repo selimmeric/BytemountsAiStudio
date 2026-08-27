@@ -114,10 +114,11 @@ public sealed class MechanicalQcTests
         Assert.Equal(RetryTarget.None, report.Target);
     }
 
+    /// §14.1'in on iki kontrolu + muzik lisansi (P2-09).
     [Fact]
-    public void OnIkiKontrol_Kosuyor()
+    public void OnUcKontrol_Kosuyor()
     {
-        Assert.Equal(12, MechanicalQc.Run(Healthy()).Checks.Count);
+        Assert.Equal(13, MechanicalQc.Run(Healthy()).Checks.Count);
     }
 
     [Fact]

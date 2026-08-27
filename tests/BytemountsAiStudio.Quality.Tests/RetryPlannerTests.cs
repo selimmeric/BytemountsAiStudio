@@ -1,3 +1,4 @@
+using BytemountsAiStudio.Media.Timeline;
 using BytemountsAiStudio.Quality;
 
 namespace BytemountsAiStudio.Quality.Tests;
@@ -170,5 +171,55 @@ public sealed class RetryPlannerTests
 
         Assert.Contains("Timeline", text, StringComparison.Ordinal);
         Assert.Contains("2", text, StringComparison.Ordinal);
+    }
+}
+
+/// Müzik lisans kontrolünün testleri (P2-09).
+///
+/// Kabul kriteri: **lisanssız müzik varlığı yayına giremiyor
+/// (bloklayıcı kontrol).**
+public sealed class MusicLicenseCheckTests
+{
+    private static MusicLicense Complete() => new()
+    {
+        Name = "CC BY 3.0",
+        Author = "Zeropage",
+        RequiresAttribution = true,
+        CapturedAt = DateTimeOffset.UtcNow,
+    };
+
+    [Fact]
+    public void TamKanit_Yeterli()
+    {
+        Assert.True(Complete().IsComplete);
+    }
+
+    /// Atıf gerekiyorsa YAZAR ADI ŞART: "CC BY" deyip yazarı bilmemek,
+    /// atfı yapılamaz kılıyor ve lisansı ihlal ediyor.
+    [Fact]
+    public void AtifGerekiyorAmaYazarYok_Yetersiz()
+    {
+        Assert.False((Complete() with { Author = null }).IsComplete);
+        Assert.False((Complete() with { Author = "   " }).IsComplete);
+    }
+
+    /// Atıf gerekmiyorsa yazar da gerekmiyor: `cc0` ve `pdm` böyle.
+    [Fact]
+    public void AtifGerekmiyorsa_YazarSartDegil()
+    {
+        var cc0 = new MusicLicense
+        {
+            Name = "CC0",
+            RequiresAttribution = false,
+            CapturedAt = DateTimeOffset.UtcNow,
+        };
+
+        Assert.True(cc0.IsComplete);
+    }
+
+    [Fact]
+    public void LisansAdiBos_Yetersiz()
+    {
+        Assert.False((Complete() with { Name = "  " }).IsComplete);
     }
 }

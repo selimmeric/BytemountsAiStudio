@@ -94,6 +94,42 @@ public sealed record MusicBed
     public Ms FadeIn { get; init; } = new(1200);
 
     public Ms FadeOut { get; init; } = new(2000);
+
+    /// LİSANS KANITI (§2.3/13).
+    ///
+    /// Nullable ve bilinçli öyle: eksikliği GÖRÜLEBİLİR olmalı.
+    /// Zorunlu kılsaydık çağıran taraf boş bir kayıt uydurup geçerdi
+    /// ve kontrol hiçbir şey yakalamazdı. Bloklayıcı QC kuralı tam
+    /// olarak bu alanın dolu olup olmadığına bakıyor — Content ID
+    /// talebi kanalın gelirini götürüyor ve bu, düzeltilebilir bir
+    /// kusur değil.
+    public MusicLicense? License { get; init; }
+}
+
+/// Müzik varlığının lisans kanıtı (P2-09).
+public sealed record MusicLicense
+{
+    public required string Name { get; init; }
+
+    public string? Author { get; init; }
+
+    public Uri? Url { get; init; }
+
+    /// Atıf zorunluysa video açıklamasına girmek ZORUNDA.
+    public bool RequiresAttribution { get; init; }
+
+    /// Lisansın hangi anda okunduğu. Kurallar değişiyor ve "o gün ne
+    /// yazıyordu" sorusunun cevabı ancak alındığı anda saklanmışsa
+    /// var.
+    public required DateTimeOffset CapturedAt { get; init; }
+
+    /// Kanıt yeterli mi.
+    ///
+    /// Atıf gerekiyorsa YAZAR ADI ŞART: "CC BY" deyip yazarı
+    /// bilmemek, atfı yapılamaz kılıyor ve lisansı ihlal ediyor.
+    public bool IsComplete
+        => !string.IsNullOrWhiteSpace(Name)
+           && (!RequiresAttribution || !string.IsNullOrWhiteSpace(Author));
 }
 
 public sealed record DuckingSpec

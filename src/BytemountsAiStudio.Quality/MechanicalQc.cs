@@ -121,7 +121,56 @@ public static class MechanicalQc
                 MetadataWithinLimits(input),
                 ThumbnailValid(input),
                 TopicIsUnique(input),
+                MusicIsLicensed(input),
             ],
+        };
+    }
+
+    // 13 — Müzik lisans kanıtı taşıyor (P2-09, §2.3/13)
+    //
+    // BLOKLAYICI ve görsellerden daha sert bir kural. Content ID
+    // sistemi müziği otomatik tanıyor; bir talep, kanalın o videodan
+    // gelen gelirinin tamamını götürüyor ve bazen kanalın tamamına
+    // ihtar geliyor. Bir görselde atıf eksikliği düzeltilebilir bir
+    // kusur, müzikte düzeltilemez bir hasar.
+    //
+    // MÜZİK YOKSA KONTROL GEÇİYOR: müziksiz bir video tamamen
+    // geçerli. Düşürmek, müziksiz her videoyu bloklamak olurdu.
+    private static CheckResult MusicIsLicensed(QcInput input)
+    {
+        const string code = "qc.music_license";
+        const string name = "Müzik lisans kanıtı taşıyor";
+
+        if (input.Timeline?.Audio.Music is not { } music)
+        {
+            return new CheckResult
+            {
+                Code = code,
+                Name = name,
+                Passed = true,
+                Severity = CheckSeverity.Blocking,
+                Weight = 5,
+                Detail = "müzik yok",
+            };
+        }
+
+        var complete = music.License is { } license && license.IsComplete;
+
+        return new CheckResult
+        {
+            Code = code,
+            Name = name,
+            Passed = complete,
+            Severity = CheckSeverity.Blocking,
+            Weight = 5,
+            Detail = complete
+                ? music.License!.Name
+                : music.License is null
+                    ? "lisans kaydı YOK"
+                    : "lisans eksik: atıf gerekiyor ama yazar bilinmiyor",
+            // Müzik seçimi timeline'da yapılıyor; oraya dönmek
+            // gerekiyor. Senaryoya dönmek her şeyi yeniden üretirdi.
+            Target = complete ? RetryTarget.None : RetryTarget.Timeline,
         };
     }
 

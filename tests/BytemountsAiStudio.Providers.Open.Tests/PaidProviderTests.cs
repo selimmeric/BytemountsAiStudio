@@ -365,3 +365,162 @@ public sealed class ElevenLabsTtsProviderTests
         Assert.True(new ElevenLabsTtsProvider(new HttpClient()).SupportsWordTimings);
     }
 }
+
+/// Openverse müzik sağlayıcısının testleri (P2-09).
+///
+/// Ağa çıkılmıyor. Asıl sınanan şey LİSANS SÜZGECİ: lisans kanıtı
+/// olmayan müzik yayına giremez ve Content ID talebi kanalın gelirini
+/// götürüyor — bu, görsellerdeki atıf eksikliğinden farklı olarak
+/// düzeltilemez bir hasar.
+public sealed class OpenverseMusicProviderTests
+{
+    private const string Reply = """
+        {"results":[
+          {"title":"Ambient Dance","url":"https://x/a.mp3","creator":"Zeropage",
+           "license":"by","license_version":"3.0","license_url":"https://x/by",
+           "duration":228000},
+          {"title":"Serbest","url":"https://x/b.mp3","creator":"Kimse",
+           "license":"cc0","license_version":"1.0","duration":90000},
+          {"title":"Paylas-ayni","url":"https://x/c.mp3","license":"by-sa","duration":300000},
+          {"title":"Ticari degil","url":"https://x/d.mp3","license":"by-nc","duration":300000},
+          {"title":"Suresi yok","url":"https://x/e.mp3","license":"cc0"},
+          {"title":"Cok kisa","url":"https://x/f.mp3","license":"cc0","duration":5000}
+        ]}
+        """;
+
+    private static OpenverseMusicProvider Provider(StubHandler handler)
+        => new(new HttpClient(handler));
+
+    private static MusicQuery Query(int minimumMs = 60_000)
+        => new() { Mood = "ambient", MinimumDuration = new BytemountsAiStudio.Core.Time.Ms(minimumMs) };
+
+    /// ShareAlike LİSTEDE DEĞİL: türev eserin aynı lisansla yayılmasını
+    /// istiyor ve arka plan müziği videonun tamamını türev hâline
+    /// getiriyor — kanalın kendi içeriğini de o lisansa bağlamak
+    /// demek.
+    [Fact]
+    public async Task YasakLisanslar_Eleniyor()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, Reply);
+
+        var found = await Provider(handler).FindAsync(
+            Query(), ProviderContext.ForTest(), CancellationToken.None);
+
+        Assert.True(found.IsSuccess);
+
+        var titles = found.Value.Value.Select(t => t.Title).ToList();
+
+        Assert.DoesNotContain("Paylas-ayni", titles);
+        Assert.DoesNotContain("Ticari degil", titles);
+    }
+
+    /// SÜRESİ BİLİNMEYEN parça atlanıyor: videodan kısa bir müzik
+    /// ortada kesiliyor ve o kesinti izleyicinin fark ettiği ilk şey
+    /// oluyor.
+    [Fact]
+    public async Task SuresizVeKisaParcalar_Eleniyor()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, Reply);
+
+        var found = await Provider(handler).FindAsync(
+            Query(minimumMs: 60_000), ProviderContext.ForTest(), CancellationToken.None);
+
+        var titles = found.Value.Value.Select(t => t.Title).ToList();
+
+        Assert.DoesNotContain("Suresi yok", titles);
+        Assert.DoesNotContain("Cok kisa", titles);
+    }
+
+    /// ATIF İSTEMEYEN tercih ediliyor. Bu bir kolaylık değil risk
+    /// azaltma: CC BY'de atıf açıklamaya girmek zorunda ve o açıklama
+    /// sonradan kısalırsa lisans ihlal ediliyor.
+    [Fact]
+    public async Task Secim_AtifIstemeyeniTercihEdiyor()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, Reply);
+
+        var selected = await Provider(handler).SelectAsync(
+            Query(), ProviderContext.ForTest(), CancellationToken.None);
+
+        Assert.True(selected.IsSuccess);
+        Assert.Equal("Serbest", selected.Value.Value.Title);
+        Assert.False(selected.Value.Value.License.RequiresAttribution);
+    }
+
+    /// CC BY atıf zorunlu kılıyor ve bu bilgi videonun açıklamasına
+    /// girmek zorunda.
+    [Fact]
+    public async Task CcBy_AtifZorunluIsaretleniyor()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, Reply);
+
+        var found = await Provider(handler).FindAsync(
+            Query(), ProviderContext.ForTest(), CancellationToken.None);
+
+        var cc = found.Value.Value.Single(t => t.Title == "Ambient Dance");
+
+        Assert.True(cc.License.RequiresAttribution);
+        Assert.Equal("Zeropage", cc.License.Author);
+        Assert.Equal("CC BY 3.0", cc.License.Name);
+    }
+
+    /// Müzik bulunamaması GEÇİCİ: arama başka bir zaman başka sonuç
+    /// verebiliyor ve kalıcı saymak o kanalın bir daha hiç müzik
+    /// denememesi demekti.
+    [Fact]
+    public async Task HicUygunParcaYok_GeciciHata()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, """{"results":[]}""");
+
+        var selected = await Provider(handler).SelectAsync(
+            Query(), ProviderContext.ForTest(), CancellationToken.None);
+
+        Assert.True(selected.IsFailure);
+        Assert.Equal(ErrorKind.Transient, selected.Error.Kind);
+    }
+
+    /// Sürüm ÖNEMLİ: CC BY 2.0 ile 4.0'ın atıf gereklilikleri farklı.
+    [Theory]
+    [InlineData("by", "3.0", "CC BY 3.0")]
+    [InlineData("cc0", "1.0", "CC0 1.0")]
+    [InlineData("pdm", null, "Public Domain Mark")]
+    public void LisansAdi_SurumleBirlikte(string license, string? version, string expected)
+    {
+        Assert.Equal(expected, OpenverseMusicProvider.LicenseName(license, version));
+    }
+
+    [Fact]
+    public void RuhHali_AramaTerimineCevriliyor()
+    {
+        Assert.Equal("cinematic", OpenverseMusicProvider.MoodToTerms("cinematic"));
+        Assert.Equal("suspense", OpenverseMusicProvider.MoodToTerms("SUSPENSE"));
+    }
+
+    /// TEK KELİME, ve bu canlı sorgularla öğrenildi: Openverse
+    /// terimleri VE ile birleştiriyor. "ambient documentary
+    /// underscore" sıfır sonuç veriyor, "documentary" tek başına 240 —
+    /// ve boş sonuç sessizce "müzik yok" olarak geçiyordu.
+    [Theory]
+    [InlineData("cinematic")]
+    [InlineData("documentary")]
+    [InlineData("suspense")]
+    [InlineData("emotional")]
+    [InlineData("energetic")]
+    [InlineData("ambient")]
+    [InlineData("bilinmeyen")]
+    public void AramaTerimi_TekKelime(string mood)
+    {
+        Assert.DoesNotContain(' ', OpenverseMusicProvider.MoodToTerms(mood));
+    }
+
+    /// Bilinmeyen bir ruh hâli için ambient: arka planda en az dikkat
+    /// çeken tür ve yanlış seçim en az zarar veriyor.
+    [Theory]
+    [InlineData("boyle-bir-ruh-hali-yok")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void BilinmeyenRuhHali_AmbientaDusuyor(string? mood)
+    {
+        Assert.Contains("ambient", OpenverseMusicProvider.MoodToTerms(mood), StringComparison.Ordinal);
+    }
+}

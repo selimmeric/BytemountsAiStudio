@@ -346,6 +346,20 @@
       }
     },
     {
+      "key": "openverse-audio",
+      "role": "music",
+      "display_name": "Openverse (ses, Creative Commons)",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://api.openverse.org/v1/audio/",
+      "quality": "degisken",
+      "notes": "Anahtarsiz arka plan muzigi (P2-09). Lisans kurali gorsellerden DAHA SERT: Content ID muzigi otomatik taniyor ve bir talep kanalin gelirini goturuyor. `by-sa` KABUL EDILMIYOR - ShareAlike, arka plan muzigi videonun tamamini turev haline getirdigi icin kanalin kendi icerigini de o lisansa baglardi. Secim atif ISTEMEYENI (cc0/pdm) tercih ediyor. Terimler TEK KELIME: Openverse terimleri VE ile birlestiriyor ve uc kelimelik sorgular sifir sonuc veriyor.",
+      "limits": {
+        "requests_per_minute": null
+      }
+    },
+    {
       "key": "elevenlabs",
       "role": "tts",
       "display_name": "ElevenLabs",
