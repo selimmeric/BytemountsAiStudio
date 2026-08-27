@@ -232,8 +232,9 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Kalan:* İndirme + timeline'a bağlama; ducking zaten var (P0)
 - [ ] **P2-10** `3p` — DLQ triyaj ekranı: yeniden dene / node atla / run iptal
   - *Bitti:* Takılan run insan müdahalesiyle 3 tıkta kurtarılıyor
-- [ ] **P2-11** `3p` — Bölüm bazlı render + segment önbelleği
-  - *Bitti:* Tek sahne değişince yalnız o segment yeniden render ediliyor
+- [~] **P2-11** `3p` — Bölüm bazlı render + segment önbelleği
+  - *Kısmen:* 28 Ağu 2026 — Önbellek anahtarı yazıldı ve saf: "bu segment değişti mi" kararı, gerçek bir render yapılarak öğrenilecek bir şey olmamalı — render bu hattın en yavaş adımı. **Anahtar neye bağlı olmalı**: segmentin görüntüsünü belirleyen her şey (süre, görsel, Ken Burns, üst yazı, geçiş, tuval, font zinciri). Eksik bırakılan tek alan, o alan değiştiğinde **bayat** bir segmentin kullanılması demek — ve bayat kare, sessiz olduğu için hiç önbellek olmamasından kötü. **Anahtar neye bağlı olmamalı**: mutlak zaman ve sıra numarası. Girselerdi, önündeki bir sahne uzayınca ya da sıra değişince görüntüsü hiç değişmemiş bütün segmentler geçersiz olurdu — önbellek hiç yokmuş gibi davranırdı. Üst yazının zamanı sahneye göre ölçülüyor, aynı sebeple. Kabul kriteri **sayı olarak** sınanıyor: üç sahneli bir timeline'da ortadakinin görseli değişince yalnız 1 segment bayat, 2'si yeniden kullanılıyor. Anahtar sürümü var — düzeltilen bir çizim hatası eski segmentlerde yaşamaya devam ederse, o hata artık kodda görünmediği için teşhis edilemez. 14 test
+  - *Kalan:* Segmentlerin ayrı render edilip birleştirilmesi (ffmpeg concat)
 - [ ] **P2-12** `2p` — Sürekli mod: `continuous` strateji, günlük hedef, tür karışımı
   - *Bitti:* Sistem 12 saat kesintisiz koşuyor, log temiz
 - [ ] **P2-13** `2p` — 🏁 **Faz 2 kabul:** bir gecede 3–5 video insan müdahalesi olmadan hazır
