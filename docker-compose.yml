@@ -54,6 +54,24 @@ services:
     volumes:
       - seq-data:/data
 
+  # Meta arama motoru. Anahtarsız genel web araması için en sağlam yol.
+  # `--profile tools` ile ayrı başlatılıyor: her geliştirme oturumunda
+  # gerekmiyor ve boşuna bellek tüketmesin.
+  searxng:
+    image: searxng/searxng:latest
+    container_name: bmai-searxng
+    profiles: ["tools"]
+    restart: unless-stopped
+    environment:
+      # JSON çıktısı varsayılan olarak KAPALI geliyor; ayar dosyasıyla açılıyor.
+      SEARXNG_BASE_URL: "http://localhost:8888/"
+    ports:
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - ./docker/searxng:/etc/searxng:rw
+      - searxng-data:/var/cache/searxng
+
 volumes:
   postgres-data:
   seq-data:
+  searxng-data:

@@ -101,6 +101,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 1.A Sağlayıcılar ve düşük API bütçesi
 
+- [x] **P1-00** `2p` — **Sağlayıcı kataloğu:** `config/providers.json` + açılışta doğrulama + `bmai providers`
+  - *Bitti:* ✔ 27 Ağu 2026 — 18 sağlayıcı, 11'i anahtarsız. Katalog veri olduğu için hatası derlemede yakalanmıyordu; doğrulama açılışa çekildi: yönlendirmede tanımsız/kapalı sağlayıcı ya da anahtarı ortamda olmayan bir servis varsa sistem hiç açılmıyor. Anahtar geldiğinde değişen tek şey iki JSON satırı — kod değişmiyor. 7 test + depodaki gerçek kataloğu doğrulayan test
 - [ ] **P1-01** `3p` — Kimlik deposu: şifreli credential (ASP.NET Data Protection), kanal başına set, redaction
   - *Bitti:* Anahtarlar DB'de düz metin değil; loglara sızmıyor (test)
 - [x] **P1-02a** `2p` — LLM adaptörü: **Ollama (yerel)**
@@ -113,8 +115,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Üç uç nokta da durumsuz; sağlık kontrolü var; .NET tarafında `Fake` ile değiştirilebiliyor
 - [x] **P1-05a** `2p` — Search adaptörü: **Wikipedia resmî API** (anahtarsız)
   - *Bitti:* ✔ 27 Ağu 2026 — Arama + tam metin çekme tek sağlayıcıda. `extracts` düz metin dönüyor, HTML ayrıştırma gerekmiyor. Wikimedia'nın istediği tanımlayıcı User-Agent gönderiliyor — vermemek engellenme sebebi. 429/5xx geçici, diğerleri kalıcı
+- [x] **P1-05b** `1p` — Search adaptörü: **SearXNG** (kendi sunucunuzda, anahtarsız)
+  - *Bitti:* ✔ 27 Ağu 2026 — Docker `tools` profiliyle geliyor, JSON API'ye karşı doğrulandı. SearXNG varsayılanı JSON'u kapalı tutuyor; 403 alındığında hata mesajı doğrudan `formats` listesine `json` eklemeyi söylüyor. Alan adına göre kaynak tipi sınıflandırması var
 - [ ] **P1-05** `2p` — Search adaptörleri: SearXNG (self-host) + DuckDuckGo + **Wikipedia/Wikidata API**
-  - *Bitti:* SearXNG (self-host) + DuckDuckGo ekleri. **Anahtarsız yapılabilir, sıradaki iş**
+  - *Bitti:* Kalan: DuckDuckGo + Wikidata ekleri. SearXNG P1-05b'de tamamlandı
 - [ ] **P1-06** `3p` — WebFetch: robots.txt kontrolü, izinli alan listesi, ana içerik çıkarma, boyut/süre sınırı
   - *Bitti:* robots.txt yasaklı sayfa çekilmiyor; paywall tespit edilip atlanıyor
 - [ ] **P1-07** `4p` — Prompt registry: dosya bazlı sürümleme, run'a kayıt, eval fixture koşucusu
@@ -148,8 +152,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [ ] **P1-16** `3p` — Scene Planner + Visual Director (arama terimi + AI prompt + stil)
   - *Bitti:* Sahne sınırları senaryodan, süreler sesten geliyor (regresyon testi)
+- [x] **P1-17a** `2p` — Stok görsel adaptörü: **Openverse** (Creative Commons, anahtarsız) + lisans filtresi
+  - *Bitti:* ✔ 27 Ağu 2026 — Openverse'ün varsayılan sonuçları `by-nc-nd` geliyor ve **NoDerivatives kuralı Ken Burns hareketini bile ihlal eder**. Bu yüzden `license_type=commercial,modification` filtresi koda gömüldü ve konfigürasyondan kapatılamıyor; dönen her sonuç ayrıca `by/by-sa/cc0/pdm` listesine karşı ikinci kez doğrulanıyor — API davranışı değişirse sessizce ihlal etmeyelim. Atıf bilgisi varlıkla birlikte saklanıyor
 - [ ] **P1-17** `3p` — Stok görsel adaptörü (Pexels) + indirme + **lisans kaydı**
-  - *Bitti:* Her varlıkta lisans metni, yazar ve alınma tarihi dolu
+  - *Bitti:* Pexels kalitesi için. **API anahtarı bekliyor** — anahtarsız yol P1-17a'da açık
 - [x] **P1-18a** `1p` — AI görsel adaptörü: **Pollinations** (anahtarsız)
   - *Bitti:* ✔ 27 Ağu 2026 — Ücretsiz kullanıma açık AI görsel üretimi. Tohum veriliyorsa aynı prompt aynı görseli veriyor — render önbelleğini anlamlı kılan şey bu. Sunucu bazen hata sayfasını 200 ile döndürüyor; boyut ve içerik tipi kontrolü bunu yakalıyor
 - [ ] **P1-18** `1p` — AI görsel adaptörü + stok bulunamazsa fallback

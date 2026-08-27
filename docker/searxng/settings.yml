@@ -1,0 +1,21 @@
+# SearXNG geliştirme ayarları.
+#
+# Varsayılan kurulumda `json` biçimi KAPALI gelir ve API'den sorgu
+# yapılamaz; buradaki `formats` listesi onu açıyor.
+use_default_settings: true
+
+server:
+  # Yerel kurulum; gizli anahtar yalnızca oturum imzalama için.
+  secret_key: "bmai-dev-only-not-a-real-secret"
+  limiter: false
+  image_proxy: false
+
+search:
+  # API'nin JSON dönebilmesi için gerekli.
+  formats:
+    - html
+    - json
+  safe_search: 1
+
+general:
+  instance_name: "BytemountsAiStudio"

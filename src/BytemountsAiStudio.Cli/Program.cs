@@ -23,6 +23,7 @@ return command switch
     "pipeline" => await RunPipelineAsync(args).ConfigureAwait(false),
     "run" => await RunWorkflowAsync(args, open: false).ConfigureAwait(false),
     "real" => await RunWorkflowAsync(args, open: true).ConfigureAwait(false),
+    "providers" => ShowProviders(),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -49,6 +50,7 @@ static int Help()
                                         ANAHTARSIZ gercek saglayicilar:
                                         Ollama + Wikipedia + Pollinations +
                                         Windows TTS
+          bmai providers                saglayici katalogunu goster
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -249,12 +251,19 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
 
     // Tek surecli worker dongusu: uretimde bunu Worker host yapiyor,
     // burada CLI kendi kuyrugunu tuketiyor.
-    for (var i = 0; i < 400; i++)
+    // Dongu backoff ve erteleme surelerini beklemek zorunda: is `run_after`
+    // ile ileri tarihe atildiginda hemen alinamaz. Gecikmesiz dongu bosuna
+    // donup zaman asimina ugruyordu.
+    var deadline = DateTimeOffset.UtcNow.AddMinutes(10);
+
+    while (DateTimeOffset.UtcNow < deadline)
     {
         foreach (var queueClass in Enum.GetValues<QueueClass>())
         {
             await engine.ExecuteNextAsync("cli", queueClass, CancellationToken.None).ConfigureAwait(false);
         }
+
+        await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
 
         db.ChangeTracker.Clear();
 
@@ -303,4 +312,54 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
 
     Console.Error.WriteLine("Run zaman asimina ugradi.");
     return 5;
+}
+
+
+/// Saglayici katalogunu gosterir (config/providers.json).
+///
+/// "Su an ne ile calisabiliyorum" ve "anahtar gelirse ne acilir" sorularinin
+/// tek cevap noktasi.
+static int ShowProviders()
+{
+    var path = Path.Combine(Directory.GetCurrentDirectory(), "config", "providers.json");
+    var catalog = BytemountsAiStudio.Contracts.Providers.ProviderCatalog.Load(path);
+
+    if (catalog.IsFailure)
+    {
+        Console.Error.WriteLine($"Katalog okunamadi: {catalog.Error}");
+        return 1;
+    }
+
+    var value = catalog.Value;
+
+    Console.WriteLine();
+    Console.WriteLine("  ANAHTARSIZ CALISANLAR");
+    Console.WriteLine("  " + new string('-', 74));
+
+    foreach (var role in new[] { "llm", "search", "image.stock", "image.generative", "tts", "asr", "publish" })
+    {
+        foreach (var provider in value.For(role))
+        {
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  {role,-18} {provider.DisplayName,-34} {provider.Cost}"));
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("  ANAHTAR BEKLEYENLER");
+    Console.WriteLine("  " + new string('-', 74));
+
+    foreach (var provider in value.AwaitingKeys())
+    {
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {provider.Role,-18} {provider.DisplayName,-34} {provider.KeyEnv}"));
+    }
+
+    var free = value.KeyFree().Count;
+    Console.WriteLine();
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"  Toplam {value.Providers.Count} saglayici; {free} tanesi anahtarsiz."));
+    Console.WriteLine();
+
+    return 0;
 }

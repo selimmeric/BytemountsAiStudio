@@ -204,8 +204,28 @@ public sealed class WorkflowEngine(
 
         if (outcome.IsFailure)
         {
-            await RecordExecutionAsync(run, node, handlerLease.Attempt, NodeState.Failed,
-                null, outcome.Error, elapsed, idempotencyKey, cancellationToken).ConfigureAwait(false);
+            // KAYNAK hatasi bir CALISTIRMA degil, bir ERTELEME. Node hic
+            // calismadi; `node_executions`'a yazmak iki sebeple yanlis:
+            //
+            //  1. Anlam: "bu node basarisiz oldu" demek olurdu, oysa hic
+            //     denenmedi. Tanilama ekraninda yaniltici gorunurdu.
+            //  2. Teknik: kuyruk kaynak hatasinda deneme sayacini geri
+            //     aliyor (ADR-011), dolayisiyla sonraki kiralama AYNI
+            //     attempt degerini uretiyor ve (run_id, node_id, attempt)
+            //     essiz kisiti ihlal ediliyor.
+            //
+            // Ikinci madde uretimde bir cokmeyle ortaya cikti; kayit
+            // `run_events`'e tasindi.
+            if (outcome.Error.Kind == ErrorKind.Resource)
+            {
+                await LogAsync(run.Id, node.Id, "warn",
+                    $"Ertelendi: {outcome.Error}", cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await RecordExecutionAsync(run, node, handlerLease.Attempt, NodeState.Failed,
+                    null, outcome.Error, elapsed, idempotencyKey, cancellationToken).ConfigureAwait(false);
+            }
 
             var disposition = await _queue.FailAsync(handlerLease, outcome.Error, cancellationToken)
                 .ConfigureAwait(false);

@@ -59,7 +59,18 @@ public sealed class PollinationsImageProvider(HttpClient http) : IImageProvider
 
             if (!response.IsSuccessStatusCode)
             {
-                return (int)response.StatusCode >= 500 || (int)response.StatusCode == 429
+                // 429 GECICI DEGIL, KAYNAK hatasi: hemen yeniden denemek
+                // ayni cevabi alir. Is kuyruguna erteleme sinyali gidiyor;
+                // deneme sayaci artmiyor ve run dusmuyor (ADR-011).
+                if ((int)response.StatusCode == 429)
+                {
+                    var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(20);
+
+                    return Error.Resource("pollinations.rate_limited",
+                        "Pollinations istek sinirini uyguladi.", retryAfter);
+                }
+
+                return (int)response.StatusCode >= 500
                     ? Error.Transient("pollinations.unavailable", $"HTTP {(int)response.StatusCode}")
                     : Error.Permanent("pollinations.rejected", $"HTTP {(int)response.StatusCode}");
             }

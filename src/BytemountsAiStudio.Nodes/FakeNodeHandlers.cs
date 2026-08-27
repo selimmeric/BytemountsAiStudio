@@ -325,51 +325,108 @@ public sealed class VisualResolveHandler(
             return Error.Permanent("visual.no_segments", "Ses parçaları bulunamadı.");
         }
 
-        var assets = new List<object>();
-        var index = 0;
+        var sceneCount = segments.GetArrayLength();
 
-        foreach (var _ in segments.EnumerateArray())
+        // Gorsel uretimi PARALEL: her biri 20-40 saniye suruyor ve birbirinden
+        // bagimsiz. Sirali yapildiginda uc gorsel 93 saniye aliyordu.
+        //
+        // Es zamanlilik sinirli: saglayicinin dakika basina istek siniri var
+        // ve sinirsiz paralellik 429 aliyor. Rate limit dekoratoru zaten
+        // koruyor ama gereksiz reddedilme uretmenin anlami yok.
+        using var gate = new SemaphoreSlim(MaxParallelImages);
+
+        var tasks = Enumerable.Range(0, sceneCount).Select(async index =>
         {
-            var image = await images.GenerateAsync(
-                new ImagePrompt
-                {
-                    Text = $"{topic} — sahne {index.ToString(CultureInfo.InvariantCulture)}",
-                    Width = canvas.Width,
-                    Height = canvas.Height,
-                    Seed = index,
-                },
-                ScriptGenerateHandler.Context(context),
-                cancellationToken).ConfigureAwait(false);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            if (image.IsFailure)
+            try
             {
-                return Result.Failure<JsonElement>(image.Error);
-            }
-
-            using var stream = new MemoryStream(image.Value.Value.Data.ToArray());
-            var stored = await storage.PutAsync(
-                stream,
-                new AssetMetadata
+                if (index > 0)
                 {
-                    Kind = AssetKind.Image,
-                    MimeType = "image/png",
-                    Width = canvas.Width,
-                    Height = canvas.Height,
-                    SourceProvider = images.Key,
-                    License = image.Value.Value.License,
-                },
-                cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(LaunchStagger, cancellationToken).ConfigureAwait(false);
+                }
 
-            if (stored.IsFailure)
-            {
-                return Result.Failure<JsonElement>(stored.Error);
+                return (Index: index, Result: await GenerateAndStoreAsync(
+                    topic, index, canvas, context, cancellationToken).ConfigureAwait(false));
             }
+            finally
+            {
+                gate.Release();
+            }
+        });
 
-            assets.Add(new { scene = index, asset = stored.Value.Ref.ToString() });
-            index++;
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        // Ilk hata tum node'u dusuruyor: eksik gorselle video uretmek
+        // sessizce bozuk bir cikti demek.
+        var failure = results.FirstOrDefault(r => r.Result.IsFailure);
+        if (failure.Result.IsFailure)
+        {
+            return Result.Failure<JsonElement>(failure.Result.Error);
         }
 
+        // Paralel calistiklari icin sira karisik gelebilir; sahne indeksine
+        // gore siralaniyor.
+        var assets = results
+            .OrderBy(r => r.Index)
+            .Select(r => (object)new { scene = r.Index, asset = r.Result.Value })
+            .ToList();
+
         return Result.Success(NodeJson.From(new { images = assets }));
+    }
+
+    /// Es zamanli gorsel uretim siniri.
+    ///
+    /// 3 ile denendi ve Pollinations 429 dondurdu: ucretsiz servisin
+    /// tolere ettigi es zamanlilik dusuk. 2 hem hizli hem guvenli.
+    private const int MaxParallelImages = 2;
+
+    /// Istekler arasi kucuk kayma. Ayni anda baslayan istekler ucretsiz
+    /// servislerde patlama (burst) olarak algilaniyor.
+    private static readonly TimeSpan LaunchStagger = TimeSpan.FromMilliseconds(400);
+
+    private async Task<Result<string>> GenerateAndStoreAsync(
+        string topic, int index, Canvas canvas, NodeContext context, CancellationToken cancellationToken)
+    {
+        var image = await images.GenerateAsync(
+            new ImagePrompt
+            {
+                Text = $"{topic} — sahne {index.ToString(CultureInfo.InvariantCulture)}",
+                Width = canvas.Width,
+                Height = canvas.Height,
+                Seed = index,
+            },
+            // Idempotency anahtarina sahne indeksi ekleniyor: eklenmezse uc
+            // sahne ayni anahtari paylasir ve onbellek hepsine ayni gorseli
+            // dondururdu.
+            ScriptGenerateHandler.Context(context) with
+            {
+                IdempotencyKey = $"{context.IdempotencyKey}:scene{index.ToString(CultureInfo.InvariantCulture)}",
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        if (image.IsFailure)
+        {
+            return Result.Failure<string>(image.Error);
+        }
+
+        using var stream = new MemoryStream(image.Value.Value.Data.ToArray());
+        var stored = await storage.PutAsync(
+            stream,
+            new AssetMetadata
+            {
+                Kind = AssetKind.Image,
+                MimeType = image.Value.Value.MimeType,
+                Width = image.Value.Value.Width,
+                Height = image.Value.Value.Height,
+                SourceProvider = images.Key,
+                License = image.Value.Value.License,
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return stored.IsFailure
+            ? Result.Failure<string>(stored.Error)
+            : Result.Success(stored.Value.Ref.ToString());
     }
 }
 

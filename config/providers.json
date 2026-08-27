@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "_comment": [
+    "Saglayici katalogu. Sistem bu dosyayi okuyarak hangi servisin hangi rolde",
+    "kullanilacagina karar verir. Yeni bir servis eklemek icin buraya bir kayit",
+    "girmek ve ProviderFactory'ye karsiligini yazmak yeterli.",
+    "",
+    "requires_key=false olanlar HICBIR anahtar istemiyor; sistem su an yalnizca",
+    "onlarla calisiyor (ADR-015). Anahtar geldiginde ilgili kaydin enabled",
+    "degeri true yapilip routing listesinin basina alinir - kod degismez."
+  ],
+
+  "providers": [
+    {
+      "key": "ollama",
+      "role": "llm",
+      "display_name": "Ollama (yerel model)",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "http://localhost:11434",
+      "quality": "orta",
+      "setup": "ollama pull qwen2.5:7b-instruct",
+      "notes": "Yerel calisir, sinirsiz, ag gerektirmez. Coder modelleri senaryo icin zayif; genel bir instruct modeli belirgin fark yaratir.",
+      "limits": { "requests_per_minute": null }
+    },
+    {
+      "key": "pollinations-text",
+      "role": "llm",
+      "display_name": "Pollinations Text",
+      "enabled": false,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://text.pollinations.ai",
+      "quality": "orta",
+      "notes": "Ollama'ya ag ustunden alternatif. Yerel model yoksa yedek.",
+      "limits": { "requests_per_minute": 10 }
+    },
+    {
+      "key": "openai",
+      "role": "llm",
+      "display_name": "OpenAI",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "OPENAI_API_KEY",
+      "cost": "ucretli",
+      "quality": "yuksek",
+      "notes": "Senaryo (strong katman) icin hedeflenen saglayici. Anahtar bekliyor.",
+      "limits": { "requests_per_minute": 500 }
+    },
+    {
+      "key": "gemini",
+      "role": "llm",
+      "display_name": "Google Gemini",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "GEMINI_API_KEY",
+      "cost": "ucretsiz kota + ucretli",
+      "quality": "yuksek",
+      "notes": "Cömert ucretsiz kotasi var; anahtar almak ucretsiz.",
+      "limits": { "requests_per_minute": 15 }
+    },
+
+    {
+      "key": "wikipedia",
+      "role": "search",
+      "display_name": "Wikipedia resmi API",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://{lang}.wikipedia.org/w/api.php",
+      "quality": "yuksek",
+      "notes": "Ansiklopedik icerigin ilk duragi. Tanimlayici User-Agent zorunlu. Hem arama hem tam metin.",
+      "limits": { "requests_per_second": 10 }
+    },
+    {
+      "key": "searxng",
+      "role": "search",
+      "display_name": "SearXNG (kendi sunucunuzda)",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "http://localhost:8888",
+      "quality": "yuksek",
+      "setup": "docker compose --profile tools up -d searxng",
+      "notes": "Meta arama motoru. Genel web aramasi icin anahtarsiz en saglam yol.",
+      "limits": { "requests_per_minute": 60 }
+    },
+    {
+      "key": "duckduckgo-ia",
+      "role": "search",
+      "display_name": "DuckDuckGo Instant Answer",
+      "enabled": false,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://api.duckduckgo.com",
+      "quality": "dusuk",
+      "notes": "Yalnizca ozet cevaplar dondurur, tam web aramasi degil. Yedek olarak isine yarar.",
+      "limits": { "requests_per_minute": 30 }
+    },
+    {
+      "key": "brave-search",
+      "role": "search",
+      "display_name": "Brave Search API",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "BRAVE_API_KEY",
+      "cost": "aylik 2000 sorgu ucretsiz",
+      "quality": "yuksek",
+      "notes": "Anahtar almak ucretsiz. Gercek web aramasi gerektiginde ilk tercih.",
+      "limits": { "requests_per_month": 2000 }
+    },
+
+    {
+      "key": "openverse",
+      "role": "image.stock",
+      "display_name": "Openverse (Creative Commons)",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://api.openverse.org/v1/images/",
+      "quality": "orta",
+      "notes": "LISANS FILTRESI KODA GOMULU: yalnizca ticari kullanima ve degistirmeye izin veren lisanslar. Varsayilan sonuclar by-nc-nd geliyor ve NoDerivatives kurali Ken Burns hareketini bile ihlal eder.",
+      "limits": { "requests_per_hour": 100 }
+    },
+    {
+      "key": "wikimedia-commons",
+      "role": "image.stock",
+      "display_name": "Wikimedia Commons",
+      "enabled": false,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://commons.wikimedia.org/w/api.php",
+      "quality": "orta",
+      "notes": "Tarihi ve cografi konularda guclu. Lisanslar dosya bazinda degisiyor, her birinin ayrica kontrolu gerekiyor.",
+      "limits": { "requests_per_second": 10 }
+    },
+    {
+      "key": "pexels",
+      "role": "image.stock",
+      "display_name": "Pexels",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "PEXELS_API_KEY",
+      "cost": "ucretsiz (anahtar gerekli)",
+      "quality": "yuksek",
+      "notes": "Gorsel kalitesi acik ara en iyisi. Anahtar almak ucretsiz ve dakikalar suruyor.",
+      "limits": { "requests_per_hour": 200 }
+    },
+
+    {
+      "key": "pollinations",
+      "role": "image.generative",
+      "display_name": "Pollinations",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "https://image.pollinations.ai/prompt/",
+      "quality": "orta",
+      "notes": "Anahtarsiz AI gorsel. Uretim suresi ongorulemez (gorsel basina 20-40 sn). Tohum verilirse ayni prompt ayni gorseli veriyor.",
+      "limits": { "requests_per_minute": 10 }
+    },
+    {
+      "key": "flux",
+      "role": "image.generative",
+      "display_name": "Flux (Replicate / fal.ai)",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "FLUX_API_KEY",
+      "cost": "ucretli (~0.003-0.04 USD/gorsel)",
+      "quality": "yuksek",
+      "notes": "Kalite ve hiz farki buyuk. Butce acildiginda ilk yukseltilecek kalem.",
+      "limits": { "requests_per_minute": 60 }
+    },
+
+    {
+      "key": "windows-speech",
+      "role": "tts",
+      "display_name": "Windows konusma sentezi (WinRT)",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "quality": "dusuk-orta",
+      "platform": "windows",
+      "voices": { "tr-TR": "Microsoft Tolga", "en-US": "Microsoft Zira" },
+      "notes": "Bu makinede kurulu. Kelime zamanlamasi VERMIYOR; altyazi icin ASR yedegi gerekiyor. Linux'ta calismaz.",
+      "limits": { "requests_per_minute": null }
+    },
+    {
+      "key": "piper",
+      "role": "tts",
+      "display_name": "Piper (yerel, capraz platform)",
+      "enabled": false,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "quality": "orta",
+      "setup": "piper binary + tr_TR ses modeli indirilmeli (~60 MB)",
+      "notes": "Windows TTS'in capraz platform karsiligi. Faz 4'te Linux'a gecerken gerekli olacak.",
+      "limits": { "requests_per_minute": null }
+    },
+    {
+      "key": "elevenlabs",
+      "role": "tts",
+      "display_name": "ElevenLabs",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "ELEVENLABS_API_KEY",
+      "cost": "ucretli (~2 USD / 10 dk video)",
+      "quality": "yuksek",
+      "notes": "Ses kalitesi farki en cok hissedilen kalem. Karakter zamanlamasi da donduruyor - ASR yedegini gereksiz kilar.",
+      "limits": { "requests_per_minute": 120 }
+    },
+
+    {
+      "key": "whisperx",
+      "role": "asr",
+      "display_name": "WhisperX (yerel)",
+      "enabled": false,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "quality": "yuksek",
+      "setup": "tools-sidecar (Python 3.12 sanal ortami)",
+      "notes": "Kelime seviyesi hizalama. TTS zamanlama vermediginde devreye girer.",
+      "limits": { "requests_per_minute": null }
+    },
+
+    {
+      "key": "youtube",
+      "role": "publish",
+      "display_name": "YouTube Data API v3",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "YOUTUBE_CLIENT_SECRET",
+      "cost": "ucretsiz (kota sinirli)",
+      "notes": "Gunluk 10.000 birim, yukleme 1.600 birim -> proje basina ~6 video/gun. Kapasite tavani bu.",
+      "limits": { "quota_units_per_day": 10000, "quota_units_per_publish": 1600 }
+    }
+  ],
+
+  "_routing_comment": "Sirali yedekleme: ilk calisani kullanilir. Anahtar geldiginde ucretli saglayici basa alinir.",
+
+  "routing": {
+    "llm": ["ollama"],
+    "search": ["wikipedia", "searxng"],
+    "image.stock": ["openverse"],
+    "image.generative": ["pollinations"],
+    "tts": ["windows-speech"],
+    "asr": [],
+    "publish": []
+  }
+}
