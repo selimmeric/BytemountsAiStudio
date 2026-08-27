@@ -136,6 +136,40 @@ public sealed record FilterNode
             Comment = $"ken burns, {frames} kare",
         };
 
+    /// Şeffaf bir katmanı ana görüntünün üzerine bindirir.
+    ///
+    /// `enable` aralığı verildiğinde katman yalnızca o pencerede görünür —
+    /// altyazı için kare dizisi üretmek yerine kullandığımız mekanizma bu
+    /// (§12.4). Görüntü tüm video boyunca girdi olarak durur, ama yalnızca
+    /// kendi zaman aralığında çizilir.
+    public static FilterNode Overlay(
+        StreamRef main, StreamRef layer, StreamRef output,
+        string x = "0", string y = "0",
+        (double StartSeconds, double EndSeconds)? enable = null)
+    {
+        var args = new List<FilterArg>
+        {
+            FilterArg.Named("x", x),
+            FilterArg.Named("y", y),
+        };
+
+        if (enable is { } window)
+        {
+            args.Add(FilterArg.Named("enable",
+                $"between(t,{window.StartSeconds.ToString("0.###", CultureInfo.InvariantCulture)}," +
+                $"{window.EndSeconds.ToString("0.###", CultureInfo.InvariantCulture)})"));
+        }
+
+        return new FilterNode
+        {
+            Filter = "overlay",
+            Inputs = [main, layer],
+            Outputs = [output],
+            Args = args,
+            Comment = enable is null ? "kalici katman" : "zamanli katman",
+        };
+    }
+
     public static FilterNode SetSar(StreamRef input, StreamRef output)
         => new()
         {

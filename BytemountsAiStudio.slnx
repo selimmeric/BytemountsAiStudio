@@ -15,6 +15,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/BytemountsAiStudio.Contracts.Tests/BytemountsAiStudio.Contracts.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Core.Tests/BytemountsAiStudio.Core.Tests.csproj" />
+    <Project Path="tests/BytemountsAiStudio.Media.Rendering.Tests/BytemountsAiStudio.Media.Rendering.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Media.Tests/BytemountsAiStudio.Media.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Persistence.Tests/BytemountsAiStudio.Persistence.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Providers.Fake.Tests/BytemountsAiStudio.Providers.Fake.Tests.csproj" />

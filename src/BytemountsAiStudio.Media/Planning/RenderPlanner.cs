@@ -18,9 +18,15 @@ public static class RenderPlanner
     /// boyutunda zoom yapmak, piksel ızgarasına oturmayan ara kareler üretir.
     private const double ZoomOverscan = 2.0;
 
+    /// Zamanli bir gorsel katman: altyazi ya da metin overlay'i.
+    /// Yollar dosya sisteminden gelir ama planlayici onlari yalnizca
+    /// tasir; okumaz. Saflik korunuyor.
+    public sealed record TimedLayer(string Path, Core.Time.TimeRange Range);
+
     public static Result Plan(
         TimelineDocument timeline,
-        IReadOnlyDictionary<string, string> resolvedPaths)
+        IReadOnlyDictionary<string, string> resolvedPaths,
+        IReadOnlyList<TimedLayer>? overlays = null)
     {
         ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(resolvedPaths);
@@ -80,6 +86,44 @@ public static class RenderPlanner
         {
             videoTail = new StreamRef("vcat", MediaKind.Video);
             nodes.Add(FilterNode.ConcatVideo(sceneOutputs, videoTail));
+        }
+
+        // Altyazi ve metin katmanlari birlestirilmis videonun uzerine biner.
+        // Sahne bazinda bindirmek daha "dogru" gorunurdu ama altyazi sahne
+        // sinirini asabiliyor; birlestirmeden sonra bindirmek bu sorunu
+        // tamamen ortadan kaldiriyor.
+        if (overlays is { Count: > 0 })
+        {
+            var totalSeconds = timeline.Duration.TotalSeconds;
+
+            for (var i = 0; i < overlays.Count; i++)
+            {
+                var layer = overlays[i];
+                var inputId = $"ovl{i}";
+
+                inputs.Add(new InputDecl
+                {
+                    Id = inputId,
+                    Path = layer.Path,
+                    Kind = InputKind.Image,
+                    Loop = true,
+                    // Katman tum video boyunca girdi olarak duruyor; ne zaman
+                    // GORUNECEGINI `enable` belirliyor. Girdiyi kendi araligina
+                    // kirpmak, overlay'in zaman eksenini kaydirirdi.
+                    DurationSeconds = totalSeconds,
+                    FrameRate = fps,
+                });
+
+                var next = new StreamRef($"ovlout{i}", MediaKind.Video);
+
+                nodes.Add(FilterNode.Overlay(
+                    videoTail,
+                    new StreamRef(inputId, MediaKind.Video),
+                    next,
+                    enable: (layer.Range.Start.TotalSeconds, layer.Range.End.TotalSeconds)));
+
+                videoTail = next;
+            }
         }
 
         var videoOut = new StreamRef("vout", MediaKind.Video);

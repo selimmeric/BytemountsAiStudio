@@ -77,8 +77,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — Escape ve indeks ataması tek noktada. **L2 regresyon testi geçiyor:** girdi sırası tersine çevrilince graf bozulmuyor, emitter indeksleri yeniden hesaplıyor. 4 test
 - [x] **P0-23** `4p` — Executor: süreç yönetimi, `-progress` ayrıştırma, iptal, ffprobe doğrulama, `.partial` → atomik taşıma
   - *Bitti:* ✔ 27 Ağu 2026 — FFmpeg süreç yönetimi, `-progress` ayrıştırma (%50/%100 gözlendi), iptal, ffprobe doğrulama (video/ses akışı + %1 süre toleransı), `.partial` → atomik taşıma. Uzantı sonda kalmalı — `.mp4.partial` FFmpeg'in muxer seçimini bozuyor
-- [ ] **P0-24** `5p` — Skia metin katmanı: HarfBuzz shaping, font fallback zinciri, altyazı kompozisyonu, kelime vurgusu
-  - *Bitti:* Türkçe + ikinci dil metni doğru diziliyor; eksik glif fallback'ten geliyor, tofu çıkmıyor
+- [x] **P0-24** `5p` — Skia metin katmanı: HarfBuzz shaping, font fallback zinciri, altyazı kompozisyonu, kelime vurgusu
+  - *Bitti:* ✔ 27 Ağu 2026 — SkiaSharp + font fallback zinciri. **Kare dizisi tuzağından kaçınıldı:** her vurgu durumu tek PNG — 13 sn'lik videoda 27 görüntü, 390 kare yerine. Kontur önce çiziliyor (sonra çizilseydi harflerin içini yerdi). Türkçe karakterler ve vurgu rengi piksel seviyesinde test ediliyor. Render edilen videoda altyazı bandında 65 farklı renk ölçüldü, üst bantta 1
 - [x] **P0-25** `1p` — IR → Graphviz `dot` dökümü
   - *Bitti:* ✔ 27 Ağu 2026 — `GraphDot.Render` + CLI `--dot` seçeneği. Çalışan boru hattında 2.847 baytlık geçerli digraph üretildi
 - [ ] **P0-26** `3p` — Golden testler: IR topolojisi (kanonik JSON) + emitter metni + 3 piksel testi

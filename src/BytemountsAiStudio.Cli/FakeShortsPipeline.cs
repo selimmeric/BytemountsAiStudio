@@ -8,6 +8,7 @@ using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Time;
 using BytemountsAiStudio.Media.Planning;
 using BytemountsAiStudio.Media.Rendering;
+using BytemountsAiStudio.Media.Rendering.Text;
 using BytemountsAiStudio.Media.Timeline;
 using BytemountsAiStudio.Providers.Fake;
 
@@ -33,6 +34,8 @@ public sealed class FakeShortsPipeline(
     private readonly FakeTtsProvider _tts = new();
     private readonly FakeImageProvider _images = new(ImageProviderKind.Generative);
     private readonly FfmpegExecutor _executor = new(ffmpegPath, ffprobePath);
+
+    private readonly List<CaptionCue> _cues = [];
 
     public async Task<Result<PipelineOutcome>> RunAsync(
         string topic,
@@ -68,7 +71,20 @@ public sealed class FakeShortsPipeline(
                 return Result.Failure<PipelineOutcome>(speech.Error);
             }
 
-            var (assetRef, measured) = speech.Value;
+            var (assetRef, measured, wordTimings) = speech.Value;
+
+            // Kelime zamanlari segment icinde 0'dan basliyor; timeline'da
+            // mutlak zamana kaydiriliyor. Kaydirmayi unutmak butun altyazinin
+            // videonun basinda toplanmasina yol acardi.
+            foreach (var word in wordTimings)
+            {
+                _cues.Add(new CaptionCue
+                {
+                    Text = word.Text,
+                    Range = new TimeRange(cursor + word.Start, cursor + word.End),
+                    SegmentId = $"s{i}",
+                });
+            }
 
             segments.Add(new VoiceSegment
             {
@@ -119,9 +135,26 @@ public sealed class FakeShortsPipeline(
             FontStack = ["Inter", "Noto Sans", "Noto Color Emoji"],
             Audio = new AudioTrack { VoiceSegments = segments },
             Scenes = scenes,
+            Captions = _cues.Count > 0
+                ? new CaptionTrack { StyleRef = "caption", Cues = _cues }
+                : null,
             Styles = new Dictionary<string, TextStyle>(StringComparer.Ordinal)
             {
-                ["caption"] = new() { FontFamily = "Inter", SizePercent = 6.5, Bold = true },
+                ["caption"] = new()
+                {
+                    FontFamily = "Inter",
+                    SizePercent = 5.5,
+                    Bold = true,
+                    Color = "#FFFFFF",
+                    HighlightColor = "#FFD400",
+                    StrokeColor = "#000000",
+                    StrokeWidth = 8,
+                    BoxColor = "#000000",
+                    BoxOpacity = 0.35,
+                    Position = Anchor.BottomCenter,
+                    OffsetPercent = 22,
+                    MaxLines = 2,
+                },
             },
             Output = new OutputSpec { Preset = "shorts-1080x1920" },
             Provenance = new Provenance
@@ -156,7 +189,23 @@ public sealed class FakeShortsPipeline(
             paths[assetRef.Sha256] = path.Value;
         }
 
-        var plan = RenderPlanner.Plan(timeline, paths);
+        // Altyazi goruntuleri: her VURGU DURUMU icin bir PNG. Kare dizisi
+        // degil - 50 saniyelik videoda 1.500 kare yerine ~120 kucuk gorsel.
+        var overlays = new List<RenderPlanner.TimedLayer>();
+
+        if (timeline.Captions is { } captions)
+        {
+            var renderer = new CaptionRenderer(timeline.FontStack);
+            var directory = Path.Combine(Path.GetTempPath(), "bmai-captions", Guid.CreateVersion7().ToString("N"));
+
+            var rendered = renderer.RenderTrack(
+                captions, timeline.Styles[captions.StyleRef], canvas, directory, timeline.RightToLeft);
+
+            overlays.AddRange(rendered.Select(r => new RenderPlanner.TimedLayer(r.Path, r.Range)));
+            log($"altyazi   : {rendered.Count} görüntü");
+        }
+
+        var plan = RenderPlanner.Plan(timeline, paths, overlays);
         if (!plan.IsSuccess)
         {
             return Error.Permanent("pipeline.plan_failed",
@@ -251,7 +300,7 @@ public sealed class FakeShortsPipeline(
         }
     }
 
-    private async Task<Result<(AssetRef Asset, Ms Duration)>> SynthesizeAsync(
+    private async Task<Result<(AssetRef Asset, Ms Duration, IReadOnlyList<WordTiming> Words)>> SynthesizeAsync(
         string sentence, LanguageTag language, CancellationToken cancellationToken)
     {
         var speech = await _tts.SynthesizeAsync(
@@ -266,7 +315,7 @@ public sealed class FakeShortsPipeline(
 
         if (speech.IsFailure)
         {
-            return Result.Failure<(AssetRef, Ms)>(speech.Error);
+            return Result.Failure<(AssetRef, Ms, IReadOnlyList<WordTiming>)>(speech.Error);
         }
 
         using var stream = new MemoryStream(speech.Value.Value.Audio.ToArray());
@@ -277,23 +326,23 @@ public sealed class FakeShortsPipeline(
 
         if (stored.IsFailure)
         {
-            return Result.Failure<(AssetRef, Ms)>(stored.Error);
+            return Result.Failure<(AssetRef, Ms, IReadOnlyList<WordTiming>)>(stored.Error);
         }
 
         // ADR-006: sağlayıcının bildirdiği süre değil, DOSYADAN ölçülen süre.
         var path = await storage.GetLocalPathAsync(stored.Value.Ref, cancellationToken).ConfigureAwait(false);
         if (path.IsFailure)
         {
-            return Result.Failure<(AssetRef, Ms)>(path.Error);
+            return Result.Failure<(AssetRef, Ms, IReadOnlyList<WordTiming>)>(path.Error);
         }
 
         var probe = await MediaProbe.ProbeAsync(ffprobePath, path.Value, cancellationToken).ConfigureAwait(false);
         if (probe.IsFailure)
         {
-            return Result.Failure<(AssetRef, Ms)>(probe.Error);
+            return Result.Failure<(AssetRef, Ms, IReadOnlyList<WordTiming>)>(probe.Error);
         }
 
-        return (stored.Value.Ref, Ms.FromSeconds(probe.Value.DurationSeconds));
+        return (stored.Value.Ref, Ms.FromSeconds(probe.Value.DurationSeconds), speech.Value.Value.WordTimings);
     }
 
     private async Task<Result<AssetRef>> GenerateImageAsync(
