@@ -1,0 +1,53 @@
+# Geliştirme ortamı. Üretim için değildir.
+#
+# Buradaki parolalar bilerek düz metin ve zayıf: yalnızca localhost'a bağlı,
+# yalnızca geliştirme verisi tutan kaplar. Gerçek kimlik bilgileri hiçbir zaman
+# bu dosyaya girmez — onlar şifreli credential deposunda durur (P1-01).
+
+name: bytemounts-ai-studio
+
+services:
+  postgres:
+    # pgvector'ün resmi imajı: PostgreSQL 16 + eklenti derlenmiş halde gelir.
+    # Düz postgres:16 imajına eklentiyi elle kurmak her makinede tekrar iş çıkarır.
+    image: pgvector/pgvector:pg16
+    container_name: bmai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bmai
+      POSTGRES_PASSWORD: bmai_dev
+      POSTGRES_DB: bmai
+      # Türkçe/İngilizce içerik aynı veritabanında: sıralama ve karşılaştırma
+      # kültürden bağımsız olsun ki dil değişince indeks davranışı değişmesin.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=und-x-icu --encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Uygulama, kap "başladı" dediğinde değil, gerçekten sorgu kabul ettiğinde
+      # bağlanmalı. Aksi hâlde ilk migration rastgele başarısız olur.
+      test: ["CMD-SHELL", "pg_isready -U bmai -d bmai"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  seq:
+    # Yapılandırılmış log deposu. Bir run'ın tüm adımlarını tek correlation id
+    # ile filtrelemek buradan yapılacak (P0-05).
+    image: datalust/seq:latest
+    container_name: bmai-seq
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "5341:5341"   # log alım (ingestion)
+      - "8081:80"     # web arayüzü -> http://localhost:8081
+    volumes:
+      - seq-data:/data
+
+volumes:
+  postgres-data:
+  seq-data:

@@ -52,8 +52,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 0.C Provider katmanı
 
-- [ ] **P0-13** `4p` — Provider arayüzleri: `ILlm`, `ISearch`, `IWebFetch`, `ITts`, `IImage`, `IAsr`, `IMusic`, `IStorage`, `IPublisher`, `IAnalytics`
-  - *Bitti:* Arayüzler `.Contracts`'ta, hiçbir implementasyona bağımlı değil
+- [x] **P0-13** `4p` — Provider arayüzleri: `ILlm`, `ISearch`, `IWebFetch`, `ITts`, `IImage`, `IAsr`, `IMusic`, `IStorage`, `IPublisher`, `IAnalytics`
+  - *Bitti:* ✔ 27 Ağu 2026 — 10 arayüz `.Contracts`'ta. `ProviderContractTests` dört kuralı koruyor: hepsi mevcut, hepsi `IProvider` türetir, Contracts yalnızca Core'a bağımlı, her asenkron metot `CancellationToken` alır
 - [ ] **P0-14** `4p` — Dekoratör zinciri: Idempotency → Budget → RateLimit → CircuitBreaker → Retry → Metering → Telemetry
   - *Bitti:* Zincir sırası testle sabitlenmiş; her dekoratörün birim testi var
 - [ ] **P0-15** `4p` — Fake provider seti (tüm arayüzler): sabit metin, düz renk PNG, N saniyelik sessizlik WAV, sabit arama sonuçları
