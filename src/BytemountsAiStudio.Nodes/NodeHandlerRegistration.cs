@@ -143,7 +143,21 @@ public static class NodeHandlerRegistration
             // senaryo isteği Cheap'e düşüyor ve bu çıktıya yazılıyor —
             // "senaryo yerel modelle üretildi" bilgisi kayda geçsin.
             .Register(new ScriptGenerateHandler(llm))
-            .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath, sidecar))
+            // ONCE WINDOWS, OLMAZSA PIPER (P1-26).
+            //
+            // Windows'un yerel sesi bedava, hizli ve bu makinede Turkce
+            // icin kurulu - ama YALNIZCA kurulu dil paketleri icin ses
+            // veriyor. Ikinci dilde Kaynak hatasi donuyor ve sira
+            // Piper'a geciyor; Piper cevrimdisi ve istenen dili
+            // konusuyor.
+            .Register(new TtsSynthesizeHandler(
+                new FallbackTtsProvider([
+                    new WindowsSpeechTtsProvider(),
+                    new SidecarTtsProvider(http, ToolsSidecarOptions.FromEnvironment()),
+                ]),
+                storage,
+                ffprobePath,
+                sidecar))
             // ONCE STOK, BULUNAMAZSA URET (P1-18).
             //
             // Openverse gercek fotograf veriyor; uretilen gorselde eller,

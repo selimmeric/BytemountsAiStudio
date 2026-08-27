@@ -27,7 +27,12 @@ MVP_PHASES = {0, 1, 2}
 PHASE_RE = re.compile(r"^##\s+Faz\s+(\d+)\s+[—-]\s+(.+?)\s*$")
 GROUP_RE = re.compile(r"^###\s+(\d+)\.([A-Z])\s+(.+?)\s*$")
 # Gorev kodu: P<faz>-<sira> + istege bagli harf soneki (P0-01b gibi bolunmus gorevler).
-TASK_RE = re.compile(r"^- \[([ xX])\]\s+\*\*(P\d+-\d+[a-z]?)\*\*\s+`(\d+)p`\s+[—-]\s+(.+?)\s*$")
+# `~` = BASLADI ama bitmedi.
+#
+# Ayri bir isaret gerekiyordu cunku ilk hal boyle bir gorevi hic
+# taniyamiyor ve gorevi plandan DUSURUYORDU: toplam puan azaliyor,
+# yuzde yukseliyordu. Yarim bir is paydada kalmali.
+TASK_RE = re.compile(r"^- \[([ xX~])\]\s+\*\*(P\d+-\d+[a-z]?)\*\*\s+`(\d+)p`\s+[—-]\s+(.+?)\s*$")
 
 
 @dataclass
@@ -38,6 +43,11 @@ class Task:
     done: bool
     group: str
     milestone: bool = False
+
+    # Basladi ama bitmedi. Puan KAZANDIRMIYOR - yarim is, is degil -
+    # ama panoda ayri gorunuyor: neyin durdugu ile neye hic
+    # baslanmadigi farkli sorular.
+    partial: bool = False
 
 
 @dataclass
@@ -80,6 +90,7 @@ def parse(path: Path) -> list[Phase]:
                     title=title,
                     points=int(m.group(3)),
                     done=m.group(1).lower() == "x",
+                    partial=m.group(1) == "~",
                     group=group,
                     milestone="🏁" in title,
                 )
@@ -175,6 +186,9 @@ h1{font-size:30px;line-height:1.15}
 .ticks{display:flex;gap:2px;flex-wrap:wrap}
 .ticks i{width:9px;height:16px;border-radius:1px;background:var(--pending);display:block}
 .ticks i.d{background:var(--done)}
+.ticks i.p{background:var(--milestone)}
+.row.partial .box{color:var(--milestone)}
+.row.partial .c{color:var(--milestone)}
 .ticks i.m{background:var(--pending);outline:1px solid var(--milestone);outline-offset:-1px}
 .ticks i.m.d{background:var(--milestone)}
 
@@ -251,8 +265,11 @@ def render_html(phases: list[Phase]) -> str:
                 current = t.group
                 if current:
                     rows.append(f'<div class="grouphdr">{html.escape(current)}</div>')
-            cls = " ".join(x for x in ("row", "done" if t.done else "", "ms" if t.milestone else "") if x)
-            box = "▣" if t.done else "▢"
+            cls = " ".join(x for x in (
+                "row",
+                "done" if t.done else ("partial" if t.partial else ""),
+                "ms" if t.milestone else "") if x)
+            box = "▣" if t.done else ("◧" if t.partial else "▢")
             rows.append(
                 f'<div class="{cls}"><span class="box">{box}</span>'
                 f'<span class="c">{html.escape(t.code)}</span>'
@@ -294,6 +311,7 @@ def render_html(phases: list[Phase]) -> str:
     <div class="bar"><i style="width:{o:.2f}%"></i></div>
     <div class="legend">
       <span><i class="dot" style="background:var(--done)"></i>Tamamlandı</span>
+      <span><i class="dot" style="background:var(--milestone)"></i>Başladı, bitmedi</span>
       <span><i class="dot" style="background:var(--pending)"></i>Bekliyor</span>
       <span><i class="dot" style="background:var(--milestone)"></i>Kilometre taşı</span>
       <span>Sol kenarı çizgili kartlar MVP kapsamındadır</span>

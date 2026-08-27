@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException
 
-from . import __version__, align, capabilities, extract, fetch, search
+from . import __version__, align, capabilities, extract, fetch, search, tts
 from .config import SETTINGS, Settings
 from .models import (
     AlignRequest,
@@ -29,6 +29,8 @@ from .models import (
     HealthResponse,
     SearchRequest,
     SearchResponse,
+    TtsRequest,
+    TtsResponse,
 )
 
 logger = logging.getLogger("bmai.tools")
@@ -57,6 +59,7 @@ def health() -> HealthResponse:
             capabilities.search_capability(config.searxng_url),
             capabilities.fetch_capability(),
             capabilities.align_capability(config.align_model, config.align_device),
+            capabilities.tts_capability(config.piper_voices_dir),
             capabilities.ffmpeg_capability(),
         ],
     )
@@ -139,6 +142,48 @@ async def align_endpoint(request: AlignRequest) -> AlignResponse:
         raise HTTPException(status_code=400, detail=f"ses dosyasi yok: {request.audio_path}")
 
     return await transcribe(request, config)
+
+
+@app.post("/tts", response_model=TtsResponse)
+async def tts_endpoint(request: TtsRequest) -> TtsResponse:
+    config = settings()
+
+    capability = capabilities.tts_capability(config.piper_voices_dir)
+
+    if not capability.available:
+        raise HTTPException(status_code=503, detail=capability.detail)
+
+    directory = tts.voices_dir(config.piper_voices_dir)
+    voices = tts.installed_voices(directory)
+    voice = tts.voice_for(request.language, voices, request.voice or config.piper_voice_default or None)
+
+    if voice is None:
+        # DIL ICIN SES YOKSA URETIM YAPILMIYOR.
+        #
+        # Baska bir dilin sesine dusmek, Ingilizce metni Turkce sesle
+        # okutmak demekti - hicbir yerde gorunmeyen bir kusur. 503:
+        # eksik olan sey bir indirme ve yapilinca ayni is calisacak.
+        raise HTTPException(
+            status_code=503,
+            detail=f"'{request.language}' icin ses yok (kurulu: {', '.join(voices) or 'hicbiri'}). "
+            f"python -m piper.download_voices <ses> --data-dir {directory}",
+        )
+
+    import asyncio
+    import base64
+
+    # Sentez BLOKLAYICI: dogrudan cagirmak tum olay dongusunu durdurur
+    # ve saglik kontrolu bile cevap veremezdi.
+    data, rate, duration_ms = await asyncio.to_thread(
+        tts.synthesize, directory, voice, request.text, request.speed
+    )
+
+    return TtsResponse(
+        audio_base64=base64.b64encode(data).decode("ascii"),
+        sample_rate=rate,
+        duration_ms=duration_ms,
+        voice=voice,
+    )
 
 
 async def robots_for(url: str, config: Settings) -> str | None:

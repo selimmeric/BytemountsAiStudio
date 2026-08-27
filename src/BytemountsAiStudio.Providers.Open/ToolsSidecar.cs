@@ -26,6 +26,9 @@ public sealed record ToolsSidecarOptions
     /// Tarayıcıyla render, düz HTTP çekmeden kat kat yavaş.
     public TimeSpan FetchTimeout { get; init; } = TimeSpan.FromMinutes(2);
 
+    /// Seslendirme hızlı ama İLK çağrı modeli belleğe yüklüyor.
+    public TimeSpan SpeakTimeout { get; init; } = TimeSpan.FromMinutes(3);
+
     public static ToolsSidecarOptions FromEnvironment() => From(Environment.GetEnvironmentVariable);
 
     /// Okuma işlevi dışarıdan veriliyor: yapılandırma mantığı süreç
@@ -236,6 +239,50 @@ public sealed class ToolsSidecar(HttpClient http, ToolsSidecarOptions? options =
             new AlignmentResult(words, new Ms(result.Value.DurationMs))));
     }
 
+    /// Piper ile seslendirme (P1-26).
+    ///
+    /// Ses BASE64 ile geliyor, yol ile değil: hizalamanın aksine dosya
+    /// henüz bir yere ait değil, depoya yazmak çağıranın işi — ve
+    /// yan-servisin ortak bir diske erişimi olmayabilir, başka
+    /// makinede koşuyor olabilir.
+    internal async Task<Result<SpokenAudio>> SpeakAsync(
+        TtsRequest request, CancellationToken cancellationToken)
+    {
+        var result = await PostAsync<TtsPayload>(
+            "/tts",
+            new
+            {
+                text = request.SpeechText,
+                language = request.Language.Value,
+                voice = string.IsNullOrWhiteSpace(request.VoiceId) ? null : request.VoiceId,
+                speed = request.Speed,
+            },
+            _options.SpeakTimeout,
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.IsFailure)
+        {
+            return Result.Failure<SpokenAudio>(result.Error);
+        }
+
+        if (string.IsNullOrEmpty(result.Value.AudioBase64))
+        {
+            return Error.Transient("tools.tts_empty", "Yan-servis boş ses döndürdü.");
+        }
+
+        try
+        {
+            return Result.Success(new SpokenAudio(
+                Convert.FromBase64String(result.Value.AudioBase64),
+                result.Value.DurationMs,
+                result.Value.Voice ?? "?"));
+        }
+        catch (FormatException ex)
+        {
+            return Error.Transient("tools.tts_bad_audio", $"Ses çözülemedi: {ex.Message}");
+        }
+    }
+
     /// Yan-servis çıktısını sözleşmeye çevirir. Ayrı ve `internal`:
     /// ağa çıkmadan sınanabilsin.
     internal static List<WordTiming> ToWordTimings(List<WordPayload>? words)
@@ -394,7 +441,13 @@ public sealed class ToolsSidecar(HttpClient http, ToolsSidecarOptions? options =
     internal sealed record AlignPayload(List<WordPayload>? Words, string? Language, int DurationMs, string? Model);
 
     internal sealed record WordPayload(string? Word, int StartMs, int EndMs, double Confidence);
+
+    internal sealed record TtsPayload(
+        string? AudioBase64, string? MimeType, int SampleRate, int DurationMs, string? Voice);
 }
+
+/// Yan-servisten gelen ses.
+internal sealed record SpokenAudio(ReadOnlyMemory<byte> Audio, int DurationMs, string Voice);
 
 /// Yan-servisin bir yeteneğinin durumu.
 public sealed record SidecarCapability(bool Available, string Detail);

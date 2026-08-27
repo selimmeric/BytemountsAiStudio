@@ -98,3 +98,34 @@ def ffmpeg_capability() -> Capability:
     path = shutil.which("ffmpeg")
 
     return Capability(name="ffmpeg", available=path is not None, detail=path or "PATH'te bulunamadi")
+
+
+def tts_capability(voices_directory: str) -> Capability:
+    """Seslendirme yapabiliyor muyuz VE hangi dillerde.
+
+    Sesin hangi DILLER icin oldugu da yaziliyor: "tts: evet" tek basina
+    yaniltici - Turkce sesi olan bir servis Ingilizce icin ise
+    yaramiyor ve fark ancak cagri aninda ortaya cikardi.
+    """
+    if not _module("piper"):
+        return Capability(
+            name="tts",
+            available=False,
+            detail="piper-tts kurulu degil: pip install 'bmai-tools[tts]'",
+        )
+
+    from pathlib import Path
+
+    from .tts import installed_voices
+
+    voices = installed_voices(Path(voices_directory).expanduser())
+
+    if not voices:
+        return Capability(
+            name="tts",
+            available=False,
+            detail=f"hic ses indirilmemis ({voices_directory}): "
+            "python -m piper.download_voices en_US-amy-medium",
+        )
+
+    return Capability(name="tts", available=True, detail=", ".join(voices))

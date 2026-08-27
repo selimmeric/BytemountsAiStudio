@@ -90,3 +90,26 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     capabilities: list[Capability]
+
+
+class TtsRequest(BaseModel):
+    text: str = Field(min_length=1)
+    language: str = "tr-TR"
+    # Acikca istenen ses. Bos birakilirsa dile gore seciliyor.
+    voice: str | None = None
+    speed: float = Field(default=1.0, ge=0.5, le=2.0)
+
+
+class TtsResponse(BaseModel):
+    # Ses base64 ile donuyor.
+    #
+    # Yol degil icerik: hizalamanin aksine burada dosya HENUZ bir yere
+    # ait degil - depoya yazmak cagiranin isi ve yan-servisin ortak bir
+    # diske erisimi olmayabilir (baska makinede kosuyor).
+    audio_base64: str
+    mime_type: str = "audio/wav"
+    sample_rate: int
+    # Bilgi amacli: hatta giren sure HER ZAMAN ffprobe ile olculen
+    # (ADR-006).
+    duration_ms: int
+    voice: str

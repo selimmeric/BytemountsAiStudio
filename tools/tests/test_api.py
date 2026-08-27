@@ -22,7 +22,7 @@ def test_saglik_yetenekleri_de_soyluyor():
 
     names = {c["name"] for c in payload["capabilities"]}
 
-    assert names == {"search", "fetch", "align", "ffmpeg"}
+    assert names == {"search", "fetch", "align", "tts", "ffmpeg"}
 
 
 def test_kapali_yetenek_nedenini_soyluyor():

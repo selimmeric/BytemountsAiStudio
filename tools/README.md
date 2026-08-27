@@ -9,6 +9,7 @@ işler — yan-servis bir mimari tercih değil, teknik bir zorunluluk
 | `POST /search` | SearXNG üzerinden web araması | Tek dış kapı olsun diye; .NET'te de var (P1-05b) |
 | `POST /fetch` | Sayfayı **tarayıcıyla** açıp metnini çıkarır | JS ile kurulan sayfalar düz HTTP ile alınamıyor |
 | `POST /align` | Sesten **kelime zamanlarını ölçer** | Doğru hizalama wav2vec2 istiyor; .NET'te karşılığı yok |
+| `POST /tts` | Piper ile **seslendirme** | Windows yalnızca kurulu dil paketlerini konuşuyor |
 | `GET /health` | Ayakta mı **ve neyi yapabiliyor** | — |
 
 Üçü de **durumsuz**: iki çağrı arasında hiçbir şey hatırlanmıyor. Servis
@@ -59,6 +60,16 @@ Hizalama için (ayrıca `ffmpeg` gerekiyor):
 pip install -e "tools[align]"
 ```
 
+Seslendirme için (Piper) — ses modelleri ayrıca indiriliyor:
+
+```bash
+pip install -e "tools[tts]"
+```
+
+```bash
+python -m piper.download_voices en_US-amy-medium tr_TR-dfki-medium
+```
+
 ### Hizalamayı ekran kartında koşturmak
 
 `BMAI_ALIGN_DEVICE=auto` kartı **gerçekten kullanılabiliyorsa** kullanıyor.
@@ -107,6 +118,8 @@ docker compose --profile tools up -d tools
 | `BMAI_ALIGN_MODEL` | `small` | Whisper modeli — VRAM'e göre |
 | `BMAI_ALIGN_DEVICE` | `auto` | `auto` / `cuda` / `cpu` |
 | `BMAI_ALIGN_COMPUTE` | `int8` | Niceleme |
+| `BMAI_PIPER_VOICES` | `~/.cache/piper` | Ses modellerinin klasörü |
+| `BMAI_PIPER_VOICE` | — | Varsayılan ses (boşsa dile göre seçilir) |
 
 .NET tarafında servisin adresi `BMAI_TOOLS_URL`. Uzak olabilir ve
 genelde uzak olacak — sebebi `docs/DONANIM-VE-MODEL.md` ile aynı:
@@ -147,6 +160,27 @@ yüz elli üç" duyuyor. Altyazıya modelin duyduğu yazılsaydı ekranda yazan
 
 Kelime sayıları tutmuyorsa ölçüm **olduğu gibi** dönüyor: hizalı olmayan
 bir metni zorla eşleştirmek, hepsini kaydırmaktan daha kötü.
+
+---
+
+## `/tts` neden var
+
+Windows'un yerel sentezi yalnızca **kurulu dil paketleri** için ses
+veriyor. Bu makinede yalnızca `Microsoft Tolga` (tr-TR) var, yani
+ikinci dil hiç üretilemiyordu — ve düzeltilmeden önce sessizce Türkçe
+sesle okunuyordu.
+
+Piper tamamen çevrimdışı ve anahtarsız (ADR-015). Ses başına ~63 MB
+ONNX modeli, işlemcide gerçek zamanın ~15 katı hızında: filodaki 2
+GB'lık makineler de seslendirme yapabiliyor.
+
+Dil için ses yoksa üretim **yapılmıyor** — 503 dönüyor. Başka bir dilin
+sesine düşmek, İngilizce metni Türkçe sesle okutmak demekti ve bu
+hiçbir yerde görünmezdi.
+
+.NET tarafında sıra: **önce Windows, olmazsa Piper**. Windows bedava ve
+hızlı ama sınırlı; Kaynak hatası dönünce sıra Piper'a geçiyor
+(`FallbackTtsProvider`).
 
 ---
 

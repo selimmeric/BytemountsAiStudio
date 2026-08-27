@@ -181,8 +181,9 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Kota bitince iş `WaitingResource`, ertesi güne kayıyor; hata sayılmıyor
 - [ ] **P1-25** `4p` — Resumable upload + idempotency + çökme kurtarma + thumbnail/playlist
   - *Bitti:* Upload ortasında süreç öldürülünce ikinci kez yüklenmiyor (test)
-- [ ] **P1-26** `3p` — İkinci dil: ikinci kanal, font zinciri, dile göre tekillik, dile göre ses
-  - *Bitti:* Aynı workflow iki dilde de uçtan uca koşuyor
+- [~] **P1-26** `3p` — İkinci dil: ikinci kanal, font zinciri, dile göre tekillik, dile göre ses
+  - *Kısmen:* 27 Ağu 2026 — **Dile göre ses tamam.** Gerçek bir engel bulundu: bu makinede yalnızca `Microsoft Tolga` (tr-TR) kurulu ve İngilizce içerik **sessizce Türkçe sesle** okunuyordu. Windows sağlayıcısı artık dil eşleşmezse üretim yapmıyor (Kaynak hatası, kurulum adımlarıyla). İkinci dilin anahtarsız yolu Piper: yan-servise `/tts` eklendi, tamamen çevrimdışı, ses başına ~63 MB ONNX ve işlemcide gerçek zamanın ~15 katı hızında — filodaki 2 GB'lık makineler de seslendirebiliyor. `FallbackTtsProvider` sırayı kuruyor: önce Windows (bedava, hızlı, kurulu), Kaynak/Geçici hatada Piper. Kalıcı hatada geçilmiyor. **Gerçek makinede doğrulandı:** tr-TR → Microsoft Tolga (3,8 sn, −21 dB), en-US → en_US-amy-medium (4,0 sn, −16 dB). Kullanılan ses artık `TtsResponse` ile taşınıyor ve node çıktısına yazılıyor — istenen ile kullanılan farklı olabiliyor ve fark kayıtlı olmasa yanlış seslendirilmiş bir video teşhis edilemezdi. 13 .NET + 7 pytest testi
+  - *Kalan:* İkinci kanal + font zinciri + dile göre tekillik uçtan uca koşusu — veritabanı gerektiriyor (Docker bu makinede çökük)
 - [ ] **P1-27** `3p` — Onay akışı: `human.approval` node, run parkı, onay kuyruğu
   - *Bitti:* Onay bekleyen run worker kaynağı tüketmiyor
 - [ ] **P1-28** `4p` — API: run / topic / approval / cost uç noktaları + SSE canlı durum

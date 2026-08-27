@@ -268,10 +268,9 @@
       "quality": "dusuk-orta",
       "platform": "windows",
       "voices": {
-        "tr-TR": "Microsoft Tolga",
-        "en-US": "Microsoft Zira"
+        "tr-TR": "Microsoft Tolga"
       },
-      "notes": "Bu makinede kurulu. Kelime zamanlamasi VERMIYOR; altyazi icin ASR yedegi gerekiyor. Linux'ta calismaz.",
+      "notes": "YALNIZCA KURULU DIL PAKETLERI icin ses veriyor. Bu makinede sadece Microsoft Tolga (tr-TR) var; en-US icin ses YOK ve istenirse Kaynak hatasi donuyor - eskiden sessizce Tolga'ya dusuyordu. Ikinci dil icin sira Piper'a geciyor. Kelime zamanlamasi VERMIYOR; altyazi icin ASR yedegi gerekiyor (P1-15). Linux'ta calismaz.",
       "limits": {
         "requests_per_minute": null
       }
@@ -279,13 +278,54 @@
     {
       "key": "piper",
       "role": "tts",
-      "display_name": "Piper (yerel, capraz platform)",
-      "enabled": false,
+      "display_name": "Piper (yerel, cevrimdisi)",
+      "enabled": true,
       "requires_key": false,
       "cost": "ucretsiz",
+      "endpoint_env": "BMAI_TOOLS_URL",
       "quality": "orta",
-      "setup": "piper binary + tr_TR ses modeli indirilmeli (~60 MB)",
-      "notes": "Windows TTS'in capraz platform karsiligi. Faz 4'te Linux'a gecerken gerekli olacak.",
+      "setup": "pip install 'bmai-tools[tts]' && python -m piper.download_voices en_US-amy-medium tr_TR-dfki-medium",
+      "notes": "Araclar yan-servisi (P1-04) uzerinden. Tamamen cevrimdisi ve anahtarsiz. IKINCI DILIN tek anahtarsiz yolu: Windows kurulu olmayan bir dili konusamiyor. Islemcide gercek zamanin ~15 kati hizinda - 2 GB'lik makineler de seslendirme yapabiliyor. Faz 4'te Linux'a gecerken de bu kullanilacak.",
+      "models": [
+        {
+          "name": "en_US-amy-medium",
+          "language": "en-US",
+          "size_mb": 63,
+          "default": true
+        },
+        {
+          "name": "tr_TR-dfki-medium",
+          "language": "tr-TR",
+          "size_mb": 63,
+          "default": true,
+          "notes": "Piper'in TEK Turkce sesi. Turkce icin varsayilan yine de Windows (Tolga): bedava, hizli ve zaten kurulu."
+        }
+      ],
+      "limits": {
+        "requests_per_minute": null
+      }
+    },
+    {
+      "key": "tools-sidecar",
+      "role": "asr",
+      "display_name": "Araclar yan-servisi (faster-whisper)",
+      "enabled": true,
+      "requires_key": false,
+      "cost": "ucretsiz",
+      "endpoint": "http://localhost:8099",
+      "endpoint_env": "BMAI_TOOLS_URL",
+      "quality": "orta-yuksek",
+      "setup": "pip install 'bmai-tools[align]' (ffmpeg de gerekiyor)",
+      "notes": "Kelime zamanlarini SESTEN olcuyor (P1-15). TTS kendi zamanlamasini vermiyorsa devreye giriyor; o da yoksa karakter bazli dagitima dusuluyor ve bu ipucu basina kayda giriyor. Adres UZAK OLABILIR - bkz. docs/DONANIM-VE-MODEL.md.",
+      "models": [
+        {
+          "name": "small",
+          "role": "asr",
+          "vram_gb": 1,
+          "default": true,
+          "notes": "8 GB kartta Ollama ile BIRLIKTE sigiyor. large-v3 sigmiyor. CUDA icin cuBLAS + cuDNN gerekiyor; yoksa islemciye dusuluyor ve sebep /health'te yaziliyor."
+        }
+      ],
       "limits": {
         "requests_per_minute": null
       }
@@ -351,9 +391,12 @@
       "pollinations"
     ],
     "tts": [
-      "windows-speech"
+      "windows-speech",
+      "piper"
     ],
-    "asr": [],
+    "asr": [
+      "tools-sidecar"
+    ],
     "publish": []
   }
 }

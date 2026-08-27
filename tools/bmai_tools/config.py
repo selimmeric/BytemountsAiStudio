@@ -10,6 +10,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def _home() -> Path:
+    return Path.home()
 
 
 def _env(name: str, default: str) -> str:
@@ -61,6 +66,15 @@ class Settings:
     align_device: str = field(default_factory=lambda: _env("BMAI_ALIGN_DEVICE", "auto"))
     align_compute_type: str = field(default_factory=lambda: _env("BMAI_ALIGN_COMPUTE", "int8"))
     align_max_seconds: int = field(default_factory=lambda: _int("BMAI_ALIGN_MAX_SECONDS", 900))
+
+    # --- /tts ---
+    # Piper CEVRIMDISI ve ANAHTARSIZ. Windows'un yerel sentezi yalnizca
+    # KURULU dil paketleri icin ses veriyor; ikinci dil (P1-26) ancak
+    # bu sayede uretilebiliyor.
+    piper_voices_dir: str = field(
+        default_factory=lambda: _env("BMAI_PIPER_VOICES", str(_home() / ".cache" / "piper"))
+    )
+    piper_voice_default: str = field(default_factory=lambda: _env("BMAI_PIPER_VOICE", ""))
 
 
 SETTINGS = Settings()

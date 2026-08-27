@@ -93,6 +93,11 @@ services:
       BMAI_SEARXNG_URL: "http://searxng:8080"
       BMAI_ALIGN_MODEL: "small"
       BMAI_ALIGN_DEVICE: "cpu"
+      BMAI_PIPER_VOICES: "/voices"
+    volumes:
+      # Ses modelleri kabin DISINDA: her yeniden derlemede 63 MB'lik
+      # dosyalari tekrar indirmek anlamsiz.
+      - piper-voices:/voices
     ports:
       # 127.0.0.1'e bagli: bu servis disaridan gelen bir URL'yi acip
       # metnini donduruyor. Yerel aga acmak, agdaki herkese bu
@@ -100,6 +105,7 @@ services:
       - "127.0.0.1:8099:8099"
 
 volumes:
+  piper-voices:
   postgres-data:
   seq-data:
   searxng-data:
