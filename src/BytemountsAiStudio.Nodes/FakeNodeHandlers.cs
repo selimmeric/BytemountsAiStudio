@@ -840,6 +840,12 @@ public sealed class ResearchHandler : INodeHandler
                     url = "https://ornek.test/sahte-kaynak",
                     title = $"{topic} — sahte kaynak",
                     source_type = "Encyclopedia",
+                    // Icerik ozeti ZORUNLU: bilgi tabani kaynaklari
+                    // ozetle tekillestiriyor ve ozetsiz bir kaynak
+                    // sessizce atlanirdi.
+                    content_hash = Convert.ToHexStringLower(
+                        System.Security.Cryptography.SHA256.HashData(
+                            System.Text.Encoding.UTF8.GetBytes("sahte-kaynak:" + topic))),
                     excerpt = $"{topic} hakkinda sahte bir kaynak metni. "
                               + "Kayitlar bunun sanilandan daha eskiye dayandigini gosteriyor.",
                     length = 120,

@@ -310,3 +310,72 @@ public sealed class Credential : EntityBase
     /// ya da hiç devreye girmemiş kayıtlar buradan ayırt ediliyor.
     public DateTimeOffset? LastUsedAt { get; set; }
 }
+
+/// Araştırmada kullanılan bir kaynak (P1-11, §2.3).
+///
+/// İÇERİK ÖZETİYLE tekilleştiriliyor, adresle değil: aynı sayfa iki
+/// farklı adresten gelebiliyor (yönlendirme, izleme parametreleri) ve
+/// aynı içeriği iki kez saklamak "bu videonun kaç kaynağı var"
+/// sorusunun cevabını bozardı.
+///
+/// Metin BURADA DEĞİL: bir Wikipedia makalesi 50 KB ve kaynak tablosu
+/// hızlı sorgulanacak. Tam metin gerekirse varlık deposunda.
+public sealed class Source : EntityBase
+{
+    public required string Url { get; set; }
+
+    public required string Title { get; set; }
+
+    /// Encyclopedia / Official / Academic / News / Community / Blog.
+    /// Güven skoru ve QC kuralları buna bakıyor.
+    public required string SourceType { get; set; }
+
+    /// İçeriğin sha256'sı. Tekillik anahtarı ve "kaynak değişmiş mi"
+    /// sorusunun cevabı.
+    public required string ContentHash { get; set; }
+
+    /// Modele giden özet. Tam metin değil.
+    public string? Excerpt { get; set; }
+
+    public int ContentLength { get; set; }
+
+    /// Kaynağın güvenilirliği (0–1). Şimdilik türden türetiliyor;
+    /// P5'te gerçek performansla kalibre edilecek.
+    public double TrustScore { get; set; }
+
+    public DateTimeOffset FetchedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// Senaryodan çıkarılmış ve kaynağa karşı doğrulanmış bir iddia
+/// (P1-10/11, §2.2/8).
+///
+/// Run'a bağlı, kanala değil: aynı iddia farklı run'larda farklı
+/// kaynaklarla doğrulanabilir ve hangi videonun neye dayandığı
+/// sorusunun cevabı run düzeyinde.
+public sealed class ClaimRecord : EntityBase
+{
+    public Guid RunId { get; set; }
+
+    public Run? Run { get; set; }
+
+    public required string Text { get; set; }
+
+    /// Senaryodaki cümle sırası. Hedefli düzeltme (P2-07) buna bakıyor.
+    public int SentenceIndex { get; set; }
+
+    /// Supported / Unsupported / Contradicted.
+    public required string Verdict { get; set; }
+
+    /// Doğrulamada kullanılan kaynak. Null = eşleştirilemedi.
+    public Guid? SourceId { get; set; }
+
+    public Source? Source { get; set; }
+
+    /// Modelin gerekçesi. İnsan onayı ekranında gösteriliyor.
+    public string? Reason { get; set; }
+
+    /// Doğrulama, çıkarımla AYNI modelden mi geldi. Aynıysa sonuç
+    /// iyimser olma eğiliminde; bu bilgi olmadan skora fazla
+    /// güvenilirdi.
+    public bool SameModel { get; set; }
+}

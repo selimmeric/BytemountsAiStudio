@@ -28,6 +28,10 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
 
     public DbSet<Credential> Credentials => Set<Credential>();
 
+    public DbSet<Source> Sources => Set<Source>();
+
+    public DbSet<ClaimRecord> Claims => Set<ClaimRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -164,6 +168,42 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
             e.Property(x => x.SourceUrl).HasMaxLength(2000);
             e.Property(x => x.LicenseJson).HasColumnType("jsonb");
             e.HasIndex(x => x.Kind);
+        });
+
+        b.Entity<Source>(e =>
+        {
+            e.Property(x => x.Url).HasMaxLength(2000);
+            e.Property(x => x.Title).HasMaxLength(500);
+            e.Property(x => x.SourceType).HasMaxLength(32);
+            e.Property(x => x.ContentHash).HasMaxLength(64).IsFixedLength();
+            e.Property(x => x.Excerpt).HasMaxLength(4000);
+
+            // Tekillik ICERIK ozetinde, adreste degil: ayni sayfa iki
+            // farkli adresten gelebiliyor (yonlendirme, izleme
+            // parametreleri) ve ayni icerigi iki kez saklamak "bu
+            // videonun kac kaynagi var" sorusunun cevabini bozardi.
+            e.HasIndex(x => x.ContentHash).IsUnique();
+            e.HasIndex(x => x.Url);
+        });
+
+        b.Entity<ClaimRecord>(e =>
+        {
+            e.Property(x => x.Text).HasMaxLength(1000);
+            e.Property(x => x.Verdict).HasMaxLength(32);
+            e.Property(x => x.Reason).HasMaxLength(2000);
+
+            // "Bir videonun tum kaynaklari tek sorguyla" - P1-11'in
+            // kabul kriteri bu indeksten besleniyor.
+            e.HasIndex(x => new { x.RunId, x.Verdict });
+
+            e.HasOne(x => x.Run).WithMany().HasForeignKey(x => x.RunId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Kaynak silinirse iddia KALIYOR, kaynagi bosaliyor.
+            // Silmek, "bu iddia neye dayaniyordu" sorusunun cevabini
+            // tamamen kaybettirirdi.
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<Credential>(e =>
