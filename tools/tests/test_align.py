@@ -75,21 +75,110 @@ def test_guven_araliga_sikistirilir():
 
 
 def test_beklenen_metin_yazimi_belirler():
-    """Metinde "1453" yaziyor, model "bin dort yuz elli uc" duyuyor."""
-    measured = to_timings([RawWord("bin", 0, 1), RawWord("dort", 1, 2)])
+    """Zamanlama MODELDEN, yazim METINDEN.
 
-    matched = match_expected(measured, "1453 yilinda")
+    ASR ozel isimleri yanlis duyuyor; biz metni zaten biliyoruz.
+    Ornekte model "gobeklitepe" duymus, senaryoda "Gobeklitepe"
+    yaziyor - ekrana senaryodaki yazim cikiyor.
+    """
+    measured = to_timings([RawWord("gobeklitepe", 0, 1), RawWord("kazisi", 1, 2)])
 
-    assert [w.word for w in matched] == ["1453", "yilinda"]
-    # Zamanlama MODELDEN geliyor; degismiyor.
+    matched = match_expected(measured, "Gobeklitepe kazisi")
+
+    assert [w.word for w in matched] == ["Gobeklitepe", "kazisi"]
+    # Zamanlama degismiyor.
     assert [w.start_ms for w in matched] == [w.start_ms for w in measured]
 
 
-def test_kelime_sayisi_tutmazsa_olcum_korunur():
+def test_sayilar_esitse_bile_metin_ortusmuyorsa_dayatilmaz():
+    """Konum bazli dayatma SAGLAM DEGIL.
+
+    Ilk hal, kelime sayilari esitse beklenen metni oldugu gibi
+    yaziyordu - "bin dort"un zamanlamasina "1453 yilinda" yazmak gibi.
+    Sayilarin tesadufen tutmasi, kelimelerin ayni oldugu anlamina
+    gelmiyor ve o dayatma altyaziyi sessizce kaydirirdi.
+    """
+    measured = to_timings([RawWord("bin", 0, 1), RawWord("dort", 1, 2)])
+
+    assert [w.word for w in match_expected(measured, "1453 yilinda")] == ["bin", "dort"]
+
+
+def test_eslestirilemezse_olcum_korunur():
     """Hizali olmayan metni zorla eslestirmek, hepsini kaydirmaktan kotu."""
     measured = to_timings([RawWord("bir", 0, 1), RawWord("iki", 1, 2)])
 
     assert [w.word for w in match_expected(measured, "cok daha uzun bir metin")] == ["bir", "iki"]
+
+
+# --- Bolunmus kelimelerin birlestirilmesi ---
+#
+# Bu testler GERCEK bir kosudan geliyor: ASR "Turkiye'nin"i iki parca
+# olarak olctu ("Turkiye" + "'nin"), sayilar tutmadi ve esleme hic
+# devreye girmedi. Turkce'de neredeyse her ozel isim kesme isareti
+# aliyor, yani esleme pratikte hicbir zaman calismayacakti.
+
+
+def test_kesme_isaretli_kelime_birlestirilir():
+    measured = to_timings([RawWord("Türkiye", 1.06, 1.4), RawWord("'nin", 1.4, 1.68)])
+
+    matched = match_expected(measured, "Türkiye'nin")
+
+    assert [w.word for w in matched] == ["Türkiye'nin"]
+    # Zamanlama ilk parcanin basindan son parcanin sonuna kadar.
+    assert matched[0].start_ms == 1060
+    assert matched[0].end_ms == 1680
+
+
+def test_sayi_birden_cok_kelimeye_karsilik_gelebilir():
+    """Metinde "1453" yaziyor, model "bin dort yuz elli uc" duyuyor."""
+    measured = to_timings([
+        RawWord("bin", 0, 0.4),
+        RawWord("dört", 0.4, 0.8),
+        RawWord("yüz", 0.8, 1.1),
+        RawWord("elli", 1.1, 1.5),
+        RawWord("üç", 1.5, 1.9),
+    ])
+
+    # Duyulan kelimeler beklenen yazimla ORTUSMUYOR: esleme
+    # yapilamiyor ve olcum oldugu gibi donuyor. Bu dogru davranis -
+    # normalizasyonun hangi sozcugun hangilerine acildigini bildirmesi
+    # gerekir, o bilgi olmadan zorla eslestirme altyaziyi kaydirir.
+    assert len(match_expected(measured, "1453")) == 5
+
+
+def test_birlesen_kelimenin_guveni_en_dusuk_parcanin():
+    measured = to_timings([
+        RawWord("Türkiye", 0, 1, 0.95),
+        RawWord("'nin", 1, 2, 0.40),
+    ])
+
+    assert match_expected(measured, "Türkiye'nin")[0].confidence == pytest.approx(0.40)
+
+
+def test_olculen_kelimeler_artarsa_esleme_reddedilir():
+    """Metin bitmis ama seste hala kelime varsa metin ile ses ortusmuyor."""
+    measured = to_timings([RawWord("bir", 0, 1), RawWord("iki", 1, 2), RawWord("uc", 2, 3)])
+
+    assert len(match_expected(measured, "bir iki")) == 3
+
+
+def test_bircok_kelime_birlestirme_ayni_cumlede():
+    measured = to_timings([
+        RawWord("Göbekli", 0, 0.54),
+        RawWord("Tepe,", 0.54, 0.78),
+        RawWord("Türkiye", 1.06, 1.4),
+        RawWord("'nin", 1.4, 1.68),
+        RawWord("Güneydoğu", 1.68, 2.26),
+    ])
+
+    matched = match_expected(measured, "Göbekli Tepe, Türkiye'nin Güneydoğu")
+
+    assert [w.word for w in matched] == ["Göbekli", "Tepe,", "Türkiye'nin", "Güneydoğu"]
+
+
+def test_bos_olcum_veya_bos_metin_cokmez():
+    assert match_expected([], "bir metin") == []
+    assert len(match_expected(to_timings([RawWord("bir", 0, 1)]), "")) == 1
 
 
 def test_bos_olcum_sifir_sure():

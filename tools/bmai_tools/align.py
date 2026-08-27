@@ -159,19 +159,64 @@ def match_expected(measured: list[WordTiming], expected_text: str) -> list[WordT
     model "bin dort yuz elli uc" duyuyor. Altyaziya modelin duydugu
     yazilsaydi ekranda yazan sey senaryodan farkli olurdu.
 
-    Kelime sayilari tutmuyorsa OLCUM OLDUGU GIBI donuyor: hizali
-    olmayan bir metni zorla eslestirmek, hepsini kaydirmaktan daha
-    kotu.
+    BIRLESTIRME GEREKIYOR cunku ASR bir kelimeyi bolebiliyor.
+    Turkce'de bu istisna degil KURAL: "Turkiye'nin" iki parca olarak
+    olculuyor ("Turkiye" + "'nin"). Ilk hal yalnizca kelime sayilari
+    esitse esleme yapiyordu ve gercek bir cumlede -- 9 olculen, 8
+    beklenen -- hic devreye girmedi. Turkce'de neredeyse her ozel isim
+    kesme isareti aliyor, yani esleme pratikte hicbir zaman
+    calismayacakti.
+
+    Eslestirilemezse OLCUM OLDUGU GIBI donuyor: hizali olmayan bir
+    metni zorla eslestirmek, hepsini kaydirmaktan daha kotu.
     """
     expected = [w for w in expected_text.split() if w.strip()]
 
-    if len(expected) != len(measured):
+    if not expected or not measured:
         return measured
 
-    return [
-        WordTiming(word=expected[i], start_ms=m.start_ms, end_ms=m.end_ms, confidence=m.confidence)
-        for i, m in enumerate(measured)
-    ]
+    matched: list[WordTiming] = []
+    index = 0
+
+    for word in expected:
+        target = normalize(word)
+
+        if not target:
+            # Yalnizca noktalamadan olusan bir "kelime": olculen
+            # tarafta karsiligi yok, atlanmali.
+            continue
+
+        merged = ""
+        first = index
+
+        while index < len(measured) and normalize_merge(merged) != target:
+            merged += measured[index].word
+            index += 1
+
+        if normalize_merge(merged) != target:
+            # Bu kelime eslestirilemedi; tum eslemeden vazgeciliyor.
+            # Kismi bir esleme, kalan kelimeleri kaydirirdi.
+            return measured
+
+        matched.append(
+            WordTiming(
+                word=word,
+                start_ms=measured[first].start_ms,
+                end_ms=measured[index - 1].end_ms,
+                # Birlesen parcalarin EN DUSUK guveni: bir parca supheliyse
+                # birlesik kelime de supheli.
+                confidence=min(m.confidence for m in measured[first:index]),
+            )
+        )
+
+    # Olculen kelimelerin hepsi tuketilmediyse metin ile ses
+    # ortusmuyor demektir.
+    return matched if index == len(measured) else measured
+
+
+def normalize_merge(text: str) -> str:
+    """Birlestirilmis parcalari karsilastirma icin sadelestirir."""
+    return normalize(text).replace(" ", "")
 
 
 def duration_ms(timings: list[WordTiming]) -> int:

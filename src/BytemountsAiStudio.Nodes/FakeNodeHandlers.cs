@@ -322,7 +322,10 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
 /// dosyadan ffprobe ile ölçülüyor. Bu node'un çıktısı timeline'ın
 /// zaman eksenini belirliyor.
 public sealed class TtsSynthesizeHandler(
-    ITtsProvider tts, IStorageProvider storage, string ffprobePath = "ffprobe") : INodeHandler
+    ITtsProvider tts,
+    IStorageProvider storage,
+    string ffprobePath = "ffprobe",
+    IAsrProvider? asr = null) : INodeHandler
 {
     public string NodeType => "tts.synthesize";
 
@@ -352,6 +355,15 @@ public sealed class TtsSynthesizeHandler(
         var cursor = Ms.Zero;
         var index = 0;
         var estimated = false;
+
+        // ASR bu koşuda kullanılabilir mi.
+        //
+        // Bir kez deneniyor; KAYNAK hatası dönerse (yan-servis ayakta
+        // değil ya da hizalama yeteneği kapalı) bu koşuda bir daha
+        // denenmiyor. Her cümlede yeniden denemek, kapalı bir servise
+        // cümle sayısı kadar bağlantı denemesi demekti ve hepsi aynı
+        // cevabı verirdi.
+        var asrUsable = asr is not null;
 
         foreach (var element in sentences.EnumerateArray())
         {
@@ -419,9 +431,53 @@ public sealed class TtsSynthesizeHandler(
             // ekranda "bin dört yüz elli üç" yazması da yanlış olurdu.
             var normalizationChangedText = !string.Equals(displayText, speechText, StringComparison.Ordinal);
 
-            var timings = speech.Value.Value.WordTimings.Count > 0 && !normalizationChangedText
-                ? speech.Value.Value.WordTimings
-                : WordTimingEstimator.Distribute(displayText, measured);
+            // ÖNCELİK SIRASI (P1-15):
+            //   1. Sağlayıcının kendi zamanlaması — en doğru, bedava
+            //   2. ASR hizalaması              — doğru, pahalı (saniyeler)
+            //   3. Karakter bazlı dağıtım      — tahmin, bedava (P1-15a)
+            //
+            // Üçüncüsü bir hizalama DEĞİL ve öyle iddia edilmiyor:
+            // hangi kaynaktan geldiği segment başına kayda giriyor.
+            IReadOnlyList<WordTiming> timings;
+            string source;
+
+            if (speech.Value.Value.WordTimings.Count > 0 && !normalizationChangedText)
+            {
+                timings = speech.Value.Value.WordTimings;
+                source = "provider";
+            }
+            else if (asrUsable && !normalizationChangedText)
+            {
+                var aligned = await AlignAsync(asr!, path.Value, displayText, language, context, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (aligned.IsSuccess)
+                {
+                    timings = aligned.Value;
+                    source = "asr";
+                }
+                else
+                {
+                    // KAYNAK hatası = yetenek yok. Kalan cümleler için
+                    // hiç denenmiyor.
+                    asrUsable = aligned.Error.Kind != ErrorKind.Resource;
+
+                    timings = WordTimingEstimator.Distribute(displayText, measured);
+                    source = "estimated";
+                }
+            }
+            else
+            {
+                // NORMALİZASYON METNİ DEĞİŞTİRDİYSE ASR DE İŞE YARAMIYOR.
+                //
+                // Ses "bin dört yüz elli üç" diyor, altyazıda "1453"
+                // yazması gerekiyor: ASR beş kelime ölçüyor, ekranda bir
+                // kelime var. Eşleme ancak normalizasyon hangi sözcüğün
+                // hangi sözcüklere açıldığını da bildirirse yapılabilir;
+                // şu an bildirmiyor.
+                timings = WordTimingEstimator.Distribute(displayText, measured);
+                source = "estimated";
+            }
 
             // Kelime zamanları segment içinde 0'dan başlıyor; mutlak zamana
             // kaydırılıyor. Kaydırmayı unutmak tüm altyazıyı videonun başına
@@ -434,12 +490,16 @@ public sealed class TtsSynthesizeHandler(
                     start_ms = (cursor + word.Start).Value,
                     end_ms = (cursor + word.End).Value,
                     segment = $"s{index}",
+                    // Kaynak İPUCU BAŞINA yazılıyor: bir koşuda bazı
+                    // cümleler ölçülmüş bazıları tahmin edilmiş
+                    // olabiliyor ve tek bir bayrak bunu gizlerdi.
+                    source,
                 });
             }
 
             // Zamanlamanın ÖLÇÜLDÜĞÜ mü DAĞITILDIĞI mı kayda giriyor.
             // Bir altyazı kayması araştırılırken ilk bakılacak şey bu.
-            estimated |= speech.Value.Value.WordTimings.Count == 0 || normalizationChangedText;
+            estimated |= source == "estimated";
 
             cursor += measured;
             index++;
@@ -455,6 +515,38 @@ public sealed class TtsSynthesizeHandler(
             // ASR yan servisinden gelir.
             timings_estimated = estimated,
         }));
+    }
+
+    /// Sesten kelime zamanlarını ölçer (P1-15).
+    ///
+    /// Başarısızlık ARAŞTIRMAYI DÜŞÜRMÜYOR: çağıran taraf dağıtıma
+    /// düşüyor. Hizalama bir iyileştirme, bir önkoşul değil — yan-servis
+    /// kapalıyken video üretilememesi saçma olurdu.
+    private static async Task<Result<IReadOnlyList<WordTiming>>> AlignAsync(
+        IAsrProvider asr,
+        string audioPath,
+        string transcript,
+        LanguageTag language,
+        NodeContext context,
+        CancellationToken cancellationToken)
+    {
+        var result = await asr.AlignAsync(
+            new AlignRequest { AudioPath = audioPath, Transcript = transcript, Language = language },
+            ScriptGenerateHandler.Context(context),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.IsFailure)
+        {
+            return Result.Failure<IReadOnlyList<WordTiming>>(result.Error);
+        }
+
+        var words = result.Value.Value.Words;
+
+        // Sıfır kelime bir hizalama DEĞİL: başarı sayılırsa altyazı hiç
+        // üretilmez ve hiçbir şey kırılmaz. Bu depoda tam olarak bu oldu.
+        return words.Count == 0
+            ? Error.Transient("tts.align_empty", "Hizalama hiç kelime döndürmedi.")
+            : Result.Success(words);
     }
 }
 

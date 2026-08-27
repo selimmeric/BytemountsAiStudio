@@ -117,6 +117,13 @@ public static class NodeHandlerRegistration
         var llm = TieredLlmProvider.Single(
             new OllamaLlmProvider(http, OllamaOptions.FromEnvironment()));
 
+        // Araclar yan-servisi (P1-04). Kapali olabilir ve bu NORMAL:
+        // ilk cagri Kaynak hatasi donuyor, TTS isleyicisi karakter
+        // bazli dagitima dusuyor ve kalan cumleler icin bir daha
+        // denemiyor. Yan-servis acikken ayni hat kelime zamanlarini
+        // sesten OLCUYOR (P1-15).
+        var sidecar = new ToolsSidecar(http, ToolsSidecarOptions.FromEnvironment());
+
         return new NodeRegistry()
             .Register(new TopicSelectHandler())
             // Wikipedia METIN, Wikidata OLGU veriyor. Ikisi birlikte:
@@ -136,7 +143,7 @@ public static class NodeHandlerRegistration
             // senaryo isteği Cheap'e düşüyor ve bu çıktıya yazılıyor —
             // "senaryo yerel modelle üretildi" bilgisi kayda geçsin.
             .Register(new ScriptGenerateHandler(llm))
-            .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath))
+            .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath, sidecar))
             // ONCE STOK, BULUNAMAZSA URET (P1-18).
             //
             // Openverse gercek fotograf veriyor; uretilen gorselde eller,

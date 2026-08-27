@@ -34,6 +34,7 @@ return command switch
     "prompt" => RunPrompt(args),
     "fetch" => await RunFetchAsync(args).ConfigureAwait(false),
     "facts" => await RunFactsAsync(args).ConfigureAwait(false),
+    "tools" => await RunToolsAsync(args).ConfigureAwait(false),
     "thumb" => RunThumbnail(args),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
@@ -72,6 +73,9 @@ static int Help()
           bmai prompt eval              fixture'lari kosar (model cagirmaz)
           bmai fetch <url>              sayfayi ceker (robots.txt kontrollu)
           bmai facts <konu> [--lang tr] Wikidata yapilandirilmis olgular
+          bmai tools health             Python yan-servisinin yetenekleri
+          bmai tools align <ses> [--text "<metin>"] [--lang tr]
+                                        kelime zamanlarini SESTEN olcer
           bmai thumb "<baslik>" [--out t.jpg] [--bg <gorsel>]
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
@@ -481,6 +485,96 @@ static async Task<int> RunFetchAsync(string[] args)
     Console.WriteLine();
     Console.WriteLine("  --- ilk 600 karakter ---");
     Console.WriteLine(document.MainText.Length > 600 ? document.MainText[..600] : document.MainText);
+    Console.WriteLine();
+
+    return 0;
+}
+
+/// Araclar yan-servisi (P1-04).
+///
+/// Iki alt komut da TESHIS icin: `health` yan-servisin neyi
+/// yapabildigini soyluyor, `align` bir ses dosyasinin kelime
+/// zamanlarini olcuyor. Ikincisi olmadan "altyazi neden kaymis"
+/// sorusu ancak tam bir kosu yapilarak cevaplanabilirdi.
+static async Task<int> RunToolsAsync(string[] args)
+{
+    var sub = args.Length > 1 ? args[1] : "health";
+
+    using var http = new HttpClient();
+    var options = ToolsSidecarOptions.FromEnvironment();
+    var sidecar = new ToolsSidecar(http, options);
+
+    Console.WriteLine();
+    Console.WriteLine($"  adres   : {options.BaseAddress}");
+
+    var health = await sidecar.HealthAsync(CancellationToken.None).ConfigureAwait(false);
+
+    if (health.IsFailure)
+    {
+        Console.Error.WriteLine($"  HATA    : {health.Error}");
+        return 1;
+    }
+
+    Console.WriteLine($"  surum   : {health.Value.Version}");
+    Console.WriteLine();
+
+    foreach (var (name, capability) in health.Value.Capabilities.OrderBy(c => c.Key, StringComparer.Ordinal))
+    {
+        Console.WriteLine($"  {(capability.Available ? "+" : "-")} {name,-8} {capability.Detail}");
+    }
+
+    Console.WriteLine();
+
+    if (sub != "align")
+    {
+        return 0;
+    }
+
+    if (args.Length < 3 || !File.Exists(args[2]))
+    {
+        Console.Error.WriteLine("Kullanim: bmai tools align <ses.wav> [--text \"<metin>\"] [--lang tr]");
+        return 2;
+    }
+
+    if (!health.Value.Can("align"))
+    {
+        // Yetenek yoksa cagriyi hic yapmiyoruz: cevap zaten belli ve
+        // hata mesaji nedenini soyluyor.
+        Console.Error.WriteLine($"  Hizalama kapali: {health.Value.Why("align")}");
+        return 1;
+    }
+
+    var language = LanguageTag.Create(Option(args, "--lang", "tr-TR"));
+    var transcript = Option(args, "--text", string.Empty);
+
+    var aligned = await sidecar.AlignAsync(
+        new AlignRequest
+        {
+            AudioPath = Path.GetFullPath(args[2]),
+            Transcript = transcript,
+            Language = language,
+        },
+        ProviderContext.ForTest("cli-align"),
+        CancellationToken.None).ConfigureAwait(false);
+
+    if (aligned.IsFailure)
+    {
+        Console.Error.WriteLine($"  Hizalanamadi: {aligned.Error}");
+        return 1;
+    }
+
+    var words = aligned.Value.Value.Words;
+
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"  {words.Count} kelime, toplam {aligned.Value.Value.Duration.Value} ms"));
+    Console.WriteLine();
+
+    foreach (var word in words)
+    {
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {word.Start.Value,6} - {word.End.Value,-6} {word.Text}"));
+    }
+
     Console.WriteLine();
 
     return 0;
