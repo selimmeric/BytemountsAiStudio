@@ -1,0 +1,12 @@
+{
+  "prompt_key": "claim.extract",
+  "values": {
+    "script": "Göbeklitepe yaklaşık on bir bin yıl önce inşa edildi.\nBu konu bugün hâlâ tartışılıyor."
+  },
+  "expect": {
+    "contains": ["ATOMİK", "Görüş", "SIRA NUMARASINI", "Göbeklitepe"],
+    "not_contains": ["{{"],
+    "max_chars": 2000,
+    "min_chars": 300
+  }
+}

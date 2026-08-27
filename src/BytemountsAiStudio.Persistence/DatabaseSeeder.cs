@@ -35,12 +35,14 @@ public static class DatabaseSeeder
             { "id": "timeline", "type": "timeline.compile", "config": { "aspect": "9:16" } },
             { "id": "visuals",  "type": "visual.resolve",   "config": { "order": ["fake-stock", "fake-imagegen"] } },
             { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
+            { "id": "claims",   "type": "claim.check",      "config": {} },
             { "id": "seo",      "type": "seo.generate",     "config": {} }
           ],
           "edges": [
             { "from": "topic",    "to": "research" },
             { "from": "research", "to": "script" },
-            { "from": "script",   "to": "tts" },
+            { "from": "script",   "to": "claims" },
+            { "from": "claims",   "to": "tts" },
             { "from": "tts",      "to": "visuals" },
             { "from": "visuals",  "to": "timeline" },
             { "from": "timeline", "to": "render" },

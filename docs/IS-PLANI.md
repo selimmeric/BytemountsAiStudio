@@ -130,8 +130,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* "En Tehlikeli 10 Yer" ile "En Tehlikeli 10 Bölge" aynı sayılıyor; TR/EN çifti sayılmıyor
 - [ ] **P1-09** `5p` — Research Planner + Research Agent (araç döngüsü, adım sayısı + bütçe sınırı)
   - *Bitti:* Bütçe dolunca döngü temiz duruyor, kısmi sonuç kaydediliyor
-- [ ] **P1-10** `4p` — Claim Extractor + Entailment Checker (farklı model ailesi)
-  - *Bitti:* Alıntısız claim üretilemiyor; desteklenmeyen claim işaretleniyor
+- [x] **P1-10** `4p` — Claim Extractor + Entailment Checker (farklı model ailesi)
+  - *Bitti:* ✔ 27 Ağu 2026 — İKİ AYRI ÇAĞRI ve ayrılığı bu işin bel kemiği: tek çağrıda yapmak cazip ve yanlış, çünkü aynı model hem iddiayı üretip hem kendi ürettiğini onaylıyor ve modeller kendi çıktılarını onaylamaya eğilimli. İkinci çağrıda model iddiayı METİN olarak görüyor. Üç değerli karar: `supported` / `unsupported` / `contradicted` — desteklenmemek "kaynağımız yetersiz", çelişmek "kaynağımız bunun yanlış olduğunu söylüyor" demek ve ikincisi bir kalite değil DOĞRULUK sorunu. **TANINMAYAN karar DESTEKSİZ sayılıyor:** belirsizlikte iyimser davranmak doğrulanmamış bir iddianın yayına çıkması demek, kötümser davranmak yalnızca gereksiz bir düzeltme turu. İddiasız senaryo geçerli — kanca ve kapanış cümleleri olgu taşımıyor ve sıfır iddiayı başarısız saymak onları yasaklamak olurdu. Cümleler modele NUMARALI veriliyor, yoksa indeksi tahmin ediyor ve hedefli düzeltme (P2-07) yanlış cümleye giderdi; uydurma indeks sınıra sıkıştırılıyor. Tek doğrulamanın düşmesi node'u düşürmüyor. "Farklı model ailesi" şu an İSTEM ve SICAKLIK düzeyinde (tek yerel model var); doğrulayıcı ayrı bir parametre, anahtar geldiğinde tek satır. Çıktıda `same_model` bayrağı var — aynı modelse sonuç iyimser olma eğiliminde ve bunu bilmek gerekiyor. 30 test
 - [ ] **P1-11** `2p` — Knowledge base: `sources` + `claims` yazımı, kaynak güven skoru
   - *Bitti:* Bir videonun tüm kaynakları tek sorguyla listeleniyor
 

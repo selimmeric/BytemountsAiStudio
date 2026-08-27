@@ -1,0 +1,12 @@
+{
+  "prompt_key": "claim.verify",
+  "values": {
+    "claim": "Göbeklitepe on bir bin yıllıktır.",
+    "source": "Göbeklitepe, MÖ 9500 civarında inşa edilmiş bir arkeolojik alandır."
+  },
+  "expect": {
+    "contains": ["supported", "unsupported", "contradicted", "Kendi bilgini kullanma", "MÖ 9500"],
+    "not_contains": ["{{"],
+    "max_chars": 2000
+  }
+}

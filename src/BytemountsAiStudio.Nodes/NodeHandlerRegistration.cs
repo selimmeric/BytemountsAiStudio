@@ -53,6 +53,25 @@ public static class NodeHandlerRegistration
                         tags = turkish ? TurkishTags : EnglishTags,
                     }),
 
+                    // Sahte cikarim: TEK iddia, ilk cumleden. Sahte
+                    // dogrulama: DESTEKLENIYOR. Ikisi de sabit cunku
+                    // buradaki amac hattin ucundan ucuna kosmasi;
+                    // ayristirma ve karar mantiginin kendi testleri
+                    // ayri (ClaimCheckHandlerTests).
+                    "emit_claims" => System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        claims = new[]
+                        {
+                            new { text = turkish ? "Sahte bir olgu iddiasi." : "A fake factual claim.", sentence_index = 0 },
+                        },
+                    }),
+
+                    "emit_verdict" => System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        verdict = "supported",
+                        reason = turkish ? "Sahte kaynak destekliyor." : "Fake source supports it.",
+                    }),
+
                     _ => null,
                 };
             },
@@ -66,6 +85,9 @@ public static class NodeHandlerRegistration
             .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
+            // Cikarim ve dogrulama AYNI sahte modelden; gercek hatta
+            // da su an oyle. Ayrimin gerekcesi ClaimCheckHandler'da.
+            .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm));
     }
 
@@ -117,6 +139,7 @@ public static class NodeHandlerRegistration
                 storage))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
+            .Register(new ClaimCheckHandler(TieredLlmProvider.Single(new OllamaLlmProvider(http))))
             .Register(new SeoGenerateHandler(TieredLlmProvider.Single(new OllamaLlmProvider(http))));
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
@@ -131,5 +154,6 @@ public static class NodeHandlerRegistration
         "timeline.compile",
         "media.render",
         "seo.generate",
+        "claim.check",
     };
 }

@@ -823,10 +823,30 @@ public sealed class ResearchHandler : INodeHandler
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        var topic = NodeJson.Text(context.RunContext, "topic.topic") ?? "konu";
+
+        // Sahte kaynak GERCEK BICIMDE: url + excerpt.
+        //
+        // Bos birakmak, sahte hattin iddia dogrulama node'unu hic
+        // kosturmamasi demekti - o node "kaynak yok" diye duserdi ve
+        // sahte hat gercek hattin sekline benzemekten cikardi. Faz 0'in
+        // butun degeri ayni graftan gecmekte.
         return Task.FromResult(Result.Success(NodeJson.From(new
         {
-            sources = Array.Empty<string>(),
-            claims = Array.Empty<string>(),
+            sources = new[]
+            {
+                new
+                {
+                    url = "https://ornek.test/sahte-kaynak",
+                    title = $"{topic} — sahte kaynak",
+                    source_type = "Encyclopedia",
+                    excerpt = $"{topic} hakkinda sahte bir kaynak metni. "
+                              + "Kayitlar bunun sanilandan daha eskiye dayandigini gosteriyor.",
+                    length = 120,
+                },
+            },
+            source_count = 1,
+            facts = Array.Empty<object>(),
             note = "Faz 0 yer tutucusu; gercek arastirma P1-09'da.",
         })));
     }
