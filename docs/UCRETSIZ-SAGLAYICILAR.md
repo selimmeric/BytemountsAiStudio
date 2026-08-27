@@ -6,7 +6,15 @@ Sistemin **API anahtarı olmadan** çalışabildiği servisler ve anahtar geldi�
 dotnet run --project src/BytemountsAiStudio.Cli -- providers
 ```
 
-Bu komut "şu an ne ile çalışabiliyorum" sorusunu tek ekranda cevaplıyor.
+Bu komut "şu an ne ile çalışabiliyorum" sorusunu tek ekranda cevaplıyor. Yanındakiler:
+
+| Komut | Ne yapıyor |
+|---|---|
+| `bmai providers` | Katalog: ne çalışıyor, ne anahtar bekliyor |
+| `bmai credential list` | Tanımlı anahtarlar (maskeli) |
+| `bmai prompt list` | İstem sürümleri ve damgaları |
+| `bmai prompt eval` | İstem fixture'ları — **model çağırmaz** |
+| `bmai fetch <url>` | Tek sayfa çeker, ne çıkardığını gösterir |
 
 ---
 
@@ -20,6 +28,7 @@ Bu komut "şu an ne ile çalışabiliyorum" sorusunu tek ekranda cevaplıyor.
 | Stok görsel | **Openverse** | ücretsiz | orta | Creative Commons, lisans filtreli |
 | AI görsel | **Pollinations** | ücretsiz | orta | Anahtarsız üretim |
 | Ses | **Windows konuşma sentezi** | ücretsiz | düşük-orta | tr-TR: Microsoft Tolga |
+| Sayfa çekme | **WebFetch** (kendi kodumuz) | ücretsiz | orta | robots.txt kontrollü |
 
 Doğrulanmış çıktı: `bmai real --topic "Göbeklitepe"` → 1080×1920, 13.5 sn, Wikipedia'ya dayalı Türkçe senaryo, gerçek seslendirme, AI görseller.
 
@@ -109,6 +118,12 @@ Katalog doğrulaması, anahtarı tanımlı olmayan bir sağlayıcı yönlendirme
 
 **Ollama GPU hatası verebiliyor.** Bir koşuda `CUDA error: unknown error` alındı; geçici hata sınıfına girdiği için ikinci denemede geçti. Retry mekanizması bunu görünmez kıldı.
 
-**Windows TTS kelime zamanlaması vermiyor.** Altyazı hizalaması şu an TTS'in kendi ürettiği zamanlamaya değil, sahte dağıtıma dayanıyor. Gerçek hizalama için WhisperX yan servisi (P1-04) gerekiyor.
+**Windows TTS kelime zamanlaması vermiyor.** Bu yüzden gerçek videolar bir süre **altyazısız** çıktı: ipuçları yalnızca sağlayıcının zamanlamasından üretiliyordu ve o boş geliyordu. Sahte hatta altyazı vardı, gerçek hatta yoktu, ve fark hiçbir yerde görünmüyordu.
+
+Şimdi ölçülen segment süresi kelimelere dağıtılıyor — karakter sayısına göre ağırlıklı, noktalama sonrasına es payı ile. Bu bir **hizalama değil, dağıtım**: çıktıda `timings_estimated` bayrağı duruyor. Öncelik sırası kodda kurulu:
+
+1. Sağlayıcının kendi zamanlaması (ElevenLabs veriyor) — gerçek
+2. ASR hizalaması (WhisperX, P1-04) — gerçek
+3. Dağıtım — tahmin, ama altyazısız kalmaktan iyi
 
 **Windows TTS Linux'ta çalışmaz.** Faz 4'te Linux'a geçerken Piper'a taşınacak — katalogda kayıtlı, kurulumu bekliyor.

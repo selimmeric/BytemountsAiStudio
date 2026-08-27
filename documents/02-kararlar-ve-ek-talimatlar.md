@@ -154,3 +154,38 @@ Bu blokta tamamlananlar: P0-05, P0-12, P0-14, P0-16, P0-17, P0-24, P0-26, P0-27,
 | P1-24/25 | YouTube OAuth istemci gizli dosyası + kanal seçimi |
 
 Bu beşi olmadan Faz 1 tamamlanamaz; kalan görevler (kimlik deposu, prompt registry, tools-sidecar, Wikipedia adaptörü) anahtarsız ilerletilebilir.
+
+---
+
+## 27 Ağustos 2026 — Faz 1 ilk blok
+
+**Talimat:** "bu anahtarları şu an vermeyeceğim .. sen gerekirse başka ai ler için demo bul ordan kurgula" + "bunları kullanabilecegim bedava sitelerin verilerinide oluştur ve sisteme onları şablon gibi ekle"
+
+**Yapılanlar (P1-00, 01, 03, 05b, 06, 07, 12, 13b, 15a, 16, 17a).** Ayrıntı `docs/IS-PLANI.md` içinde; buraya yalnızca **kararlar** ve **yanlış çıkan varsayımlar** yazılıyor.
+
+### Sistem çalışırken bulunan gerçek kusurlar
+
+Bunlar plan maddesi değildi; kod yazılırken ya da gerçek veriye karşı denenirken ortaya çıktı.
+
+1. **Gerçek videolar altyazısız çıkıyordu.** Windows TTS kelime zamanlaması vermiyor; altyazı ipuçları yalnızca sağlayıcının zamanlamasından üretildiği için gerçek hatta hiç ipucu oluşmuyordu. Sahte hatta altyazı vardı. İkisi de "başarılı" bitiyordu, dolayısıyla fark hiçbir yerde görünmüyordu. — *Ders: iki hattın da yeşil olması, ikisinin aynı şeyi ürettiği anlamına gelmiyor.*
+
+2. **P1-13 yazılmıştı ama bağlanmamıştı.** Konuşma normalizasyonu bir kayıt olarak duruyordu, TTS node'u ham cümleyi geçiriyordu. 30 testi geçen bir bileşen hiç çağrılmıyordu. — *Ders: "test yeşil" ≠ "devrede".*
+
+3. **Görsel istemleri konudan bağımsızdı.** `"{konu} — sahne {n}"`. Üç sahne, üç farklı görsel üretiyordu ama hiçbiri cümlesiyle ilgili değildi.
+
+4. **HTML çıkarımı gerçek sayfada iki yerde kırıldı.** Sentetik testlerin hepsini geçiyordu. Wikipedia'nın `data-mw` özniteliğindeki JSON gövde metnine sızdı (öznitelik içindeki `>` etiketi erken kapatıyordu) ve paragraf içi satır sonu blok sınırı sanıldı. — *Ders: metin çıkarımı için gerçek sayfa şart; sentetik HTML kendi varsayımlarımızı doğruluyor.*
+
+5. **Sahne birleştirme timeline'ın birebir varsayımını kırdı.** Kısa cümleler birleşince sahne sayısı ses parçası sayısından az oldu. Bu yalnızca kısa cümle içeren senaryolarda kırılacaktı — seyrek ve teşhisi zor bir ses–görsel kayması. Bulunmasının sebebi `TimelineBuilder`'a veritabanısız test yazılması oldu.
+
+### Kararlar
+
+- **Anahtar isteme yok.** Katalogda anahtar bekleyen servisler duruyor ama sistem onlarsız çalışıyor. Anahtar geldiğinde `config/providers.json` içinde iki satır değişecek, kod değişmeyecek — `TieredLlmProvider` bu sözü tutmak için tek sağlayıcıyla bile devrede.
+- **Tarayıcı taklidi reddedildi.** WebFetch kimliğini veren bir User-Agent gönderiyor. Bir site bizi bu yüzden engelleyebilir; bu bir eksiklik değil. Kendini gizleyen bir botun robots.txt'ye uyması zaten bir şey ifade etmiyor.
+- **robots.txt 5xx → çekme yok.** "Okuyamadım, o hâlde serbesttir" tam ters yönde bir hata olurdu, üstelik sunucu zorlanırken.
+- **Openverse lisans filtresi konfigüre edilemez.** Varsayılan sonuçlar `by-nc-nd` geliyor ve ND kuralı Ken Burns hareketini bile ihlal ediyor.
+- **Görsel yönetmen kural tabanlı, model değil.** Sahne başına LLM çağrısının kazancı belirsiz; ayrıca aynı senaryo her koşuda aynı görseli üretmeli.
+- **İstem fixture'ları model çağırmıyor.** Doğrulanan şey doldurulmuş istemin kendisi. Model çağırsalardı CI'da koşamaz, yavaşlar ve modelin o günkü keyfine göre kırmızı yanardı. Değeri hemen görüldü: v3 eklenince sürüm sabitlemeyen iki fixture kırıldı.
+
+### Açık kalan engel
+
+**Docker Desktop bu makinede başlamıyor.** `sailor-ingest.sock` dosyası kilitli kalmış; silinemiyor (yönetici hakkı gerekiyor) ve Docker onsuz açılmıyor. `wsl --shutdown` çözmedi. Yeniden başlatma gerekiyor. Bu yüzden veritabanı gerektiren testler ve uçtan uca koşum **yerelde** doğrulanamadı — CI'da Postgres servis konteyneriyle koştu ve yeşil.
