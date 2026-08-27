@@ -199,3 +199,11 @@ Karar zaten saf bir şeydi: *"depodaki graf koddakinden farklı mı"*. `NeedsNew
 **Ders:** veritabanı gerektiren bir test yalnızca yavaş değil, **paylaşılan durum taşıyor**. Saf bir kararı oraya koymak, kararın kendisini değil komşu testleri sınamak oluyor.
 
 Aynı sırada kapanan bir tuzak daha: seeder yalnızca *anahtarın varlığına* bakıyordu, yani koddaki grafı değiştirmek mevcut bir veritabanında hiçbir şey yapmıyordu. CI (boş veritabanı) yeşil yanacak, geliştirme makinesi (tohumlanmış veritabanı) eski grafla koşmaya devam edecekti — ve fark hiçbir yerde görünmeyecekti.
+
+### Aynı ders, ikinci kez
+
+Konu havuzu testleri açtığı kanalı temizlemeyince, tohumlama testinin **kanal sayısına** bakan beklentisi düştü. CI kırmızı.
+
+Bu, birkaç saat önce yazdığım dersin aynısı — yalnızca farklı bir kılıkta. İlkinde test paylaşılan bir *satırı değiştiriyordu*, bu sefer paylaşılan bir *sayıyı artırıyordu*. Kural aynı: **veritabanı gerektiren bir test, komşularına bıraktıklarını temizlemek zorunda.**
+
+Yazılı bir ders, aynı hatanın farklı bir biçimini kendiliğinden engellemiyor. Kurala uymak için kuralı hatırlamak yetmiyor; testin *ne bıraktığını* her seferinde ayrıca sormak gerekiyor.

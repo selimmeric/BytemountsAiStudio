@@ -25,7 +25,16 @@ public sealed class TopicPoolTests(DatabaseFixture fixture) : IAsyncLifetime
         }
 
         await using var db = fixture.CreateContext();
+
+        // Konular VE bu sinifin actigi kanallar temizleniyor.
+        //
+        // Kanali birakmak, tohumlama testinin kanal SAYISINA bakan
+        // beklentisini dusuruyordu - CI'da gorulen bir hata ve
+        // paylasilan durum tuzagi. Ayni dersi bir kez daha almak
+        // gerekti: veritabani testleri komsularina biraktiklarini
+        // temizlemek zorunda.
         await db.Database.ExecuteSqlRawAsync("DELETE FROM topics");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM channels WHERE name LIKE 'kanal-%'");
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
