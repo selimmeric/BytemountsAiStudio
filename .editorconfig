@@ -85,3 +85,18 @@ dotnet_diagnostic.CA1720.severity = none
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
+# CA1711 "Collection ile bitmesin": xUnit'in ICollectionFixture deseni tam da
+# bu adlandirmayi kullaniyor; kurala uymak testi okunmaz hale getirirdi.
+dotnet_diagnostic.CA1711.severity = none
+
+# --- EF Core tarafından üretilen migration'lar ---
+# Bu dosyaları biz yazmıyoruz; `dotnet ef migrations add` üretiyor. Stil ve
+# performans analizörlerini üretilmiş koda uygulamak, her migration'da elle
+# düzeltme yapmak demek olurdu ve bir sonraki üretimde geri gelirdi.
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.IDE0300.severity = none
+dotnet_diagnostic.IDE0090.severity = none

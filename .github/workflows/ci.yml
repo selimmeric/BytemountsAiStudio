@@ -9,12 +9,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Kalicilik testleri gercek PostgreSQL'e kosuyor. Bellek ici saglayici bu
+    # semanin degerli kismini (pgvector, kismi indeks, jsonb, SKIP LOCKED)
+    # taklit edemiyor; orada gecen test uretimde calisacagina dair bir sey
+    # soylemez. Bu yuzden CI'da da gercek veritabani var.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: bmai
+          POSTGRES_PASSWORD: bmai_dev
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bmai"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      BMAI_TEST_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=bmai;Password=bmai_dev"
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      # Test veritabanlari uygulama tarafindan olusturuluyor ama eklentiler
+      # sablon veritabaninda hazir olmali; aksi halde her yeni test veritabani
+      # icin `CREATE EXTENSION` yetkisi gerekirdi.
+      - name: pgvector eklentisini template1'e kur
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -U bmai >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          PGPASSWORD=bmai_dev psql -h localhost -U bmai -d template1 \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;" \
+            -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 
       - name: Restore
         run: dotnet restore BytemountsAiStudio.slnx
@@ -24,8 +61,6 @@ jobs:
       - name: Build
         run: dotnet build BytemountsAiStudio.slnx --no-restore -c Release
 
-      # Faz 0-1'de tum testler FFmpeg olmadan kosar; piksel ve entegrasyon
-      # testleri "integration" ozelligiyle isaretlenip burada haric tutulacak.
       - name: Test
         run: dotnet test BytemountsAiStudio.slnx --no-build -c Release --verbosity normal
 

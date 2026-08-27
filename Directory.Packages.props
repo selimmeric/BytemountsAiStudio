@@ -1,26 +1,33 @@
 <Project>
-
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <!-- Paket sürümleri tek yerde. Bir sürümü yükseltmek tek satırlık iş olsun. -->
-
   <ItemGroup Label="ASP.NET / Hosting">
+    <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
+    <!-- EF Core çekirdeği açıkça sabitlendi. EFCore.NamingConventions 10.0.4'e,
+         Npgsql sağlayıcısı 10.0.11'e bağlıydı; MSBuild ikisini uzlaştıramayıp
+         MSB3277 üretiyordu. Transitive pinning açık olduğu için buradaki sürüm
+         tüm ağaca uygulanır. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="10.0.11" />
   </ItemGroup>
-
   <ItemGroup Label="Test">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
-
   <!-- Bilerek eklenmeyen: FluentAssertions.
        v8 ile ticari lisansa geçti; xUnit'in kendi Assert'i bu proje için yeterli
        ve bir bağımlılık daha taşımaya değmiyor. -->
-
 </Project>

@@ -1,0 +1,181 @@
+using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace BytemountsAiStudio.Persistence;
+
+public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbContext(options)
+{
+    public DbSet<Channel> Channels => Set<Channel>();
+
+    public DbSet<Topic> Topics => Set<Topic>();
+
+    public DbSet<Workflow> Workflows => Set<Workflow>();
+
+    public DbSet<WorkflowVersion> WorkflowVersions => Set<WorkflowVersion>();
+
+    public DbSet<Run> Runs => Set<Run>();
+
+    public DbSet<NodeExecution> NodeExecutions => Set<NodeExecution>();
+
+    public DbSet<RunEvent> RunEvents => Set<RunEvent>();
+
+    public DbSet<Job> Jobs => Set<Job>();
+
+    public DbSet<Asset> Assets => Set<Asset>();
+
+    public DbSet<ProviderCall> ProviderCalls => Set<ProviderCall>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+
+        var b = modelBuilder;
+
+        b.HasPostgresExtension("vector");
+        b.HasPostgresExtension("pg_trgm");
+
+        // Enum'lar metin olarak saklanır. Sayı olsaydı enum sırasını değiştiren
+        // bir refactor veritabanındaki anlamı sessizce kaydırırdı; ayrıca
+        // psql'den bakan insan ne olduğunu göremezdi.
+        b.Entity<Channel>(e =>
+        {
+            e.Property(x => x.Mode).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Language).HasMaxLength(16);
+            e.Property(x => x.SettingsJson).HasColumnType("jsonb");
+            e.Property(x => x.DailyBudget).HasPrecision(12, 4);
+            e.Property(x => x.MaxCostPerVideo).HasPrecision(12, 4);
+            e.HasIndex(x => x.Name).IsUnique();
+        });
+
+        b.Entity<Topic>(e =>
+        {
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Title).HasMaxLength(500);
+            e.Property(x => x.Language).HasMaxLength(16);
+            e.Property(x => x.ScoresJson).HasColumnType("jsonb");
+            e.Property(x => x.Embedding).HasColumnType("vector(768)");
+
+            // Sıradaki konuyu seçen sorgu: durum + skor. Kısmi indeks, çünkü
+            // yayınlanmış konular bu sorguya hiç girmiyor ve indeksi şişirirdi.
+            e.HasIndex(x => new { x.State, x.OverallScore })
+                .HasFilter("state IN ('New', 'Queued')")
+                .IsDescending(false, true);
+
+            // Tekillik kontrolü kanal + dil kapsamında (§20.5): TR'de yayınlanan
+            // bir konu EN kanalında tekrar sayılmaz.
+            e.HasIndex(x => new { x.ChannelId, x.Language });
+
+            e.HasOne(x => x.Channel).WithMany().HasForeignKey(x => x.ChannelId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Workflow>(e =>
+        {
+            e.Property(x => x.Key).HasMaxLength(100);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.ContentKind).HasConversion<string>().HasMaxLength(32);
+            e.HasIndex(x => x.Key).IsUnique();
+        });
+
+        b.Entity<WorkflowVersion>(e =>
+        {
+            e.Property(x => x.GraphJson).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.WorkflowId, x.Version }).IsUnique();
+            e.HasOne(x => x.Workflow).WithMany(x => x.Versions)
+                .HasForeignKey(x => x.WorkflowId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Run>(e =>
+        {
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.ContextJson).HasColumnType("jsonb");
+            e.Property(x => x.ErrorJson).HasColumnType("jsonb");
+            e.Property(x => x.EstimatedCost).HasPrecision(12, 4);
+            e.Property(x => x.ActualCost).HasPrecision(12, 4);
+
+            // Panoda "çalışan run'lar" sorgusu; bitmişler indekste yer kaplamasın.
+            e.HasIndex(x => new { x.State, x.CreatedAt })
+                .HasFilter("state IN ('Pending', 'Running', 'WaitingApproval', 'WaitingResource')");
+
+            e.HasOne(x => x.WorkflowVersion).WithMany(x => x.Runs)
+                .HasForeignKey(x => x.WorkflowVersionId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<NodeExecution>(e =>
+        {
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.NodeId).HasMaxLength(100);
+            e.Property(x => x.NodeType).HasMaxLength(100);
+            e.Property(x => x.IdempotencyKey).HasMaxLength(128);
+            e.Property(x => x.OutputJson).HasColumnType("jsonb");
+            e.Property(x => x.ErrorJson).HasColumnType("jsonb");
+            e.Property(x => x.Cost).HasPrecision(12, 4);
+
+            // Aynı node'un aynı denemesi iki kez yazılamaz. Bu, çift tetiklemeyi
+            // uygulama katmanında değil veritabanında durdurur.
+            e.HasIndex(x => new { x.RunId, x.NodeId, x.Attempt }).IsUnique();
+            e.HasIndex(x => x.IdempotencyKey);
+
+            e.HasOne(x => x.Run).WithMany(x => x.NodeExecutions)
+                .HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<RunEvent>(e =>
+        {
+            e.Property(x => x.Level).HasMaxLength(16);
+            e.Property(x => x.Message).HasMaxLength(2000);
+            e.Property(x => x.NodeId).HasMaxLength(100);
+            e.Property(x => x.DataJson).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.RunId, x.CreatedAt });
+        });
+
+        b.Entity<Job>(e =>
+        {
+            e.Property(x => x.Queue).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.PayloadJson).HasColumnType("jsonb");
+            e.Property(x => x.NodeId).HasMaxLength(100);
+            e.Property(x => x.FairKey).HasMaxLength(100);
+            e.Property(x => x.LeasedBy).HasMaxLength(100);
+            e.Property(x => x.LastError).HasMaxLength(4000);
+
+            // Kuyruğun sıcak sorgusu: sınıfa göre bekleyen, zamanı gelmiş işler.
+            // Kısmi indeks kritik — tablo milyonlarca bitmiş iş biriktirecek ama
+            // bu indeks yalnızca bekleyenleri tutar.
+            e.HasIndex(x => new { x.Queue, x.RunAfter, x.Priority })
+                .HasFilter("state = 'Pending'");
+
+            // Süpürücünün sorgusu: süresi dolmuş kiralamalar.
+            e.HasIndex(x => x.LeaseExpiresAt).HasFilter("state = 'Leased'");
+        });
+
+        b.Entity<Asset>(e =>
+        {
+            e.HasKey(x => x.Sha256);
+            e.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength();
+            e.Property(x => x.Kind).HasMaxLength(32);
+            e.Property(x => x.MimeType).HasMaxLength(128);
+            e.Property(x => x.StoragePath).HasMaxLength(500);
+            e.Property(x => x.SourceProvider).HasMaxLength(64);
+            e.Property(x => x.SourceUrl).HasMaxLength(2000);
+            e.Property(x => x.LicenseJson).HasColumnType("jsonb");
+            e.HasIndex(x => x.Kind);
+        });
+
+        b.Entity<ProviderCall>(e =>
+        {
+            e.Property(x => x.ProviderKey).HasMaxLength(64);
+            e.Property(x => x.Operation).HasMaxLength(64);
+            e.Property(x => x.NodeId).HasMaxLength(100);
+            e.Property(x => x.UnitsJson).HasColumnType("jsonb");
+            e.Property(x => x.Cost).HasPrecision(12, 6);
+
+            // Maliyet raporlarının tamamı bu iki indeksten besleniyor:
+            // "bugün ne harcadık" ve "bu run'a ne harcadık".
+            e.HasIndex(x => x.CreatedAt);
+            e.HasIndex(x => new { x.RunId, x.CreatedAt });
+        });
+    }
+}
