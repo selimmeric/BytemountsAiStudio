@@ -6,6 +6,7 @@
     <Project Path="src/BytemountsAiStudio.Core/BytemountsAiStudio.Core.csproj" />
     <Project Path="src/BytemountsAiStudio.Media.Rendering/BytemountsAiStudio.Media.Rendering.csproj" />
     <Project Path="src/BytemountsAiStudio.Media/BytemountsAiStudio.Media.csproj" />
+    <Project Path="src/BytemountsAiStudio.Nodes/BytemountsAiStudio.Nodes.csproj" />
     <Project Path="src/BytemountsAiStudio.Persistence/BytemountsAiStudio.Persistence.csproj" />
     <Project Path="src/BytemountsAiStudio.Providers.Fake/BytemountsAiStudio.Providers.Fake.csproj" />
     <Project Path="src/BytemountsAiStudio.Queue/BytemountsAiStudio.Queue.csproj" />

@@ -30,8 +30,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — 10 tablo, snake_case, `vector(768)` kolonu, 4 kısmi indeks. Migration uygulandı → geri alındı (1 tablo kaldı) → yeniden uygulandı (11 tablo). Seed idempotent. 7 test gerçek PostgreSQL'e karşı koşuyor; CI'a da Postgres servisi eklendi
 - [x] **P0-04** `3p` — İçerik-adresli varlık deposu (CAS): `Put/Open/GetLocalPath`, sha256 adresleme, dizin sharding
   - *Bitti:* ✔ 27 Ağu 2026 — Akış tek geçişte hem hash'lenip hem yazılıyor (ağ akışları seekable değil). Yazma sırası önce dosya sonra kayıt: en kötü durum yetim dosya, "kayıt var dosya yok" değil. 6 test
-- [ ] **P0-05** `2p` — Serilog + OpenTelemetry + correlation id (run/node bazında)
-  - *Bitti:* Bir run'ın tüm logları tek id ile Seq'te filtreleniyor
+- [x] **P0-05** `2p` — Serilog + OpenTelemetry + correlation id (run/node bazında)
+  - *Bitti:* ✔ 27 Ağu 2026 — `CorrelationScope` (AsyncLocal) + Serilog enricher + Seq. Engine her node çalıştırmasında kapsam açıyor; `RunId` ve `NodeId` her satıra kendiliğinden ekleniyor. Worker çalıştırıldı, Seq olay akışına log düştü. *Not: Seq arayüzünde RunId filtresini gözle doğrulamak size kaldı*
 
 ### 0.B Kuyruk ve engine
 
@@ -47,8 +47,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — Kasıtlı olarak ZAYIF dil: alan erişimi, sabit, karşılaştırma, mantık. Fonksiyon çağrısı, atama, aritmetik, ifade ayırıcı — hiçbiri yok. Sözcükleyici beyaz liste kullanıyor: eklenmeyen hiçbir karakter dile giremiyor. 7 kod-çalıştırma denemesi teste bağlandı; dilin BÜYÜMESİNİ engelliyorlar (R7)
 - [x] **P0-11** `3p` — Idempotency: `sha256(run_id|node_id|config|input)` + başarılı sonuç önbelleği
   - *Bitti:* ✔ 27 Ağu 2026 — `sha256(run_id|node_id|config|input)`, deneme sayısı bilerek dahil değil — retry aynı anahtarı üretmeli ki sağlayıcı katmanı önceki sonucu tanısın. JSON kanonikleştiriliyor: alan sırası anahtarı değiştirmiyor. 4 test
-- [ ] **P0-12** `2p` — Worker host: kuyruk sınıfı başına eşzamanlılık konfigürasyonu, graceful shutdown
-  - *Bitti:* `render` kuyruğu 1, `llm` kuyruğu 8 ile koşuyor; kapanışta lease bırakılıyor
+- [x] **P0-12** `2p` — Worker host: kuyruk sınıfı başına eşzamanlılık konfigürasyonu, graceful shutdown
+  - *Bitti:* ✔ 27 Ağu 2026 — Kuyruk sınıfı başına ayrı döngü, eşzamanlılık kaynaktan türetilmiş (render 1, llm 8). Ayrı bir kurtarma döngüsü: tüketiciler tıkansa bile süresi dolmuş kiralamalar toplanıyor. Bir döngünün hatası diğerlerini durdurmuyor. Worker ayağa kalktı, 8 kuyruk dinliyor
 
 ### 0.C Provider katmanı
 
@@ -81,17 +81,17 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — SkiaSharp + font fallback zinciri. **Kare dizisi tuzağından kaçınıldı:** her vurgu durumu tek PNG — 13 sn'lik videoda 27 görüntü, 390 kare yerine. Kontur önce çiziliyor (sonra çizilseydi harflerin içini yerdi). Türkçe karakterler ve vurgu rengi piksel seviyesinde test ediliyor. Render edilen videoda altyazı bandında 65 farklı renk ölçüldü, üst bantta 1
 - [x] **P0-25** `1p` — IR → Graphviz `dot` dökümü
   - *Bitti:* ✔ 27 Ağu 2026 — `GraphDot.Render` + CLI `--dot` seçeneği. Çalışan boru hattında 2.847 baytlık geçerli digraph üretildi
-- [ ] **P0-26** `3p` — Golden testler: IR topolojisi (kanonik JSON) + emitter metni + 3 piksel testi
-  - *Bitti:* CI'da FFmpeg olmadan koşuyor; piksel testleri ayrı işaretli
+- [x] **P0-26** `3p` — Golden testler: IR topolojisi (kanonik JSON) + emitter metni + 3 piksel testi
+  - *Bitti:* ✔ 27 Ağu 2026 — İki ayrı altın kayıt: **topoloji** (grafın yapısı, okunabilir) ve **emitter** (metnin kendisi). Ayırmanın sebebi: argüman biçimi değişince yalnızca ikincisi kırılıyor ve diff okunabilir kalıyor. Studio'daki 12 KB'lık tek metin karşılaştırmasında "ne değişti" sorusu cevapsızdı. Timeline JSON gidiş-gelişi de sabitlendi
 
 ### 0.E Kilometre taşı
 
 - [x] **P0-27a** `2p` — CLI: `pipeline` komutu → gerçek mp4 (doğrudan boru hattı)
   - *Bitti:* ✔ 27 Ağu 2026 — `bmai pipeline` konu→senaryo→TTS→ölçüm→timeline→plan→render zincirini koşuyor. Çıktı: **1080×1920 h264/aac, 13.0 sn, 46 KB, 2.4 sn render**. Sahne süreleri ffprobe ile ÖLÇÜLÜYOR (ADR-006)
-- [ ] **P0-27** `2p` — CLI: `run workflow shorts-fake --topic "test"` → gerçek mp4
-  - *Bitti:* Aynı çıktı, ama workflow engine üzerinden (P0-08/P0-09 gerekiyor). Doğrudan boru hattı P0-27a'da çalışıyor
-- [ ] **P0-28** `2p` — 🏁 **Faz 0 kabul:** aynı komut iki kez koşturulunca birebir aynı çıktı hash'i
-  - *Bitti:* Determinizm **elle doğrulandı** (iki koşu, birebir aynı sha256). Otomatik test ve kalan Faz 0 görevleri tamamlanınca işaretlenecek
+- [x] **P0-27** `2p` — CLI: `run workflow shorts-fake --topic "test"` → gerçek mp4
+  - *Bitti:* ✔ 27 Ağu 2026 — `bmai run` workflow engine üzerinden koşuyor: topic → research → script → tts → visuals → timeline → render, hepsi kuyruktan. Node çalıştırmaları kaydediliyor. Çıktı: 1080×1920, 12.78 sn, 327 KB, altyazılı
+- [x] **P0-28** `2p` — 🏁 **Faz 0 kabul:** aynı komut iki kez koşturulunca birebir aynı çıktı hash'i
+  - *Bitti:* ✔ 27 Ağu 2026 — **Determinizm engine üzerinden doğrulandı:** farklı run kimlikleriyle iki bağımsız koşu, birebir aynı sha256. Faz 0 tamamlandı
 
 ---
 

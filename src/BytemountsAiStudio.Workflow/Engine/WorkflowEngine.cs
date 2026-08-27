@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Observability;
 using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Persistence.Entities;
 using BytemountsAiStudio.Queue;
@@ -19,8 +20,12 @@ namespace BytemountsAiStudio.Workflow.Engine;
 /// olsun, boru hattının yeniden yazılması değil.
 public interface IWorkflowEngine
 {
+    /// `initialContext`: run'a girdi olarak verilen JSON. Node'lar buna
+    /// `input.*` yolundan erişir. Olmasaydı run'ı başlatan komutun verdiği
+    /// bilgiyi (konu, dil) node'lara ulaştırmanın yolu olmazdı.
     Task<Result<Guid>> StartRunAsync(
-        Guid workflowVersionId, Guid? channelId, Guid? topicId, CancellationToken cancellationToken);
+        Guid workflowVersionId, Guid? channelId, Guid? topicId,
+        CancellationToken cancellationToken, string? initialContext = null);
 
     Task<Result> ExecuteNextAsync(string workerId, QueueClass queue, CancellationToken cancellationToken);
 }
@@ -48,7 +53,8 @@ public sealed class WorkflowEngine(
     private readonly JobQueue _queue = jobQueue;
 
     public async Task<Result<Guid>> StartRunAsync(
-        Guid workflowVersionId, Guid? channelId, Guid? topicId, CancellationToken cancellationToken)
+        Guid workflowVersionId, Guid? channelId, Guid? topicId,
+        CancellationToken cancellationToken, string? initialContext = null)
     {
         var version = await db.WorkflowVersions
             .AsNoTracking()
@@ -80,7 +86,7 @@ public sealed class WorkflowEngine(
             TopicId = topicId,
             State = RunState.Running,
             StartedAt = _time.GetUtcNow(),
-            ContextJson = "{}",
+            ContextJson = initialContext ?? "{}",
         };
 
         db.Runs.Add(run);
@@ -154,6 +160,10 @@ public sealed class WorkflowEngine(
 
             return Result.Success();
         }
+
+        // Bu noktadan sonraki tum loglar run ve node kimligini tasiyor;
+        // her cagriya elle parametre eklemek er gec bir yerde unutulurdu.
+        using var correlation = CorrelationScope.Begin(run.Id.ToString("N"), node.Id);
 
         var runContext = JsonDocument.Parse(run.ContextJson).RootElement;
         var idempotencyKey = IdempotencyKey.Compute(run.Id, node.Id, node.Config, runContext);

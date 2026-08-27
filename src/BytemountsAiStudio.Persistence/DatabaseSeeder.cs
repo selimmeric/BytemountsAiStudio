@@ -35,9 +35,9 @@ public static class DatabaseSeeder
             { "from": "topic",    "to": "research" },
             { "from": "research", "to": "script" },
             { "from": "script",   "to": "tts" },
-            { "from": "tts",      "to": "timeline" },
-            { "from": "timeline", "to": "visuals" },
-            { "from": "visuals",  "to": "render" }
+            { "from": "tts",      "to": "visuals" },
+            { "from": "visuals",  "to": "timeline" },
+            { "from": "timeline", "to": "render" }
           ]
         }
         """;

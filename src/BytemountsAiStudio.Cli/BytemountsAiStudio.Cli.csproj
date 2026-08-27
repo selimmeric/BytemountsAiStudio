@@ -7,6 +7,7 @@
     <ProjectReference Include="..\BytemountsAiStudio.Providers.Fake\BytemountsAiStudio.Providers.Fake.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Media.Rendering\BytemountsAiStudio.Media.Rendering.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Media\BytemountsAiStudio.Media.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Nodes\BytemountsAiStudio.Nodes.csproj" />
   </ItemGroup>
 
   <ItemGroup>
