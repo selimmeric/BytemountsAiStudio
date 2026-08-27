@@ -14,6 +14,7 @@ using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Contracts.Prompts;
 using BytemountsAiStudio.Contracts.Providers;
+using BytemountsAiStudio.Media.Rendering.Text;
 using BytemountsAiStudio.Providers.Open;
 using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Persistence.Storage;
@@ -33,6 +34,7 @@ return command switch
     "prompt" => RunPrompt(args),
     "fetch" => await RunFetchAsync(args).ConfigureAwait(false),
     "facts" => await RunFactsAsync(args).ConfigureAwait(false),
+    "thumb" => RunThumbnail(args),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -70,6 +72,7 @@ static int Help()
           bmai prompt eval              fixture'lari kosar (model cagirmaz)
           bmai fetch <url>              sayfayi ceker (robots.txt kontrollu)
           bmai facts <konu> [--lang tr] Wikidata yapilandirilmis olgular
+          bmai thumb "<baslik>" [--out t.jpg] [--bg <gorsel>]
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -479,6 +482,56 @@ static async Task<int> RunFetchAsync(string[] args)
     Console.WriteLine("  --- ilk 600 karakter ---");
     Console.WriteLine(document.MainText.Length > 600 ? document.MainText[..600] : document.MainText);
     Console.WriteLine();
+
+    return 0;
+}
+
+/// Kapak gorseli uretimi (P1-23).
+static int RunThumbnail(string[] args)
+{
+    if (args.Length < 2 || args[1].StartsWith("--", StringComparison.Ordinal))
+    {
+        Console.Error.WriteLine("Kullanim: bmai thumb \"<baslik>\" [--out kapak.jpg] [--bg <gorsel>] [--lang tr-TR]");
+        return 2;
+    }
+
+    var output = Option(args, "--out", Path.Combine("output", "thumbnail.jpg"));
+    var background = Option(args, "--bg", string.Empty);
+    var language = LanguageTag.Create(Option(args, "--lang", "tr-TR"));
+
+    byte[]? backgroundBytes = null;
+
+    if (background.Length > 0)
+    {
+        if (!File.Exists(background))
+        {
+            Console.Error.WriteLine($"Arka plan gorseli yok: {background}");
+            return 2;
+        }
+
+        backgroundBytes = File.ReadAllBytes(background);
+    }
+
+    var renderer = new ThumbnailRenderer(["Inter", "Noto Sans", "Segoe UI", "Arial"]);
+
+    var result = renderer.Render(new ThumbnailRequest
+    {
+        Title = args[1],
+        Language = language,
+        BackgroundImage = backgroundBytes,
+    });
+
+    if (result.IsFailure)
+    {
+        Console.Error.WriteLine($"Kapak uretilemedi: {result.Error}");
+        return 1;
+    }
+
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
+    File.WriteAllBytes(output, result.Value);
+
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"Kapak yazildi: {output} ({ThumbnailRenderer.Width}x{ThumbnailRenderer.Height}, {result.Value.Length / 1024} KB)"));
 
     return 0;
 }

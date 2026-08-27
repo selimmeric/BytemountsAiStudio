@@ -121,7 +121,13 @@ public sealed class CaptionRenderer(IReadOnlyList<string> fontStack)
         var skCanvas = surface.Canvas;
         skCanvas.Clear(SKColors.Transparent);
 
-        using var typeface = ResolveTypeface(string.Concat(words));
+        // Kalınlık artık GERÇEKTEN uygulanıyor.
+        //
+        // `TextStyle.Bold` timeline'da true olduğu hâlde çizim ince
+        // yüzle yapılıyordu: ayar vardı, etkisi yoktu. Kapak üretimi
+        // yazılırken aynı hatanın izi sürülüp buraya kadar geldi.
+        using var typeface = FontResolver.Resolve(
+            fontStack, string.Concat(words), style.Bold, _fonts.Value);
         using var font = new SKFont(typeface, fontSize);
 
         // Kelimeler tek tek ölçülüp yerleştiriliyor: vurgulanan kelimenin
@@ -203,59 +209,6 @@ public sealed class CaptionRenderer(IReadOnlyList<string> fontStack)
         Anchor.Center => canvas.Height / 2f,
         _ => (float)(canvas.Height * (1 - (style.OffsetPercent / 100.0))),
     };
-
-    /// Font zinciri: metni çizebilen ilk yazı tipi.
-    ///
-    /// Skia'nın kendi fallback'i tek karakter için çalışıyor; biz metnin
-    /// TAMAMINI kapsayan bir yüz arıyoruz ki satır ortasında yazı tipi
-    /// değişip görsel tutarsızlık oluşmasın.
-    private SKTypeface ResolveTypeface(string sample)
-    {
-        foreach (var family in fontStack)
-        {
-            var candidate = SKTypeface.FromFamilyName(family);
-
-            if (candidate is not null && CanRender(candidate, sample))
-            {
-                return candidate;
-            }
-
-            candidate?.Dispose();
-        }
-
-        // Zincirde uygun yüz yoksa Skia'nın sistem fallback'ine düşüyoruz:
-        // yanlış fontla çizmek, hiç çizmemekten iyi.
-        foreach (var c in sample.Where(char.IsLetter))
-        {
-            var fallback = _fonts.Value.MatchCharacter(c);
-            if (fallback is not null)
-            {
-                return fallback;
-            }
-        }
-
-        return SKTypeface.Default;
-    }
-
-    private static bool CanRender(SKTypeface typeface, string sample)
-    {
-        using var font = new SKFont(typeface);
-
-        foreach (var rune in sample.EnumerateRunes())
-        {
-            if (rune.Value is ' ' or '\n' or '\t')
-            {
-                continue;
-            }
-
-            if (font.GetGlyph(rune.Value) == 0)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     internal static SKColor Parse(string hex)
         => SKColor.TryParse(hex, out var color) ? color : SKColors.White;
