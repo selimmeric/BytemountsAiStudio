@@ -1,0 +1,10 @@
+{
+  "prompt_key": "research.plan",
+  "values": { "topic": "Göbeklitepe", "language": "tr-TR" },
+  "expect": {
+    "contains": ["Göbeklitepe", "tr-TR", "SORGU DİLİ", "BİRBİRİNDEN FARKLI", "NEDEN"],
+    "not_contains": ["{{"],
+    "max_chars": 2000,
+    "min_chars": 300
+  }
+}
