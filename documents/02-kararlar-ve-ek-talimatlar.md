@@ -88,10 +88,16 @@ Python kodu tek yerde toplandı: **`tools-sidecar`** (plan görevi P1-04) — `/
 | git | 2.52.0 |
 | Python | 3.14.0 |
 | FFmpeg | 8.0.1 |
-| Docker | **Yok** — PostgreSQL için karar gerekiyor (bkz. §Açık konular) |
+| Docker Desktop | **4.88.1 — kuruluydu** (bkz. düzeltme) |
+| WSL | **2.7.12 — kuruluydu** |
+| Ollama | Kurulu (yerel LLM, ADR-015) |
+| Redis | Kurulu (Faz 4'te dağıtık rate-limit) |
+
+**Düzeltme — 27 Ağustos 2026:** İlk ortam taramamda "Docker yok, WSL yok" dedim ve kurulum talimatı verdim. İkisi de yanlıştı. Docker Desktop 4.88.1 kuruluydu (`Docker Desktop.exe` aradığım yoldaydı ama kontrolüm onu bulamadı), WSL 2.7.12 de öyle. Docker Desktop yalnızca **çalışmıyordu**; başlatılınca motor 12 saniyede hazır oldu. Kurulacak hiçbir şey yoktu.
+
+Ders: "komut PATH'te yok" ile "program kurulu değil" aynı şey değil. Ortam tespiti kayıt defterinden ve dosya sisteminden doğrulanmalı, tek bir `which` çıktısından değil.
 
 **Açık konular:**
 
-- **PostgreSQL kurulumu:** Docker olmadığı için ya Docker Desktop kurulacak ya da PostgreSQL 16 + pgvector Windows'a doğrudan kurulacak. Karar bekliyor (P0-02 bu karara bağlı).
 - **Python 3.14:** WhisperX/PyTorch tekerlekleri bu sürümde henüz olmayabilir; ASR yan servisi için ayrı bir 3.11/3.12 sanal ortamı gerekebilir. P1-04'te doğrulanacak.
 - Mimari dokümanındaki `.NET 9` referansları `net10.0` olarak güncellendi.

@@ -21,7 +21,9 @@ services:
       # kültürden bağımsız olsun ki dil değişince indeks davranışı değişmesin.
       POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=und-x-icu --encoding=UTF8"
     ports:
-      - "5432:5432"
+      # 127.0.0.1'e bağlı: varsayılan 0.0.0.0 bu veritabanını yerel ağa açardı
+      # ve parola zaten geliştirme parolası. Erişim yalnızca bu makineden.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -42,9 +44,13 @@ services:
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
+      # Seq 2026 ilk açılışta yönetici parolası ister; vermezsek çöker.
+      # Bu kap yalnızca 127.0.0.1'e bağlı ve geliştirme logu tutuyor —
+      # yönetilecek bir parola eklemek yerine kimlik doğrulaması kapalı.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
     ports:
-      - "5341:5341"   # log alım (ingestion)
-      - "8081:80"     # web arayüzü -> http://localhost:8081
+      - "127.0.0.1:5341:5341"   # log alım (ingestion)
+      - "127.0.0.1:8081:80"     # web arayüzü -> http://localhost:8081
     volumes:
       - seq-data:/data
 

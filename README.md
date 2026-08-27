@@ -21,13 +21,22 @@ zincirini paralel ve otomatik yürütür.
 |---|---|---|
 | .NET SDK | 10.0.400+ | `global.json` ile sabitlendi |
 | FFmpeg / ffprobe | 7+ | PATH üzerinde erişilebilir olmalı |
-| PostgreSQL | 16 + pgvector | Faz 0'da gerekli olacak (P0-02) |
-| Python | 3.11–3.12 | Yalnızca `tools-sidecar` ve betikler için |
+| Docker Desktop | 4.8+ | PostgreSQL ve Seq kapları için |
+| Python | 3.11–3.12 | `tools-sidecar` ve betikler için |
 
 ## Kurulum
 
+Altyapı kapları (PostgreSQL 16 + pgvector, Seq):
+
 ```bash
-dotnet build BytemountsAiStudio.slnx
+docker compose up -d
+```
+
+Kapların portları yalnızca `127.0.0.1`'e bağlıdır. Seq arayüzü: <http://localhost:8081>
+
+Derleme ve test:
+
+```bash
 dotnet test BytemountsAiStudio.slnx
 ```
 
