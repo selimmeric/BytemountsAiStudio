@@ -15,6 +15,7 @@ import html
 import re
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -141,6 +142,8 @@ h1{font-size:30px;line-height:1.15}
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
   font-family:"IBM Plex Mono",ui-monospace,monospace}
 .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.stamp{margin-top:6px;font-size:11px;color:var(--ink-faint);
+  font-family:"IBM Plex Mono",ui-monospace,monospace}
 
 /* ---- ust panel ---- */
 .head{background:var(--surface);border:1px solid var(--rule);border-radius:4px;
@@ -206,6 +209,12 @@ h1{font-size:30px;line-height:1.15}
 
 
 def render_html(phases: list[Phase]) -> str:
+    # Uretim damgasi: pano guncel mi degil mi TARAYICIDAN anlasilabilsin.
+    # Damga olmadan onbellekten gelen eski bir kopya ile taze bir kopya
+    # birbirinin ayni gorunuyor - "pano ilerlemiyor" sikayetinin sebebi
+    # buydu, sayilar dogruydu ama tazeligi soyleyen bir sey yoktu.
+    stamp = datetime.now().strftime("%d.%m.%Y %H:%M")
+
     total = sum(p.total for p in phases)
     earned = sum(p.earned for p in phases)
     mvp = [p for p in phases if p.number in MVP_PHASES]
@@ -269,6 +278,7 @@ def render_html(phases: list[Phase]) -> str:
       <div>
         <div class="eyebrow">İçerik Fabrikası · İş Planı</div>
         <h1>İlerleme Panosu</h1>
+        <div class="stamp">{stamp} · {len(done_tasks)} görev tamam</div>
       </div>
       <div class="scores">
         <div class="score"><span class="v">{o:.0f}<span style="font-size:20px">%</span></span>

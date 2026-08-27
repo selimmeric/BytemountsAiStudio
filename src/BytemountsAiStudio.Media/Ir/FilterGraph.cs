@@ -284,6 +284,102 @@ public sealed record FilterNode
             Args = [FilterArg.Named("duration", durationSeconds)],
         };
 
+    /// Bir ses akışını iki kopyaya ayırır.
+    ///
+    /// Ducking için ŞART: konuşma hem karışıma hem sidechain tetiğine
+    /// gidiyor ve FFmpeg'de bir akış yalnızca BİR KEZ tüketilebiliyor.
+    /// Ayırmadan bağlamak "filtre grafiği geçersiz" hatası veriyor —
+    /// ve bu hata mesajı sorunun nerede olduğunu hiç söylemiyor.
+    public static FilterNode ASplit(StreamRef input, IReadOnlyList<StreamRef> outputs)
+        => new()
+        {
+            Filter = "asplit",
+            Inputs = [input],
+            Outputs = outputs,
+            Args = [FilterArg.Positional(outputs.Count)],
+            Comment = $"ses akisini {outputs.Count} kopyaya ayir",
+        };
+
+    /// Müziği video süresince tekrarlar.
+    ///
+    /// `-1` sonsuz döngü demek; süreye oturtmayı sonraki `atrim`
+    /// yapıyor. Döngü olmadan kısa bir müzik parçası videonun
+    /// ortasında bitip geri kalanı sessiz bırakırdı.
+    public static FilterNode ALoop(StreamRef input, StreamRef output)
+        => new()
+        {
+            Filter = "aloop",
+            Inputs = [input],
+            Outputs = [output],
+            Args =
+            [
+                FilterArg.Named("loop", -1),
+                // Ornek sayisi: 2^31-1, pratikte "tamamini tekrarla".
+                FilterArg.Named("size", 2147483647),
+            ],
+            Comment = "muzigi video suresince tekrarla",
+        };
+
+    public static FilterNode AFadeIn(StreamRef input, StreamRef output, double durationSeconds)
+        => new()
+        {
+            Filter = "afade",
+            Inputs = [input],
+            Outputs = [output],
+            Args =
+            [
+                FilterArg.Named("t", "in"),
+                FilterArg.Named("st", 0),
+                FilterArg.Named("d", durationSeconds),
+            ],
+        };
+
+    public static FilterNode AFadeOut(
+        StreamRef input, StreamRef output, double startSeconds, double durationSeconds)
+        => new()
+        {
+            Filter = "afade",
+            Inputs = [input],
+            Outputs = [output],
+            Args =
+            [
+                FilterArg.Named("t", "out"),
+                FilterArg.Named("st", startSeconds),
+                FilterArg.Named("d", durationSeconds),
+            ],
+        };
+
+    /// Ducking: konuşma varken müziği kıs.
+    ///
+    /// İlk girdi KISILAN (müzik), ikinci girdi TETİK (konuşma). Sıra
+    /// ters olursa müzik konuşmayı kısar — teknik olarak geçerli bir
+    /// grafik, ama tam tersi bir video.
+    ///
+    /// `attack` ve `release` doğrudan duyulan şeyi belirliyor: attack
+    /// çok yüksekse müzik konuşmanın ilk hecesini yutuyor, release çok
+    /// düşükse cümle aralarında müzik pompalıyor.
+    public static FilterNode SidechainCompress(
+        StreamRef music, StreamRef trigger, StreamRef output,
+        double reductionDb, int attackMs, int releaseMs)
+        => new()
+        {
+            Filter = "sidechaincompress",
+            Inputs = [music, trigger],
+            Outputs = [output],
+            Args =
+            [
+                FilterArg.Named("threshold", 0.03),
+                // Oran, istenen kisma miktarindan turetiliyor: kullanici
+                // "ne kadar kisilsin" diye dusunuyor, "orani kac olsun"
+                // diye degil.
+                FilterArg.Named("ratio", Math.Clamp(Math.Abs(reductionDb) / 2.0, 2.0, 20.0)),
+                FilterArg.Named("attack", attackMs),
+                FilterArg.Named("release", releaseMs),
+                FilterArg.Named("makeup", 1),
+            ],
+            Comment = $"konusma varken muzigi {Math.Abs(reductionDb):0.#} dB kis",
+        };
+
     public static FilterNode ALoudNorm(StreamRef input, StreamRef output, double targetLufs)
         => new()
         {
