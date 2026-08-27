@@ -15,6 +15,8 @@ Bu komut "şu an ne ile çalışabiliyorum" sorusunu tek ekranda cevaplıyor. Ya
 | `bmai prompt list` | İstem sürümleri ve damgaları |
 | `bmai prompt eval` | İstem fixture'ları — **model çağırmaz** |
 | `bmai fetch <url>` | Tek sayfa çeker, ne çıkardığını gösterir |
+| `bmai facts <konu>` | Wikidata'dan yapılandırılmış olgular |
+| `bmai thumb "<başlık>"` | Kapak görseli üretir |
 
 ---
 
@@ -24,6 +26,7 @@ Bu komut "şu an ne ile çalışabiliyorum" sorusunu tek ekranda cevaplıyor. Ya
 |---|---|---|---|---|
 | LLM | **Ollama** (yerel) | ücretsiz | orta | Sınırsız, ağ gerektirmez |
 | Araştırma | **Wikipedia** resmî API | ücretsiz | yüksek | Ansiklopedik içeriğin ilk durağı |
+| Olgu | **Wikidata** | ücretsiz | yüksek | Tarih/sayı METİNDEN çıkarılmıyor, ALAN olarak okunuyor |
 | Araştırma | **SearXNG** (kendi sunucunuzda) | ücretsiz | yüksek | Genel web araması |
 | Stok görsel | **Openverse** | ücretsiz | orta | Creative Commons, lisans filtreli |
 | AI görsel | **Pollinations** | ücretsiz | orta | Anahtarsız üretim |
@@ -57,6 +60,25 @@ powershell -Command "[Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoice
 ```
 
 Başka bir dil eklemek isterseniz Windows *Ayarlar → Saat ve Dil → Dil → Konuşma* üzerinden ses paketi kurulabiliyor.
+
+---
+
+## Wikidata neden ayrı bir kalem
+
+Wikipedia **metin** veriyor ve model tarihi o metinden **çıkarıyor**; bu çıkarım hata yapabiliyor. Wikidata tarihi bir **alan** olarak veriyor — çıkarım adımı yok, dolayısıyla o adımın hatası da yok.
+
+Sayılar ve tarihler kısa videoda hem en çok yanlış çıkan hem yanlışlığı en görünür olan şeyler. Bu yüzden olgular senaryo istemine **ayrı bir bölüm** olarak giriyor, kaynak metnine karıştırılmadan: karıştırılsaydı model olguyu da yorumlanacak bir metin sanırdı.
+
+```bash
+dotnet run --project src/BytemountsAiStudio.Cli -- facts "Göbeklitepe"
+```
+
+```
+P571     kuruluş/inşa tarihi        ~9999 MÖ
+P17      ülke                       Türkiye
+P131     bulunduğu idari birim      Şanlıurfa
+P1435    koruma statüsü             Dünya Mirası Alanı
+```
 
 ---
 
