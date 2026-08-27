@@ -189,3 +189,13 @@ Bunlar plan maddesi değildi; kod yazılırken ya da gerçek veriye karşı dene
 ### Açık kalan engel
 
 **Docker Desktop bu makinede başlamıyor.** `sailor-ingest.sock` dosyası kilitli kalmış; silinemiyor (yönetici hakkı gerekiyor) ve Docker onsuz açılmıyor. `wsl --shutdown` çözmedi. Yeniden başlatma gerekiyor. Bu yüzden veritabanı gerektiren testler ve uçtan uca koşum **yerelde** doğrulanamadı — CI'da Postgres servis konteyneriyle koştu ve yeşil.
+
+### CI'ın yakaladığı ders — paylaşılan durum taşıyan test
+
+`seo.generate` node'unu grafa eklerken, graf sürümleme davranışını **veritabanına bağlı** bir testle sınamaya çalıştım. Test, tohumlanan workflow'un `GraphJson` alanını değiştirip bıraktı. Ardından koşan idempotency testi grafı ayrışık buldu, yeni sürüm ekledi ve "0 eklendi" beklentisi düştü. **İki test birden kırmızı.**
+
+Karar zaten saf bir şeydi: *"depodaki graf koddakinden farklı mı"*. `NeedsNewVersion` olarak ayrıldı; testi de saf oldu.
+
+**Ders:** veritabanı gerektiren bir test yalnızca yavaş değil, **paylaşılan durum taşıyor**. Saf bir kararı oraya koymak, kararın kendisini değil komşu testleri sınamak oluyor.
+
+Aynı sırada kapanan bir tuzak daha: seeder yalnızca *anahtarın varlığına* bakıyordu, yani koddaki grafı değiştirmek mevcut bir veritabanında hiçbir şey yapmıyordu. CI (boş veritabanı) yeşil yanacak, geliştirme makinesi (tohumlanmış veritabanı) eski grafla koşmaya devam edecekti — ve fark hiçbir yerde görünmeyecekti.
