@@ -56,5 +56,8 @@ Thumbs.db
 desktop.ini
 
 # Uretilen ciktilar (depoya girmez)
-output/
-storage/
+# Basinda / var: yalnizca depo kokundeki klasorleri yok say. Ankrajsiz
+# "storage/" deseni src/.../Storage/ kaynak klasorunu de yutuyordu ve
+# FileSystemAssetStore.cs hic commit edilmedi; CI yakaladi.
+/output/
+/storage/
