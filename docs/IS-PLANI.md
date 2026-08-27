@@ -126,8 +126,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 1.B Konu ve araştırma
 
-- [ ] **P1-08** `5p` — Topic Agent + skorlama + havuz durum makinesi + **pgvector tekillik** (çok dilli embedding)
-  - *Bitti:* "En Tehlikeli 10 Yer" ile "En Tehlikeli 10 Bölge" aynı sayılıyor; TR/EN çifti sayılmıyor
+- [x] **P1-08** `5p` — Topic Agent + skorlama + havuz durum makinesi + **pgvector tekillik** (çok dilli embedding)
+  - *Bitti:* ✔ 27 Ağu 2026 — Altı boyutlu skor, çünkü mimari "tek sayı yetmez" diyor: 72 puan almış bir konunun neden 72 aldığını bilmeden eşik ayarlanamaz. **Kaynak bulunabilirliği en ağır boyut** (%30) — hattımızın kırılma noktası orası, kaynağı olmayan konu senaryoda değil iddia doğrulamada düşüyor ve o noktaya kadar harcanan her şey boşa gidiyor. **Risk CEZA olarak uygulanıyor, boyut olarak değil:** ağırlıklı ortalamaya katsaydık yüksek riskli bir konu diğer boyutlardan telafi edebilirdi, oysa politika ihlali riski telafi edilebilir değil; ayrıca 70 üstü tek başına veto. Aralık dışı değer SIKIŞTIRILMIYOR, REDDEDİLİYOR — 120 veren model muhtemelen boyutu da yanlış anlamış ve sessizce 100'e çekmek o hatayı gizler. Tekillik pgvector kosinüs mesafesiyle, kapsam KANAL + DİL (§20.5): TR'de yayınlanan konu EN'de tekrar değil. Yalnızca `Published` engel — reddedilmiş konu zaten yayınlanmadı. Gömme yoksa boş liste değil HATA dönüyor: "benzer yok" yanlış bir güvence olurdu. Kuyruktan alma `FOR UPDATE SKIP LOCKED` ile, iş kuyruğundaki desenin aynısı — iki worker aynı videoyu iki kez üretmesin. Havuz boşluğu hata değil KAYNAK durumu (ADR-011). Red gerekçesi hangi kuralın devreye girdiğini söylüyor: risk vetosu, tekrar ve düşük skor üç farklı düzeltme gerektiriyor. 43 test (26 saf + 17 veritabanı)
 - [ ] **P1-09** `5p` — Research Planner + Research Agent (araç döngüsü, adım sayısı + bütçe sınırı)
   - *Bitti:* Bütçe dolunca döngü temiz duruyor, kısmi sonuç kaydediliyor
 - [x] **P1-10** `4p` — Claim Extractor + Entailment Checker (farklı model ailesi)
