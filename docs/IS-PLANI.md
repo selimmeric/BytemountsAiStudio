@@ -211,12 +211,14 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Havuz hiç boşalmıyor; content run konu beklemiyor
 - [ ] **P2-02** `5p` — Scheduler: kanal tempo, günlük hedef, saat pencereleri, **kota farkındalığı**
   - *Bitti:* Aynı anda toplu upload olmuyor; `publishAt` ile yayın saati ayrılıyor
-- [ ] **P2-03** `4p` — Bütçe kapıları: run tahmini, kanal günlük, global aylık + `action_on_exceed`
-  - *Bitti:* Limit aşımında yarım videolar bitiriliyor, yenisi başlamıyor
+- [~] **P2-03** `4p` — Bütçe kapıları: run tahmini, kanal günlük, global aylık + `action_on_exceed`
+  - *Kısmen:* 28 Ağu 2026 — **Karar saf ve sınandı**: "bu çağrı yapılabilir mi" sorusu gerçek para harcanarak öğrenilecek bir şey olmamalı. En önemli ayrım yeni run ile **yarım kalmış** run arasında: yarım bir videoyu bütçe yüzünden durdurmak, o ana kadar harcanan her kuruşu çöpe atmak — senaryo yazılmış, ses üretilmiş, görseller indirilmiş ve hiçbiri kullanılmayacak; üstelik ertesi gün devam edilse o adımlar **ikinci kez** para harcayacak. Varsayılan `FinishInFlight`: kapı yeni işlere kapanıyor, çalışanlar bitiyor. Pencereler sırayla bakılıyor ve gerekçe **hangi limitin** çarptığını yazıyor — "bütçe aşıldı" tek başına, kanal limitini mi global aylığı mı büyütmek gerektiğini söylemiyor. Aylık pencerede bekleme ay sonuna kadar: bir saat sonra denemek anlamsız, ayın kalanında hiçbir şey değişmeyecek. Tanınmayan `action_on_exceed` varsayılana düşüyor, `StopEverything`'e değil — bir yazım hatası yüzünden yarım videoların çöpe gitmesi, bütçenin biraz aşılmasından pahalı. 16 test
+  - *Kalan:* `BudgetGate` bu politikayı kullanacak şekilde bağlanmalı (veritabanı gerekiyor)
 - [ ] **P2-04** `2p` — Global kill-switch + kanal duraklatma + provider devre kesici paneli
   - *Bitti:* Tek tıkla tüm kuyruklar duruyor, çalışan işler temiz kapanıyor
-- [ ] **P2-05** `3p` — Kanal adaleti (fair scheduling)
-  - *Bitti:* 3 kanallı yük testinde hiçbiri aç kalmıyor
+- [~] **P2-05** `3p` — Kanal adaleti (fair scheduling)
+  - *Kısmen:* 28 Ağu 2026 — Kabul kriteri (3 kanallı yükte hiçbiri aç kalmıyor) **gerçek yük koşturmadan** sınanıyor: karar saf. **Test bir tasarım açığı buldu** — ilk kural "en az koşan, sonra en uzun bekleyen" idi ve işler hızlı bittiğinde koşan sayısı hep sıfır kalıyor, ölçüt hiçbir şey ayırt etmiyor ve seçim son çare olan kimlik sırasına düşüyordu: en küçük kimlikli kanal her turu kazanıp diğerlerini aç bırakıyordu. Kural üç ölçütlü oldu — anlık yük → **geçmiş pay** → bekleme süresi. Round-robin seçilmedi (sıradaki kanalın işi yoksa tur boşa gidiyor), ağırlıklı adalet de seçilmedi (yanlış ayarlanan ağırlık yine açlık üretiyor). Kanal başına tavan worker sayısından türetiliyor ve en az 1 — sıfır olsaydı hiçbir kanal iş alamaz, sistem sessizce dururdu. Açlık ölçülebilir: bekleyen işi olan ama hiç koşanı olmayan ve eşiği aşan kanal. 12 test
+  - *Kalan:* `JobQueue.LeaseAsync`'e bağlanması (veritabanı gerekiyor)
 - [ ] **P2-06** `4p` — Semantik QC: görsel alaka (VLM, örneklemeli), ton, yanıltıcı başlık, politika sınıflandırıcı
   - *Bitti:* Alakasız görsel yerleştirilen test videosu yakalanıyor
 - [ ] **P2-07** `3p` — Hedefli retry: `retry_target` ile yalnız ilgili node'dan yeniden koşma + `max_loops`
