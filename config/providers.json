@@ -98,9 +98,24 @@
       "key_env": "OPENAI_API_KEY",
       "cost": "ucretli",
       "quality": "yuksek",
-      "notes": "Senaryo (strong katman) icin hedeflenen saglayici. Anahtar bekliyor.",
+      "notes": "Senaryo (strong katman) icin hedeflenen saglayici. ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-02b); anahtar yalnizca canli dogrulama icin gerekiyor. Gomme 768 boyut isteniyor (ADR-003) - varsayilan 1536 semaya yazilamazdi.",
       "limits": {
         "requests_per_minute": 500
+      }
+    },
+    {
+      "key": "openrouter",
+      "role": "llm",
+      "display_name": "OpenRouter",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "OPENROUTER_API_KEY",
+      "cost": "degisken (ucretsiz katmani var)",
+      "endpoint": "https://openrouter.ai/api/v1",
+      "quality": "modele bagli",
+      "notes": "Tek anahtarla onlarca model. OpenAI ile AYNI kabloyu konustugu icin ayni adaptor kullaniliyor (P1-02b); fark yalnizca adres, anahtar ve model adi. EMBEDDING SUNMUYOR - cagrilirsa kalici hata donuyor, yonlendirme baska saglayiciya gitmeli.",
+      "limits": {
+        "requests_per_minute": 200
       }
     },
     {
@@ -112,7 +127,7 @@
       "key_env": "GEMINI_API_KEY",
       "cost": "ucretsiz kota + ucretli",
       "quality": "yuksek",
-      "notes": "Cömert ucretsiz kotasi var; anahtar almak ucretsiz.",
+      "notes": "Comert ucretsiz kotasi var; anahtar almak ucretsiz. ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-02b). Kablosu OpenAI'dan gercekten farkli: sistem istemi ayri alanda, zorlanmis arac tool_config.function_calling_config ile ve anahtar x-goog-api-key basliginda (sorgu dizisi vekil loglarina duz metin yaziliyor). 429 KAYNAK hatasi sayiliyor, gecici degil - ucretsiz katmanda bu genelde gunluk kota.",
       "limits": {
         "requests_per_minute": 15
       }
