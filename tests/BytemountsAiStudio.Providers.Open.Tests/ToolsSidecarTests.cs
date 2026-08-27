@@ -269,3 +269,30 @@ public sealed class ToolsSidecarTests
             ToolsSidecarOptions.From(_ => "adres degil bu").BaseAddress);
     }
 }
+
+/// Windows konuşma sağlayıcısının testleri.
+///
+/// PowerShell çağrılmıyor: sınanan şey, betiğin çıktısının nasıl
+/// yorumlandığı. Asıl mesele KULLANILAN sesin raporlanması — istenen
+/// ses ile kullanılan ses farklı olabiliyor ve fark görünmezse
+/// İngilizce metni Türkçe sesle okuyan bir video hiçbir yerde
+/// yakalanmaz.
+public sealed class WindowsSpeechVoiceTests
+{
+    [Fact]
+    public void KullanilanSes_CiktidanOkunur()
+    {
+        Assert.Equal("Microsoft Tolga (tr-TR)",
+            WindowsSpeechTtsProvider.VoiceFrom("OK 96044 | Microsoft Tolga (tr-TR)"));
+    }
+
+    /// Ayraç yoksa ses bilgisi de yok: uydurmak yerine null dönüyor.
+    [Theory]
+    [InlineData("OK 96044")]
+    [InlineData("")]
+    [InlineData("OK 96044 |")]
+    public void SesBilgisiYoksa_NullDoner(string output)
+    {
+        Assert.Null(WindowsSpeechTtsProvider.VoiceFrom(output));
+    }
+}

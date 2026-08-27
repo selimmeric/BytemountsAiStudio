@@ -51,6 +51,14 @@ public sealed record TtsResponse
     /// Sağlayıcı kelime zamanlaması veriyorsa dolu gelir; bu durumda ASR
     /// yan servisi hiç çalıştırılmaz.
     public IReadOnlyList<WordTiming> WordTimings { get; init; } = [];
+
+    /// GERÇEKTEN kullanılan ses.
+    ///
+    /// İstenen ses ile kullanılan ses aynı olmayabiliyor: istenen ses
+    /// yoksa sağlayıcı dile göre bir tane seçiyor. Bu alan olmasaydı
+    /// fark hiçbir yerde görünmezdi — ve yanlış seslendirilmiş bir
+    /// videoda hiçbir şey "kırılmadığı" için kimse fark etmezdi.
+    public string? VoiceUsed { get; init; }
 }
 
 public interface ITtsProvider : IProvider

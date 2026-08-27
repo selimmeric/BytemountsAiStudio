@@ -420,6 +420,13 @@ public sealed class TtsSynthesizeHandler(
                 // sorun giderme okunanı istiyor.
                 display_text = displayText,
                 speech_text = speechText,
+                // İSTENEN ses değil, KULLANILAN ses.
+                //
+                // İkisi farklı olabiliyor: istenen ses yoksa sağlayıcı
+                // dile göre seçiyor. Yazılmasaydı yanlış sesle
+                // seslendirilmiş bir video hiçbir yerde fark
+                // edilmezdi.
+                voice = speech.Value.Value.VoiceUsed ?? voiceId,
             });
 
             // ALTYAZI EKRANDAKİ METNİ GÖSTERİYOR, okunanı değil.

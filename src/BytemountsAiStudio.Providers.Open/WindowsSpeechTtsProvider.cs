@@ -59,6 +59,21 @@ public sealed class WindowsSpeechTtsProvider(string? powershellPath = null) : IT
                 return Result.Failure<ProviderResponse<TtsResponse>>(run.Error);
             }
 
+            // DİL İÇİN SES YOKSA ÜRETİM YAPILMIYOR.
+            //
+            // KAYNAK hatası, başarısızlık değil (ADR-011): eksik olan
+            // şey bir dil paketi ve kurulduğunda aynı iş çalışacak.
+            // Sessizce varsayılan sese düşmek, İngilizce metni Türkçe
+            // sesle okutup videoyu yayına vermek demekti.
+            if (run.Value.StartsWith("NOVOICE", StringComparison.Ordinal))
+            {
+                return Error.Resource("windows_speech.no_voice",
+                    $"'{request.Language.Value}' için kurulu ses yok ({run.Value[8..].Trim()}). "
+                    + "Windows Ayarlar > Saat ve Dil > Dil ve bölge > dil ekleyin ve "
+                    + "'Konuşma' özelliğini işaretleyin.",
+                    TimeSpan.FromHours(1));
+            }
+
             if (!File.Exists(outputPath))
             {
                 return Error.Transient("windows_speech.no_output",
@@ -83,6 +98,8 @@ public sealed class WindowsSpeechTtsProvider(string? powershellPath = null) : IT
                     // (ADR-006).
                     ReportedDuration = EstimateDuration(bytes),
                     WordTimings = [],
+                    // Betik "OK <bayt> | <ses> (<dil>)" yaziyor.
+                    VoiceUsed = VoiceFrom(run.Value),
                 },
                 new UsageUnits { Characters = request.SpeechText.Length }));
         }
@@ -155,6 +172,19 @@ public sealed class WindowsSpeechTtsProvider(string? powershellPath = null) : IT
         return Result.Success<IReadOnlyList<VoiceInfo>>(voices);
     }
 
+    /// Betiğin çıktısından GERÇEKTEN kullanılan sesi okur.
+    ///
+    /// İstenen ses ile kullanılan ses aynı olmayabiliyor; fark burada
+    /// görünür hâle geliyor ve node çıktısına yazılıyor.
+    internal static string? VoiceFrom(string output)
+    {
+        var separator = output.IndexOf('|', StringComparison.Ordinal);
+
+        return separator >= 0 && separator + 1 < output.Length
+            ? output[(separator + 1)..].Trim()
+            : null;
+    }
+
     /// Sentez betiği.
     ///
     /// Metin base64 ile geçiriliyor: tırnak, satır sonu ve `$` gibi
@@ -168,6 +198,9 @@ public sealed class WindowsSpeechTtsProvider(string? powershellPath = null) : IT
 
         var encodedPath = Convert.ToBase64String(
             System.Text.Encoding.UTF8.GetBytes(outputPath));
+
+        var encodedVoiceId = Convert.ToBase64String(
+            System.Text.Encoding.UTF8.GetBytes(request.VoiceId ?? string.Empty));
 
         // Konuşma hızı SSML ile veriliyor: WinRT'nin doğrudan hız ayarı yok.
         var ratePercent = (int)Math.Round((request.Speed - 1.0) * 100);
@@ -192,9 +225,33 @@ public sealed class WindowsSpeechTtsProvider(string? powershellPath = null) : IT
             }
 
             $syn = New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
-            $voice = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices |
-                Where-Object { $_.Language -like '{{request.Language.Primary}}*' } | Select-Object -First 1
-            if ($voice) { $syn.Voice = $voice }
+            $all = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices
+
+            # ONCE ISTENEN SES, sonra dile gore.
+            #
+            # Istenen ses kimligi baska bir saglayiciya ait olabiliyor
+            # (hattin varsayilani "fake-tr-f1"); o zaman eslesmiyor ve
+            # dile gore seciliyor. Ama DIL eslesmezse secim yapilmiyor:
+            # varsayilan sese dusmek, Ingilizce metni Turkce sesle
+            # okutmak demekti ve bu hicbir yerde gorunmezdi.
+            $wanted = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{{encodedVoiceId}}'))
+            $voice = $null
+
+            if ($wanted) {
+                $voice = $all | Where-Object { $_.Id -eq $wanted -or $_.DisplayName -eq $wanted } | Select-Object -First 1
+            }
+
+            if (-not $voice) {
+                $voice = $all | Where-Object { $_.Language -like '{{request.Language.Primary}}*' } | Select-Object -First 1
+            }
+
+            if (-not $voice) {
+                $kurulu = ($all | ForEach-Object { $_.Language }) -join ', '
+                "NOVOICE {{request.Language.Value}} | kurulu: $kurulu"
+                exit 0
+            }
+
+            $syn.Voice = $voice
 
             $ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{{request.Language.Value}}'>" +
                     "<prosody rate='{{(ratePercent >= 0 ? "+" : string.Empty)}}{{ratePercent.ToString(CultureInfo.InvariantCulture)}}%'>" +
@@ -206,7 +263,7 @@ public sealed class WindowsSpeechTtsProvider(string? powershellPath = null) : IT
             $bytes = New-Object byte[] $stream.Size
             $reader.ReadBytes($bytes)
             [System.IO.File]::WriteAllBytes($out, $bytes)
-            "OK $($bytes.Length)"
+            "OK $($bytes.Length) | $($voice.DisplayName) ($($voice.Language))"
             """;
     }
 
