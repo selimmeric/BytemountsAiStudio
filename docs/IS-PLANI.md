@@ -41,12 +41,12 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — Dört hata sınıfının dördü de farklı davranıyor: geçici→backoff, kalıcı→tekrar yok, zehirli→ilk denemede DLQ, **kaynak→erteleme (deneme sayacı bile artmıyor)**. Son denemede DLQ. Her sınıfın testi var
 - [x] **P0-08** `3p` — Workflow tanım modeli: JSONB graf, şema doğrulama, `workflow_versions` sürümleme
   - *Bitti:* ✔ 27 Ağu 2026 — JSONB graf + tam doğrulayıcı: bilinmeyen node tipi, tekrarlanan kimlik, kopuk kenar, erişilemeyen node, giriş node'u olmayan graf, kendine bağlanma, bozuk koşul — 13 test. Döngü yasak değil (QC→render meşru desen) ama `max_loops` sınırsız olamaz
-- [ ] **P0-09** `5p` — DAG engine: run durum makinesi, node tetikleme, "çıktı yazımı + sonraki node kuyruğa" tek transaction
-  - *Bitti:* Engine ortasında süreç öldürülünce run asılı kalmıyor, kaldığı yerden devam ediyor
+- [x] **P0-09** `5p` — DAG engine: run durum makinesi, node tetikleme, "çıktı yazımı + sonraki node kuyruğa" tek transaction
+  - *Bitti:* ✔ 27 Ağu 2026 — Run durum makinesi + node tetikleme + koşullu kenar + döngü sınırı. **Çıktı yazımı ve sonraki node'un kuyruğa atılması tek transaction'da.** İşleyici istisnası worker'ı düşürmüyor (zehirli sayılıyor); kaynak hatası run'ı düşürmüyor, `WaitingResource`'a alıyor; iptal edilmiş run'ın bekleyen işleri çalıştırılmıyor. 9 test
 - [x] **P0-10** `3p` — Kısıtlı ifade değerlendirici (`when`, `max_loops`): karşılaştırma, `&&`, `||`, alan erişimi — rastgele kod yok
   - *Bitti:* ✔ 27 Ağu 2026 — Kasıtlı olarak ZAYIF dil: alan erişimi, sabit, karşılaştırma, mantık. Fonksiyon çağrısı, atama, aritmetik, ifade ayırıcı — hiçbiri yok. Sözcükleyici beyaz liste kullanıyor: eklenmeyen hiçbir karakter dile giremiyor. 7 kod-çalıştırma denemesi teste bağlandı; dilin BÜYÜMESİNİ engelliyorlar (R7)
-- [ ] **P0-11** `3p` — Idempotency: `sha256(run_id|node_id|config|input)` + başarılı sonuç önbelleği
-  - *Bitti:* Aynı node iki kez koşturulunca provider çağrısı bir kez yapılıyor
+- [x] **P0-11** `3p` — Idempotency: `sha256(run_id|node_id|config|input)` + başarılı sonuç önbelleği
+  - *Bitti:* ✔ 27 Ağu 2026 — `sha256(run_id|node_id|config|input)`, deneme sayısı bilerek dahil değil — retry aynı anahtarı üretmeli ki sağlayıcı katmanı önceki sonucu tanısın. JSON kanonikleştiriliyor: alan sırası anahtarı değiştirmiyor. 4 test
 - [ ] **P0-12** `2p` — Worker host: kuyruk sınıfı başına eşzamanlılık konfigürasyonu, graceful shutdown
   - *Bitti:* `render` kuyruğu 1, `llm` kuyruğu 8 ile koşuyor; kapanışta lease bırakılıyor
 

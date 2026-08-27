@@ -14,6 +14,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Workflow\BytemountsAiStudio.Workflow.csproj" />
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Providers.Fake\BytemountsAiStudio.Providers.Fake.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.TestSupport\BytemountsAiStudio.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Queue\BytemountsAiStudio.Queue.csproj" />
   </ItemGroup>
 
 </Project>
