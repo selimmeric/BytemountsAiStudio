@@ -1,0 +1,25 @@
+{
+  "prompt_key": "script.generate",
+  "version": 3,
+  "values": {
+    "topic": "Bermuda Şeytan Üçgeni",
+    "language": "tr-TR",
+    "sentence_count": "3",
+    "format_structure": "1. KANCA\n2. GELİŞME\n3. KAPANIŞ",
+    "facts": "",
+    "research": "--- Kaynak\nBölge hakkında pek çok efsane anlatılıyor."
+  },
+  "expect": {
+    "contains": [
+      "Bermuda",
+      "KANCA",
+      "bilgi uydurma"
+    ],
+    "_comment": "Olgu yoksa bos bir 'OLGULAR:' basligi kalmamali: modele 'burada bir sey olmaliydi' diye okunur ve uydurmayi davet eder.",
+    "not_contains": [
+      "DOGRULANMIS OLGULAR",
+      "{{"
+    ],
+    "max_chars": 3000
+  }
+}

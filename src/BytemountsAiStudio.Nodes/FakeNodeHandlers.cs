@@ -141,6 +141,12 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
             ["sentence_count"] = format.TargetSentences.ToString(CultureInfo.InvariantCulture),
             ["format_structure"] = format.Structure,
             ["research"] = research ?? string.Empty,
+            // Olgu yoksa bölüm başlığı da girmiyor: boş bir "OLGULAR:"
+            // başlığı modele "burada bir şey olmalıydı" diye okunuyor
+            // ve uydurmayı davet ediyor.
+            ["facts"] = FactsDigest(context.RunContext) is { } digest
+                ? "DOGRULANMIS OLGULAR (bunlar kaynaktan OKUNMUS degerler, yorumlama):" + Environment.NewLine + digest
+                : string.Empty,
         };
 
         var rendered = template.Value.Render(values);
@@ -226,6 +232,39 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
     ///
     /// Null dönmesi normal: araştırma node'u olmayan bir grafta da senaryo
     /// üretilebilmeli. Zorunlu kılmak, sahte hattı da kırardı.
+    /// Wikidata olgularının isteme giren hâli.
+    ///
+    /// AYRI bir bölüm olarak veriliyor, kaynak metnine karıştırılmadan.
+    /// Sebep: bunlar metinden çıkarılmış değil, okunmuş değerler ve
+    /// modele bunu söylemek gerekiyor. Karıştırsaydık model olguyu da
+    /// yorumlanacak bir metin sanardı; oysa tarih ve sayı tam da
+    /// yorumlanmaması gereken şeyler.
+    private static string? FactsDigest(JsonElement runContext)
+    {
+        if (!runContext.TryGetProperty("research", out var research)
+            || !research.TryGetProperty("facts", out var facts)
+            || facts.ValueKind != JsonValueKind.Array
+            || facts.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+
+        foreach (var fact in facts.EnumerateArray())
+        {
+            var label = fact.TryGetProperty("label", out var l) ? l.GetString() : null;
+            var value = fact.TryGetProperty("value", out var v) ? v.GetString() : null;
+
+            if (!string.IsNullOrWhiteSpace(label) && !string.IsNullOrWhiteSpace(value))
+            {
+                builder.Append("- ").Append(label).Append(": ").AppendLine(value);
+            }
+        }
+
+        return builder.Length == 0 ? null : builder.ToString();
+    }
+
     private static string? ResearchDigest(JsonElement runContext)
     {
         if (!runContext.TryGetProperty("research", out var research)

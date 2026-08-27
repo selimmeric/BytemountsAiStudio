@@ -4,6 +4,7 @@ using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Providers.Open;
 using BytemountsAiStudio.Workflow.Engine;
 
 namespace BytemountsAiStudio.Nodes;
@@ -16,7 +17,9 @@ namespace BytemountsAiStudio.Nodes;
 ///
 /// Şu an yalnızca özet metinleri topluyor, iddia üretmiyor. Bu kasıtlı:
 /// kaynağı olmayan iddia üretmektense hiç iddia üretmemek doğru davranış.
-public sealed class WikipediaResearchHandler(WikipediaProviderAdapter provider) : INodeHandler
+public sealed class WikipediaResearchHandler(
+    WikipediaProviderAdapter provider,
+    WikidataProvider? wikidata = null) : INodeHandler
 {
     public string NodeType => "research.deep";
 
@@ -91,12 +94,70 @@ public sealed class WikipediaResearchHandler(WikipediaProviderAdapter provider) 
                 $"'{topic}' için hiçbir kaynak çekilemedi.");
         }
 
+        // Wikidata olguları AYRI bir alanda duruyor, kaynak metnine
+        // karıştırılmıyor. Sebep: bunlar çıkarılmış değil OKUNMUŞ
+        // değerler. Bir tarih metinden çıkarıldığında yanlış olabilir;
+        // buradan geldiğinde yanlışsa hata Wikidata'da. Ayrımı korumak,
+        // bir hatanın nereden geldiğini söyleyebilmek demek.
+        var facts = await FactsAsync(topic, language, cancellationToken).ConfigureAwait(false);
+
         return Result.Success(NodeJson.From(new
         {
             sources,
             source_count = sources.Count,
+            facts,
             language = language.Value,
         }));
+    }
+
+    /// Wikidata'dan yapılandırılmış olgular.
+    ///
+    /// BAŞARISIZLIĞI araştırmayı düşürmüyor: olgular bir zenginleştirme,
+    /// zorunluluk değil. Wikidata çöktüğünde Wikipedia metniyle senaryo
+    /// yine üretilebilmeli — tersi, tek bir ek servisi kritik yola
+    /// koymak olurdu.
+    private async Task<List<object>> FactsAsync(
+        string topic, LanguageTag language, CancellationToken cancellationToken)
+    {
+        var facts = new List<object>();
+
+        if (wikidata is null)
+        {
+            return facts;
+        }
+
+        var search = await wikidata.SearchAsync(
+            new SearchQuery { Text = topic, Language = language, MaxResults = 1 },
+            ProviderContext.ForTest($"wikidata:{topic}"),
+            cancellationToken).ConfigureAwait(false);
+
+        if (search.IsFailure || search.Value.Value.Count == 0)
+        {
+            return facts;
+        }
+
+        var hit = search.Value.Value[0];
+        var entityId = hit.Url.Segments[^1];
+
+        var result = await wikidata.FactsAsync(entityId, language, cancellationToken).ConfigureAwait(false);
+
+        if (result.IsFailure)
+        {
+            return facts;
+        }
+
+        foreach (var fact in result.Value)
+        {
+            facts.Add(new
+            {
+                entity = entityId,
+                property = fact.PropertyId,
+                label = fact.Label,
+                value = fact.Value,
+            });
+        }
+
+        return facts;
     }
 
     /// Metnin başından okunabilir bir parça alır — cümle ortasından kesmez.

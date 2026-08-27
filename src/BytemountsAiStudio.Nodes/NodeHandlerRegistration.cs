@@ -65,7 +65,12 @@ public static class NodeHandlerRegistration
         string ffprobePath = "ffprobe")
         => new NodeRegistry()
             .Register(new TopicSelectHandler())
-            .Register(new WikipediaResearchHandler(WikipediaProviderAdapter.From(new WikipediaProvider(http))))
+            // Wikipedia METIN, Wikidata OLGU veriyor. Ikisi birlikte:
+            // metinden cikarilan bir tarih yanlis olabilir, alandan
+            // okunan tarihte cikarim adimi hic yok (P1-05).
+            .Register(new WikipediaResearchHandler(
+                WikipediaProviderAdapter.From(new WikipediaProvider(http)),
+                new WikidataProvider(http)))
             // Katmanlı sağlayıcı TEK sağlayıcıyla bile devrede (P1-03):
             // anahtar geldiğinde değişen tek şey bu sözlük olsun, çağıran
             // taraf hiç değişmesin. Strong katmanı tanımlı değil, o yüzden

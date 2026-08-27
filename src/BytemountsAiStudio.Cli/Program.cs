@@ -32,6 +32,7 @@ return command switch
     "credential" => await RunCredentialAsync(args).ConfigureAwait(false),
     "prompt" => RunPrompt(args),
     "fetch" => await RunFetchAsync(args).ConfigureAwait(false),
+    "facts" => await RunFactsAsync(args).ConfigureAwait(false),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -68,6 +69,7 @@ static int Help()
           bmai prompt list              istem surumlerini goster
           bmai prompt eval              fixture'lari kosar (model cagirmaz)
           bmai fetch <url>              sayfayi ceker (robots.txt kontrollu)
+          bmai facts <konu> [--lang tr] Wikidata yapilandirilmis olgular
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -478,6 +480,67 @@ static async Task<int> RunFetchAsync(string[] args)
     Console.WriteLine(document.MainText.Length > 600 ? document.MainText[..600] : document.MainText);
     Console.WriteLine();
 
+    return 0;
+}
+
+/// Wikidata olgu sorgusu (P1-05).
+///
+/// Wikipedia metin veriyor ve model tarihi o metinden CIKARIYOR;
+/// Wikidata tarihi bir ALAN olarak veriyor. Sayilar ve tarihler kisa
+/// videoda en cok yanlis cikan seyler, o yuzden bu ayrim onemli.
+static async Task<int> RunFactsAsync(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Kullanim: bmai facts <konu> [--lang tr-TR]");
+        return 2;
+    }
+
+    var language = LanguageTag.Create(Option(args, "--lang", "tr-TR"));
+
+    using var http = new HttpClient();
+    var wikidata = new WikidataProvider(http);
+    var context = ProviderContext.ForTest("cli-facts");
+
+    var search = await wikidata.SearchAsync(
+        new SearchQuery { Text = args[1], Language = language, MaxResults = 3 },
+        context, CancellationToken.None).ConfigureAwait(false);
+
+    if (search.IsFailure)
+    {
+        Console.Error.WriteLine($"Arama basarisiz: {search.Error}");
+        return 1;
+    }
+
+    if (search.Value.Value.Count == 0)
+    {
+        Console.WriteLine("Eslesen varlik yok.");
+        return 0;
+    }
+
+    var top = search.Value.Value[0];
+    var entityId = top.Url.Segments[^1];
+
+    Console.WriteLine();
+    Console.WriteLine($"  varlik  : {top.Title} ({entityId})");
+    Console.WriteLine($"  tanim   : {top.Snippet}");
+    Console.WriteLine();
+
+    var facts = await wikidata.FactsAsync(entityId, language, CancellationToken.None).ConfigureAwait(false);
+
+    if (facts.IsFailure)
+    {
+        Console.Error.WriteLine($"Olgular alinamadi: {facts.Error}");
+        return 1;
+    }
+
+    foreach (var fact in facts.Value)
+    {
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {fact.PropertyId,-8} {fact.Label,-26} {fact.Value}"));
+    }
+
+    Console.WriteLine();
     return 0;
 }
 
