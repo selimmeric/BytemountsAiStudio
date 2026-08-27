@@ -101,3 +101,25 @@ Ders: "komut PATH'te yok" ile "program kurulu değil" aynı şey değil. Ortam t
 
 - **Python 3.14:** WhisperX/PyTorch tekerlekleri bu sürümde henüz olmayabilir; ASR yan servisi için ayrı bir 3.11/3.12 sanal ortamı gerekebilir. P1-04'te doğrulanacak.
 - Mimari dokümanındaki `.NET 9` referansları `net10.0` olarak güncellendi.
+
+
+---
+
+## 27 Ağustos 2026 (gece) — Otonom çalışma
+
+**Talimat:** *"adım adım hepsini yap"* · *"çok lazım olmadıkça bana soru sorma .. yap ben yatmaya gidiyorum"* · *"sabah geldiğimde bitmiş olsun proje"* · *"her bir fazdan sonra commit at ve push et"*
+
+**Verilen cevap:** 354 puanlık 7 fazlık planın tamamı bir gecede bitmez; hedef Faz 0'ı — yürüyen iskeleti — mümkün olduğunca ilerletmek olarak belirlendi. Commit'ler faz sonu değil **görev sonu** atıldı (daha sık, daha izlenebilir).
+
+**Tamamlanan:** P0-02, P0-03, P0-04, P0-06, P0-07, P0-08, P0-09, P0-10, P0-11, P0-13, P0-15, P0-18…P0-23, P0-25, P0-27a. Faz 0 **%73**.
+
+**Gecenin en önemli çıktısı:** `bmai pipeline` komutu konudan mp4'e kadar gidiyor — 1080×1920 h264/aac, 13 sn, 2.4 sn render, tamamen sahte sağlayıcılarla, ağa çıkmadan. İki koşuda birebir aynı sha256.
+
+**CI'ın yakaladığı iki gerçek hata** (ikisi de yerelde görünmüyordu):
+
+1. `.gitignore`'daki ankrajsız `storage/` deseni `src/.../Storage/` kaynak klasörünü de yutuyordu; `FileSystemAssetStore.cs` hiç commit edilmemişti. Yerelde derleniyor, CI'da derlenmiyordu.
+2. `dotnet test` paylaşılan `TestSupport` kütüphanesini de test projesi sanıp "Test Run Aborted" ile tüm koşuyu düşürüyordu. Yerelde özet satırı geçen testleri topladığı için 188 yeşil görünüyordu; asıl hata çıktının ortasında kalıyordu.
+
+İkisi de CI'ın neden var olduğunun somut örneği.
+
+**Kalan Faz 0 görevleri:** P0-05 (Serilog/OTel), P0-12 (worker host), P0-14 (dekoratör zinciri), P0-16 (maliyet defteri), P0-17 (rate limit/devre kesici), P0-24 (Skia metin katmanı), P0-26 (golden testler), P0-27 (engine üzerinden CLI), P0-28 (faz kabulü). 26 puan.
