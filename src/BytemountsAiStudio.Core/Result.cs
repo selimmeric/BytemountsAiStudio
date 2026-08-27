@@ -29,6 +29,10 @@ public readonly record struct Result
     public static Result<T> Success<T>(T value) => Result<T>.Success(value);
 
     public static Result<T> Failure<T>(Error error) => Result<T>.Failure(error);
+
+    /// `return Error.Permanent(...)` yazabilmek için. Sarmalayıcıyı elle
+    /// yazmak zorunda kalmak, hata yolunu gereksiz yere gürültülü yapıyordu.
+    public static implicit operator Result(Error error) => Failure(error);
 }
 
 /// Deger donduren islemlerin sonucu.

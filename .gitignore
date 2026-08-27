@@ -54,3 +54,7 @@ token*.json
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# Uretilen ciktilar (depoya girmez)
+output/
+storage/

@@ -6,6 +6,11 @@
     <ProjectReference Include="..\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Providers.Fake\BytemountsAiStudio.Providers.Fake.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Media.Rendering\BytemountsAiStudio.Media.Rendering.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Media\BytemountsAiStudio.Media.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
   </ItemGroup>
 
   <PropertyGroup>

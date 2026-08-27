@@ -65,31 +65,33 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 0.D Render motoru
 
-- [ ] **P0-18** `4p` — Timeline şeması v1: tipler, doğrulayıcı, `schema_version` + göç iskeleti
-  - *Bitti:* Geçersiz timeline (çakışan klip, eksik varlık, negatif süre) reddediliyor
-- [ ] **P0-19** `4p` — Planner: Timeline → RenderPlan (isimli girdiler, sahne eşlemesi, süre matematiği) — saf
-  - *Bitti:* FFmpeg bilgisi içermiyor; birim testleri saniyeden hızlı
-- [ ] **P0-20** `5p` — IR: düğüm tipleri, `Expr`, keyframe → düz ifade derleyicisi
-  - *Bitti:* 50 keyframe'lik animasyon ifade derinliği sınırına takılmıyor
-- [ ] **P0-21** `3p` — Validator: pad tekil tüketim, döngü yok, medya tipi uyumu, `enable` aralık kontrolü
-  - *Bitti:* Bilinen 6 hatalı graf yakalanıyor; FFmpeg hiç çalıştırılmıyor
-- [ ] **P0-22** `4p` — Emitter: IR → `filter_complex` metni + argv; escape ve indeks ataması yalnız burada
-  - *Bitti:* Girdi sırası değiştirilince çıktı grafiği bozulmuyor (L2 regresyon testi)
-- [ ] **P0-23** `4p` — Executor: süreç yönetimi, `-progress` ayrıştırma, iptal, ffprobe doğrulama, `.partial` → atomik taşıma
-  - *Bitti:* İptal edilen render yarım dosya bırakmıyor; ilerleme yüzdesi `run_events`'e düşüyor
+- [x] **P0-18** `4p` — Timeline şeması v1: tipler, doğrulayıcı, `schema_version` + göç iskeleti
+  - *Bitti:* ✔ 27 Ağu 2026 — Tam tipli belge + 15 doğrulama kuralı, 16 test. Çakışan sahne, sahneler arası boşluk, çakışan ses, tanımsız stil, sahne dışına taşan overlay, aralık dışı pan — hepsi FFmpeg çalıştırılmadan yakalanıyor
+- [x] **P0-19** `4p` — Planner: Timeline → RenderPlan (isimli girdiler, sahne eşlemesi, süre matematiği) — saf
+  - *Bitti:* ✔ 27 Ağu 2026 — Saf: dosya/süreç/ağ yok, varlık yolları dışarıdan çözümlenmiş geliyor. Hareketsiz sahneye zoompan eklenmiyor (boşuna CPU ve netlik kaybı). 6 test
+- [x] **P0-20** `5p` — IR: düğüm tipleri, `Expr`, keyframe → düz ifade derleyicisi
+  - *Bitti:* ✔ 27 Ağu 2026 — Tipli düğümler + fabrika metotları + `Expr`. Keyframe ifadeleri DÜZ derleniyor: 30 kare ile 3000 kare aynı ifade derinliğini üretiyor (Studio'nun ayrıştırıcı sınırı dersi). 3 test
+- [x] **P0-21** `3p` — Validator: pad tekil tüketim, döngü yok, medya tipi uyumu, `enable` aralık kontrolü
+  - *Bitti:* ✔ 27 Ağu 2026 — Üretilmemiş akış, çift tüketim (split eksikliği), kullanılmayan ara akış, üretilmeyen çıkış, yanlış medya tipi ve döngü — 5 test. FFmpeg hiç çalıştırılmıyor
+- [x] **P0-22** `4p` — Emitter: IR → `filter_complex` metni + argv; escape ve indeks ataması yalnız burada
+  - *Bitti:* ✔ 27 Ağu 2026 — Escape ve indeks ataması tek noktada. **L2 regresyon testi geçiyor:** girdi sırası tersine çevrilince graf bozulmuyor, emitter indeksleri yeniden hesaplıyor. 4 test
+- [x] **P0-23** `4p` — Executor: süreç yönetimi, `-progress` ayrıştırma, iptal, ffprobe doğrulama, `.partial` → atomik taşıma
+  - *Bitti:* ✔ 27 Ağu 2026 — FFmpeg süreç yönetimi, `-progress` ayrıştırma (%50/%100 gözlendi), iptal, ffprobe doğrulama (video/ses akışı + %1 süre toleransı), `.partial` → atomik taşıma. Uzantı sonda kalmalı — `.mp4.partial` FFmpeg'in muxer seçimini bozuyor
 - [ ] **P0-24** `5p` — Skia metin katmanı: HarfBuzz shaping, font fallback zinciri, altyazı kompozisyonu, kelime vurgusu
   - *Bitti:* Türkçe + ikinci dil metni doğru diziliyor; eksik glif fallback'ten geliyor, tofu çıkmıyor
-- [ ] **P0-25** `1p` — IR → Graphviz `dot` dökümü
-  - *Bitti:* `--dump-graph` ile png üretiliyor
+- [x] **P0-25** `1p` — IR → Graphviz `dot` dökümü
+  - *Bitti:* ✔ 27 Ağu 2026 — `GraphDot.Render` + CLI `--dot` seçeneği. Çalışan boru hattında 2.847 baytlık geçerli digraph üretildi
 - [ ] **P0-26** `3p` — Golden testler: IR topolojisi (kanonik JSON) + emitter metni + 3 piksel testi
   - *Bitti:* CI'da FFmpeg olmadan koşuyor; piksel testleri ayrı işaretli
 
 ### 0.E Kilometre taşı
 
+- [x] **P0-27a** `2p` — CLI: `pipeline` komutu → gerçek mp4 (doğrudan boru hattı)
+  - *Bitti:* ✔ 27 Ağu 2026 — `bmai pipeline` konu→senaryo→TTS→ölçüm→timeline→plan→render zincirini koşuyor. Çıktı: **1080×1920 h264/aac, 13.0 sn, 46 KB, 2.4 sn render**. Sahne süreleri ffprobe ile ÖLÇÜLÜYOR (ADR-006)
 - [ ] **P0-27** `2p` — CLI: `run workflow shorts-fake --topic "test"` → gerçek mp4
-  - *Bitti:* Sahte metin + düz renk görseller + sessizlik sesiyle 30 sn'lik geçerli mp4 üretiliyor
+  - *Bitti:* Aynı çıktı, ama workflow engine üzerinden (P0-08/P0-09 gerekiyor). Doğrudan boru hattı P0-27a'da çalışıyor
 - [ ] **P0-28** `2p` — 🏁 **Faz 0 kabul:** aynı komut iki kez koşturulunca birebir aynı çıktı hash'i
-  - *Bitti:* Determinizm testi yeşil; Faz 1'e geçiş onaylandı
+  - *Bitti:* Determinizm **elle doğrulandı** (iki koşu, birebir aynı sha256). Otomatik test ve kalan Faz 0 görevleri tamamlanınca işaretlenecek
 
 ---
 
