@@ -74,7 +74,7 @@ public static class NodeHandlerRegistration
     /// Hiçbiri API anahtarı istemiyor:
     ///   - LLM     : Ollama, yerel, ücretsiz
     ///   - Araştırma: Wikipedia resmî API
-    ///   - Görsel  : Pollinations, ücretsiz kullanıma açık
+    ///   - Görsel  : önce Openverse (CC, gerçek fotoğraf), yoksa Pollinations
     ///   - Ses     : Windows'un yerel konuşma sentezi (tr-TR: Microsoft Tolga)
     ///
     /// Kalite ücretli sağlayıcıların altında — özellikle seste. Ama sistemin
@@ -102,7 +102,19 @@ public static class NodeHandlerRegistration
             .Register(new ScriptGenerateHandler(
                 TieredLlmProvider.Single(new OllamaLlmProvider(http))))
             .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath))
-            .Register(new VisualResolveHandler(new PollinationsImageProvider(http), storage))
+            // ONCE STOK, BULUNAMAZSA URET (P1-18).
+            //
+            // Openverse gercek fotograf veriyor; uretilen gorselde eller,
+            // yazilar ve mimari detaylar hala guvenilmez ve belgesel
+            // anlatida bir hata icerigin tamamini supheli gosteriyor.
+            // Ama soyut bir cumlenin stok karsiligi yok - orada
+            // Pollinations devreye giriyor.
+            .Register(new VisualResolveHandler(
+                new StockFirstImageProvider(
+                    new OpenverseImageProvider(http),
+                    new PollinationsImageProvider(http),
+                    StockFirstImageProvider.HttpDownloader(http)),
+                storage))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new SeoGenerateHandler(TieredLlmProvider.Single(new OllamaLlmProvider(http))));

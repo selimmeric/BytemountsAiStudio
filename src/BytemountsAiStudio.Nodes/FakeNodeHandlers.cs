@@ -640,7 +640,11 @@ public sealed class VisualResolveHandler(
                 MimeType = image.Value.Value.MimeType,
                 Width = image.Value.Value.Width,
                 Height = image.Value.Value.Height,
-                SourceProvider = images.Key,
+                // GERCEK saglayici kaydediliyor, zincirin adi degil.
+                // "stock-first" yazsaydik, gorselin stoktan mi uretimden
+                // mi geldigini kayittan hic ogrenemezdik - oysa stok hic
+                // tutmuyorsa arama terimleri kotu demektir.
+                SourceProvider = (images as StockFirstImageProvider)?.LastRoute ?? images.Key,
                 License = image.Value.Value.License,
             },
             cancellationToken).ConfigureAwait(false);
