@@ -21,7 +21,7 @@ zincirini paralel ve otomatik yürütür.
 |---|---|---|
 | .NET SDK | 10.0.400+ | `global.json` ile sabitlendi |
 | FFmpeg / ffprobe | 7+ | PATH üzerinde erişilebilir olmalı |
-| Docker Desktop | 4.8+ | PostgreSQL ve Seq kapları için |
+| Docker Desktop | 4.8+ | PostgreSQL ve Seq kapları için (zorunlu değil — `scripts/yerel-postgres.ps1`) |
 | Python | 3.11–3.12 | `tools-sidecar` ve betikler için |
 
 ## Kurulum
@@ -33,6 +33,13 @@ docker compose up -d
 ```
 
 Kapların portları yalnızca `127.0.0.1`'e bağlıdır. Seq arayüzü: <http://localhost:8081>
+
+Docker yoksa ya da açılmıyorsa, PostgreSQL **kurulumsuz** da koşuyor —
+şema ve bağlantı dizesi aynı kalır (bkz. [docs/YEREL-VERITABANI.md](docs/YEREL-VERITABANI.md)):
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/yerel-postgres.ps1
+```
 
 Derleme ve test:
 
