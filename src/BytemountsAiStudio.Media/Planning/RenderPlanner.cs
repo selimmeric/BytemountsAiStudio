@@ -1,3 +1,4 @@
+using System.Globalization;
 using BytemountsAiStudio.Core.Assets;
 using BytemountsAiStudio.Media.Ir;
 using BytemountsAiStudio.Media.Timeline;
@@ -125,6 +126,16 @@ public static class RenderPlanner
                 videoTail = next;
             }
         }
+
+        // KALICI KATMANLAR (filigran) EN ÜSTTE.
+        //
+        // Altyazıdan SONRA biniyor: filigranın altyazının altında kalması
+        // onu kısmen görünmez yapardı ve filigranın tek işi görünmek.
+        //
+        // Bu blok da uzun süre eksikti: `PersistentLayers` modelde vardı,
+        // render'a hiç girmiyordu — müzik yatağıyla aynı sessiz vaat.
+        videoTail = AddPersistentLayers(
+            timeline, resolvedPaths, inputs, nodes, issues, videoTail, fps);
 
         var videoOut = new StreamRef("vout", MediaKind.Video);
         nodes.Add(FilterNode.Format(videoTail, videoOut, timeline.Output.PixelFormat));
@@ -274,6 +285,94 @@ public static class RenderPlanner
         nodes.Add(FilterNode.ATrim(padded, audioOut, seconds));
 
         return audioOut;
+    }
+
+    /// Kalıcı katmanları (filigran, logo) videonun üstüne bindirir.
+    ///
+    /// Konum İFADE olarak veriliyor (`W-w-40` gibi), sabit piksel olarak
+    /// değil: `W`/`w` FFmpeg'in ana ve katman genişlikleri. Sabit piksel
+    /// yazsaydık filigranın kendi boyutunu bilmemiz gerekirdi ve o bilgi
+    /// planlama anında yok — dosyayı açmadan öğrenilemiyor.
+    private static StreamRef AddPersistentLayers(
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> resolvedPaths,
+        List<InputDecl> inputs,
+        List<FilterNode> nodes,
+        List<ValidationIssue> issues,
+        StreamRef videoTail,
+        int fps)
+    {
+        if (timeline.PersistentLayers.Count == 0)
+        {
+            return videoTail;
+        }
+
+        var seconds = timeline.Duration.TotalSeconds;
+        var index = 0;
+
+        foreach (var layer in timeline.PersistentLayers)
+        {
+            var path = Resolve(layer.Asset, resolvedPaths, issues, $"'{layer.Role}' kalıcı katmanı");
+
+            if (path is null)
+            {
+                continue;
+            }
+
+            var inputId = $"layer{index.ToString(CultureInfo.InvariantCulture)}";
+
+            inputs.Add(new InputDecl
+            {
+                Id = inputId,
+                Path = path,
+                Kind = InputKind.Image,
+                Loop = true,
+                DurationSeconds = seconds,
+                FrameRate = fps,
+            });
+
+            var source = new StreamRef(inputId, MediaKind.Video);
+
+            // Saydamlık için ÖNCE rgba: alfa kanalı olmayan bir görselde
+            // `colorchannelmixer` saydamlık üretemiyor ve filigran tam
+            // opak çıkıyor. PNG'de alfa var, JPEG'de yok, ve filigranın
+            // hangi biçimde geleceğini önceden bilmiyoruz.
+            var rgba = new StreamRef($"{inputId}_rgba", MediaKind.Video);
+            nodes.Add(FilterNode.FormatRgba(source, rgba));
+
+            var faded = new StreamRef($"{inputId}_a", MediaKind.Video);
+            nodes.Add(FilterNode.Opacity(rgba, faded, layer.Opacity));
+
+            var next = new StreamRef($"layered{index.ToString(CultureInfo.InvariantCulture)}", MediaKind.Video);
+
+            var (x, y) = AnchorExpression(layer);
+            nodes.Add(FilterNode.Overlay(videoTail, faded, next, x, y));
+
+            videoTail = next;
+            index++;
+        }
+
+        return videoTail;
+    }
+
+    /// Bağlantı noktasını FFmpeg overlay ifadesine çevirir.
+    ///
+    /// `W`/`H` ana videonun, `w`/`h` katmanın ölçüleri. Katmanın kendi
+    /// boyutu planlama anında bilinmediği için hesap FFmpeg'e bırakılıyor.
+    internal static (string X, string Y) AnchorExpression(PersistentLayer layer)
+    {
+        var mx = layer.MarginX.ToString(CultureInfo.InvariantCulture);
+        var my = layer.MarginY.ToString(CultureInfo.InvariantCulture);
+
+        return layer.Anchor switch
+        {
+            Anchor.TopLeft => (mx, my),
+            Anchor.TopRight => ($"W-w-{mx}", my),
+            Anchor.BottomLeft => (mx, $"H-h-{my}"),
+            Anchor.BottomRight => ($"W-w-{mx}", $"H-h-{my}"),
+            Anchor.BottomCenter => ("(W-w)/2", $"H-h-{my}"),
+            _ => ("(W-w)/2", "(H-h)/2"),
+        };
     }
 
     /// Müzik yatağını konuşmanın altına serer ve gerekiyorsa ducking uygular.

@@ -170,6 +170,32 @@ public sealed record FilterNode
         };
     }
 
+    /// Katmanın saydamlığını ayarlar.
+    ///
+    /// `format=rgba` ÖNCE gerekiyor: alfa kanalı olmayan bir görselde
+    /// `colorchannelmixer` saydamlık üretemiyor ve filigran tam opak
+    /// çıkıyor. PNG'de alfa zaten var ama JPEG'de yok, ve filigranın
+    /// hangi biçimde geleceğini önceden bilmiyoruz.
+    public static FilterNode Opacity(StreamRef input, StreamRef output, double opacity)
+        => new()
+        {
+            Filter = "colorchannelmixer",
+            Inputs = [input],
+            Outputs = [output],
+            Args = [FilterArg.Named("aa", Math.Clamp(opacity, 0.0, 1.0))],
+            Comment = $"saydamlik {opacity.ToString("0.##", CultureInfo.InvariantCulture)}",
+        };
+
+    /// Piksel biçimini zorlar. Alfa gerektiren işlemlerden önce.
+    public static FilterNode FormatRgba(StreamRef input, StreamRef output)
+        => new()
+        {
+            Filter = "format",
+            Inputs = [input],
+            Outputs = [output],
+            Args = [FilterArg.Named("pix_fmts", "rgba")],
+        };
+
     public static FilterNode SetSar(StreamRef input, StreamRef output)
         => new()
         {

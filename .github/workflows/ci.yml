@@ -77,9 +77,15 @@ jobs:
       # fark varsa biri panoyu elle duzenlemis ya da uretmeyi unutmus demektir.
       - name: Pano guncel mi
         run: |
+          # Uretim damgasi HER kosuda degisiyor (tarih + saat), o yuzden
+          # karsilastirmadan cikariliyor. Kontrolun amaci "sayilar planla
+          # tutuyor mu", "ayni saniyede mi uretilmis" degil.
           python scripts/plan_progress.py
           if ! git diff --quiet -- docs/plan-dashboard.html; then
-            echo "::error::docs/plan-dashboard.html guncel degil. 'python scripts/plan_progress.py' calistirip commit'leyin."
-            git --no-pager diff --stat -- docs/plan-dashboard.html
-            exit 1
+            if git --no-pager diff -U0 -- docs/plan-dashboard.html                  | grep -E '^[+-]' | grep -v '^[+-][+-]' | grep -qv 'class="stamp"'; then
+              echo "::error::docs/plan-dashboard.html guncel degil. 'python scripts/plan_progress.py' calistirip commit'leyin."
+              git --no-pager diff -- docs/plan-dashboard.html | head -40
+              exit 1
+            fi
+            echo "Yalnizca uretim damgasi farkli; pano guncel."
           fi
