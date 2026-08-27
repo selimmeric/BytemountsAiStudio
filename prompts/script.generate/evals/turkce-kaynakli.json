@@ -1,0 +1,21 @@
+{
+  "prompt_key": "script.generate",
+  "values": {
+    "topic": "Göbeklitepe",
+    "language": "tr-TR",
+    "sentence_count": "3",
+    "research": "--- Göbeklitepe\nDünyanın bilinen en eski tapınak yapısı."
+  },
+  "expect": {
+    "contains": [
+      "Göbeklitepe",
+      "tr-TR",
+      "YALNIZCA",
+      "bilgi uydurma",
+      "Dünyanın bilinen en eski"
+    ],
+    "not_contains": ["undefined", "null"],
+    "max_chars": 4000,
+    "min_chars": 200
+  }
+}

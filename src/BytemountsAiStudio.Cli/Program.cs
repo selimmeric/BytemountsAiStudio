@@ -12,6 +12,7 @@ using BytemountsAiStudio.Workflow.Engine;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Persistence;
+using BytemountsAiStudio.Contracts.Prompts;
 using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Persistence.Storage;
 using BytemountsAiStudio.Core.Observability;
@@ -27,6 +28,7 @@ return command switch
     "real" => await RunWorkflowAsync(args, open: true).ConfigureAwait(false),
     "providers" => ShowProviders(),
     "credential" => await RunCredentialAsync(args).ConfigureAwait(false),
+    "prompt" => RunPrompt(args),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -60,6 +62,8 @@ static int Help()
                                         stdin'den okunur, komut satirina
                                         yazilmaz
           bmai credential rm <saglayici> [--channel <id>]
+          bmai prompt list              istem surumlerini goster
+          bmai prompt eval              fixture'lari kosar (model cagirmaz)
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -431,6 +435,87 @@ static async Task<int> RunCredentialAsync(string[] args)
 ///
 /// "Su an ne ile calisabiliyorum" ve "anahtar gelirse ne acilir" sorularinin
 /// tek cevap noktasi.
+/// Istem kayit defteri (P1-07).
+///
+/// `bmai prompt eval` CI'da kosuyor: bir istem duzenlendiginde
+/// fixture'lar kiriliyor. Model CAGRILMIYOR - dogrulanan sey
+/// doldurulmus istemin kendisi (bkz. PromptEvaluator).
+static int RunPrompt(string[] args)
+{
+    var subcommand = args.Length > 1 ? args[1] : "list";
+
+    // Diskteki dizin varsa o kazaniyor: istem duzenleyip yeniden
+    // derlemeden denemek mumkun kalsin.
+    var directory = Path.Combine(Directory.GetCurrentDirectory(), "prompts");
+    var onDisk = Directory.Exists(directory);
+    var registry = onDisk ? PromptRegistry.Load(directory) : PromptRegistry.Embedded;
+
+    if (registry.IsFailure)
+    {
+        Console.Error.WriteLine($"Istemler okunamadi: {registry.Error}");
+        return 1;
+    }
+
+    switch (subcommand)
+    {
+        case "list":
+            Console.WriteLine();
+            Console.WriteLine(onDisk ? $"  Kaynak: {directory}" : "  Kaynak: derlemeye gomulu");
+            Console.WriteLine("  " + new string('-', 74));
+
+            foreach (var key in registry.Value.Keys.Order(StringComparer.Ordinal))
+            {
+                foreach (var template in registry.Value.Versions(key))
+                {
+                    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                        $"  {template.Stamp,-46} {template.Description}"));
+                }
+            }
+
+            Console.WriteLine();
+            return 0;
+
+        case "eval":
+            if (!onDisk)
+            {
+                Console.Error.WriteLine($"Fixture'lar icin '{directory}' dizini gerekiyor.");
+                return 2;
+            }
+
+            var report = PromptEvaluator.RunAll(registry.Value, directory);
+
+            if (report.IsFailure)
+            {
+                Console.Error.WriteLine(report.Error.ToString());
+                return 1;
+            }
+
+            Console.WriteLine();
+
+            foreach (var result in report.Value.Results)
+            {
+                Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"  {(result.Passed ? "GECTI" : "KALDI")}  {result.Name,-28} {result.Stamp,-46} {result.RenderedChars} krk"));
+
+                foreach (var failure in result.Failures)
+                {
+                    Console.WriteLine($"         - {failure}");
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  {report.Value.Passed} gecti, {report.Value.Failed} kaldi."));
+            Console.WriteLine();
+
+            return report.Value.AllPassed ? 0 : 1;
+
+        default:
+            Console.Error.WriteLine($"Bilinmeyen prompt komutu: {subcommand}");
+            return 2;
+    }
+}
+
 static int ShowProviders()
 {
     var path = Path.Combine(Directory.GetCurrentDirectory(), "config", "providers.json");

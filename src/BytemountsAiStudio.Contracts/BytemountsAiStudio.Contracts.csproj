@@ -4,4 +4,19 @@
     <ProjectReference Include="..\BytemountsAiStudio.Core\BytemountsAiStudio.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    Istem dosyalari derlemeye GOMULUYOR (P1-07).
+
+    Neden: aksi halde her cagiran taraf `prompts/` dizinini bulmak
+    zorunda kalirdi ve calisma dizini degistigi anda kirilirdi - testler,
+    CI, yayinlanmis tek dosyalik arac, hepsi ayri ayri. Gomulu kopya
+    dosyalarin AYNISI oldugu icin iki kaynak arasinda kayma olusamiyor.
+
+    Diskteki dizin verildiginde o kazaniyor: istem duzenleyip yeniden
+    derlemeden denemek mumkun kalsin.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\prompts\**\v*.md" LinkBase="Embedded" />
+  </ItemGroup>
+
 </Project>

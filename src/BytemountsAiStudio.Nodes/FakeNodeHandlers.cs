@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using BytemountsAiStudio.Contracts.Prompts;
 using BytemountsAiStudio.Contracts.Providers;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Assets;
@@ -83,7 +84,11 @@ public sealed class TopicSelectHandler : INodeHandler
 /// Sahte LLM'i GERÇEK yoldan kullanıyor: zorunlu araç çağrısı + şema
 /// doğrulaması (§7.2). Gerçek Script Agent aynı kodu koşacak, yalnızca
 /// sağlayıcı değişecek.
-public sealed class ScriptGenerateHandler(ILlmProvider llm) : INodeHandler
+///
+/// İstem metni kayıt defterinden geliyor (P1-07). Kaynak dosyada gömülü
+/// bir dizge olsaydı hangi videonun hangi metinle üretildiği kayda
+/// girmezdi; şimdi damga (`script.generate@2#a1b2...`) çıktının içinde.
+public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prompts = null) : INodeHandler
 {
     public string NodeType => "script.generate";
 
@@ -98,13 +103,42 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm) : INodeHandler
         var research = ResearchDigest(context.RunContext);
 
         // §2.2/8: senaryo knowledge base dışına çıkamaz. Araştırma varsa
-        // isteme giriyor ve modele "yalnızca bunları kullan" deniyor.
+        // "yalnızca bunları kullan" diyen v2 istemi, yoksa v1 seçiliyor.
         // Kaynaksız iddia üretmenin önündeki ilk engel bu.
-        var instruction = research is null
-            ? $"'{topic}' konusunda {language} dilinde 3 kısa cümlelik senaryo yaz."
-            : $"'{topic}' konusunda {language} dilinde 3 kısa cümlelik senaryo yaz.\n"
-              + "YALNIZCA aşağıdaki kaynaklardaki bilgileri kullan, bilgi uydurma.\n\n"
-              + research;
+        //
+        // Sürüm burada AÇIKÇA seçiliyor, "en yeni" değil: iki sürüm iki
+        // ayrı duruma ait, ve birine yeni bir sürüm eklemek diğerinin
+        // davranışını sessizce değiştirmemeli.
+        var registry = prompts is not null
+            ? Result.Success(prompts)
+            : PromptRegistry.Embedded;
+
+        if (registry.IsFailure)
+        {
+            return Result.Failure<JsonElement>(registry.Error);
+        }
+
+        var template = registry.Value.Get("script.generate", research is null ? 1 : 2);
+
+        if (template.IsFailure)
+        {
+            return Result.Failure<JsonElement>(template.Error);
+        }
+
+        var rendered = template.Value.Render(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["topic"] = topic,
+            ["language"] = language,
+            ["sentence_count"] = SentenceCount.ToString(CultureInfo.InvariantCulture),
+            ["research"] = research ?? string.Empty,
+        });
+
+        if (rendered.IsFailure)
+        {
+            return Result.Failure<JsonElement>(rendered.Error);
+        }
+
+        var prompt = rendered.Value;
 
         var response = await llm.CompleteAsync(
             new LlmRequest
@@ -113,10 +147,8 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm) : INodeHandler
                 Temperature = 0.3,
                 Messages =
                 [
-                    new(ChatRole.System,
-                        "Sen bir kısa video senaryo yazarısın. Her cümle tek başına anlaşılır, "
-                        + "kısa ve seslendirilmeye uygun olmalı. Kaynak dışına çıkma."),
-                    new(ChatRole.User, instruction),
+                    new(ChatRole.System, prompt.System ?? string.Empty),
+                    new(ChatRole.User, prompt.User),
                 ],
                 ForcedTool = new ToolSchema("emit_script", "Senaryo cümleleri",
                     """{"type":"object","properties":{"sentences":{"type":"array","items":{"type":"string"}}}}"""),
@@ -137,10 +169,17 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm) : INodeHandler
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .ToList();
 
+        // Damga çıktıya giriyor: "bu video hangi istemle üretildi"
+        // sorusunun cevabı `node_executions.output` içinde duruyor ve
+        // ayrı bir şema göçü gerektirmiyor.
         return parsed.Count == 0
             ? Error.Permanent("script.empty", "Senaryo boş döndü.")
-            : Result.Success(NodeJson.From(new { sentences = parsed }));
+            : Result.Success(NodeJson.From(new { sentences = parsed, prompt = prompt.Stamp }));
     }
+
+    /// Varsayılan cümle sayısı. Sabit, çünkü sahne planlayıcısı (P1-16)
+    /// devreye girene kadar süre bütçesini burası belirliyor.
+    private const int SentenceCount = 3;
 
     /// Araştırma çıktısından modele verilecek özet.
     ///

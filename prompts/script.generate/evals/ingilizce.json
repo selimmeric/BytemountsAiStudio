@@ -1,0 +1,13 @@
+{
+  "prompt_key": "script.generate",
+  "values": {
+    "topic": "The Antikythera Mechanism",
+    "language": "en-US",
+    "sentence_count": "5",
+    "research": "--- Antikythera\nAn ancient Greek analogue computer."
+  },
+  "expect": {
+    "contains": ["Antikythera", "en-US", "5"],
+    "max_chars": 4000
+  }
+}

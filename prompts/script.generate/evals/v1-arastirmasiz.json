@@ -1,0 +1,14 @@
+{
+  "prompt_key": "script.generate",
+  "version": 1,
+  "values": {
+    "topic": "Bermuda Şeytan Üçgeni",
+    "language": "tr-TR",
+    "sentence_count": "3"
+  },
+  "expect": {
+    "contains": ["Bermuda", "Kaynak dışına çıkma"],
+    "not_contains": ["YALNIZCA"],
+    "max_chars": 1000
+  }
+}

@@ -121,8 +121,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* Kalan: DuckDuckGo + Wikidata ekleri. SearXNG P1-05b'de tamamlandı
 - [ ] **P1-06** `3p` — WebFetch: robots.txt kontrolü, izinli alan listesi, ana içerik çıkarma, boyut/süre sınırı
   - *Bitti:* robots.txt yasaklı sayfa çekilmiyor; paywall tespit edilip atlanıyor
-- [ ] **P1-07** `4p` — Prompt registry: dosya bazlı sürümleme, run'a kayıt, eval fixture koşucusu
-  - *Bitti:* Prompt değişince fixture'lar koşuyor; kırılan prompt CI'da yakalanıyor
+- [x] **P1-07** `4p` — Prompt registry: dosya bazlı sürümleme, run'a kayıt, eval fixture koşucusu
+  - *Bitti:* ✔ 27 Ağu 2026 — İstem KODDUR: `prompts/<anahtar>/v<N>.md`, kod deposunda, `git diff`'te görünür ve kod incelemesine girer. Veritabanında olsaydı üçü de olmazdı. Sürüm numarası yetmiyor — biri numarayı artırmadan metni düzeltebilir; damga içerik özetini taşıyor (`script.generate@2#759d10ff`) ve bu damga node çıktısına yazılıyor, yani "bu video hangi istemle üretildi" cevaplanabiliyor. Dosyalar derlemeye de GÖMÜLÜ: çalışma dizini değiştiğinde kırılmasın; bir test iki kopyanın özetlerini karşılaştırıp kaymayı engelliyor. Eksik yer tutucu HATA, boş değil — boş bırakmak sessizce bozuk bir istem üretir ve teşhisi saatler alır. Fixture'lar MODEL ÇAĞIRMIYOR: doğrulanan şey doldurulmuş istemin kendisi (düşen yer tutucu, silinen kural, taşan bağlam) — üçü de modelsiz yakalanıyor, CI'da milisaniyeler sürüyor ve modelin o günkü keyfine göre kırmızı yanmıyor. 26 test + `bmai prompt list|eval`
 
 ### 1.B Konu ve araştırma
 
