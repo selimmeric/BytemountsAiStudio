@@ -54,14 +54,14 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [x] **P0-13** `4p` — Provider arayüzleri: `ILlm`, `ISearch`, `IWebFetch`, `ITts`, `IImage`, `IAsr`, `IMusic`, `IStorage`, `IPublisher`, `IAnalytics`
   - *Bitti:* ✔ 27 Ağu 2026 — 10 arayüz `.Contracts`'ta. `ProviderContractTests` dört kuralı koruyor: hepsi mevcut, hepsi `IProvider` türetir, Contracts yalnızca Core'a bağımlı, her asenkron metot `CancellationToken` alır
-- [ ] **P0-14** `4p` — Dekoratör zinciri: Idempotency → Budget → RateLimit → CircuitBreaker → Retry → Metering → Telemetry
-  - *Bitti:* Zincir sırası testle sabitlenmiş; her dekoratörün birim testi var
+- [x] **P0-14** `4p` — Dekoratör zinciri: Idempotency → Budget → RateLimit → CircuitBreaker → Retry → Metering → Telemetry
+  - *Bitti:* ✔ 27 Ağu 2026 — Yedi middleware, sıra testle sabitlenmiş. **Metering retry'ın İÇİNDE:** dışında olsaydı üç kez denenip başarısız olan çağrının maliyeti bir kez sayılırdı. Önbellekten gelen sonucun maliyeti sıfır. Kalıcı hata devreyi açmıyor (sağlayıcı değil isteğimiz bozuk)
 - [x] **P0-15** `4p` — Fake provider seti (tüm arayüzler): sabit metin, düz renk PNG, N saniyelik sessizlik WAV, sabit arama sonuçları
   - *Bitti:* ✔ 27 Ağu 2026 — 10 fake, 31 test. Üretilen PNG ve WAV FFmpeg tarafından okunuyor ve gerçek 1080×1920 H.264 mp4'e dönüşüyor (elle doğrulandı). "Ağa çıkmama" kuralı IL metadata'sında test ediliyor; `System.Random` kullanımı da yasak. Boru hattı seviyesindeki uçtan uca doğrulama P0-27'de
-- [ ] **P0-16** `3p` — Maliyet defteri: `provider_calls` yazımı, birim sayımı (token/karakter/görsel/saniye)
-  - *Bitti:* Fake çağrılar sıfır maliyetle, gerçek birim sayıları doğru kaydediliyor
-- [ ] **P0-17** `3p` — Rate limit token bucket + provider circuit breaker
-  - *Bitti:* Limit dolunca iş `run_after` ile erteleniyor, hata üretmiyor
+- [x] **P0-16** `3p` — Maliyet defteri: `provider_calls` yazımı, birim sayımı (token/karakter/görsel/saniye)
+  - *Bitti:* ✔ 27 Ağu 2026 — `provider_calls` defteri: başarısız çağrılar dahil, birimler ham JSON olarak. Maliyet fiyattan türetiliyor — fiyat değişince geçmiş yeniden hesaplanabilir. Bütçe kapısı + kill-switch. 5 test
+- [x] **P0-17** `3p` — Rate limit token bucket + provider circuit breaker
+  - *Bitti:* ✔ 27 Ağu 2026 — Token bucket sağlayıcı HESABI başına (worker başına değil). Devre kesici üç durumlu, yarı açık deneme dahil. İkisi de sınır aşımında `Resource` döndürüyor: iş kuyruğu erteliyor, run düşmüyor. 7 test
 
 ### 0.D Render motoru
 
