@@ -66,7 +66,13 @@ public static class NodeHandlerRegistration
         => new NodeRegistry()
             .Register(new TopicSelectHandler())
             .Register(new WikipediaResearchHandler(WikipediaProviderAdapter.From(new WikipediaProvider(http))))
-            .Register(new ScriptGenerateHandler(new OllamaLlmProvider(http)))
+            // Katmanlı sağlayıcı TEK sağlayıcıyla bile devrede (P1-03):
+            // anahtar geldiğinde değişen tek şey bu sözlük olsun, çağıran
+            // taraf hiç değişmesin. Strong katmanı tanımlı değil, o yüzden
+            // senaryo isteği Cheap'e düşüyor ve bu çıktıya yazılıyor —
+            // "senaryo yerel modelle üretildi" bilgisi kayda geçsin.
+            .Register(new ScriptGenerateHandler(
+                TieredLlmProvider.Single(new OllamaLlmProvider(http))))
             .Register(new TtsSynthesizeHandler(new WindowsSpeechTtsProvider(), storage, ffprobePath))
             .Register(new VisualResolveHandler(new PollinationsImageProvider(http), storage))
             .Register(new TimelineCompileHandler(storage))

@@ -169,12 +169,29 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .ToList();
 
-        // Damga çıktıya giriyor: "bu video hangi istemle üretildi"
-        // sorusunun cevabı `node_executions.output` içinde duruyor ve
-        // ayrı bir şema göçü gerektirmiyor.
-        return parsed.Count == 0
-            ? Error.Permanent("script.empty", "Senaryo boş döndü.")
-            : Result.Success(NodeJson.From(new { sentences = parsed, prompt = prompt.Stamp }));
+        if (parsed.Count == 0)
+        {
+            return Error.Permanent("script.empty", "Senaryo boş döndü.");
+        }
+
+        // Damga ve model kimliği çıktıya giriyor: "bu video hangi
+        // istemle ve hangi modelle üretildi" sorusunun cevabı
+        // `node_executions.output` içinde duruyor ve ayrı bir şema göçü
+        // gerektirmiyor.
+        //
+        // Yedeğe düşüldüyse o da yazılıyor. Yazılmasaydı birincil
+        // sağlayıcı sessizce ölür, kalite düşer ve hiçbir şey kırılmadığı
+        // için kimse fark etmezdi.
+        var route = (llm as TieredLlmProvider)?.LastRoute;
+
+        return Result.Success(NodeJson.From(new
+        {
+            sentences = parsed,
+            prompt = prompt.Stamp,
+            model = response.Value.Value.ModelId,
+            provider = route?.ProviderKey ?? llm.Key,
+            fell_over_from = route?.FellOverFrom ?? [],
+        }));
     }
 
     /// Varsayılan cümle sayısı. Sabit, çünkü sahne planlayıcısı (P1-16)
