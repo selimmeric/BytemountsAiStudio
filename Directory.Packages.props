@@ -1,0 +1,26 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- Paket sürümleri tek yerde. Bir sürümü yükseltmek tek satırlık iş olsun. -->
+
+  <ItemGroup Label="ASP.NET / Hosting">
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup Label="Test">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+  <!-- Bilerek eklenmeyen: FluentAssertions.
+       v8 ile ticari lisansa geçti; xUnit'in kendi Assert'i bu proje için yeterli
+       ve bir bağımlılık daha taşımaya değmiyor. -->
+
+</Project>

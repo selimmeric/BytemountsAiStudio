@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BytemountsAiStudio.Api/BytemountsAiStudio.Api.csproj" />
+    <Project Path="src/BytemountsAiStudio.Cli/BytemountsAiStudio.Cli.csproj" />
+    <Project Path="src/BytemountsAiStudio.Contracts/BytemountsAiStudio.Contracts.csproj" />
+    <Project Path="src/BytemountsAiStudio.Core/BytemountsAiStudio.Core.csproj" />
+    <Project Path="src/BytemountsAiStudio.Media.Rendering/BytemountsAiStudio.Media.Rendering.csproj" />
+    <Project Path="src/BytemountsAiStudio.Media/BytemountsAiStudio.Media.csproj" />
+    <Project Path="src/BytemountsAiStudio.Persistence/BytemountsAiStudio.Persistence.csproj" />
+    <Project Path="src/BytemountsAiStudio.Providers.Fake/BytemountsAiStudio.Providers.Fake.csproj" />
+    <Project Path="src/BytemountsAiStudio.Queue/BytemountsAiStudio.Queue.csproj" />
+    <Project Path="src/BytemountsAiStudio.Worker/BytemountsAiStudio.Worker.csproj" />
+    <Project Path="src/BytemountsAiStudio.Workflow/BytemountsAiStudio.Workflow.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BytemountsAiStudio.Core.Tests/BytemountsAiStudio.Core.Tests.csproj" />
+    <Project Path="tests/BytemountsAiStudio.Media.Tests/BytemountsAiStudio.Media.Tests.csproj" />
+    <Project Path="tests/BytemountsAiStudio.Queue.Tests/BytemountsAiStudio.Queue.Tests.csproj" />
+    <Project Path="tests/BytemountsAiStudio.Workflow.Tests/BytemountsAiStudio.Workflow.Tests.csproj" />
+  </Folder>
+</Solution>

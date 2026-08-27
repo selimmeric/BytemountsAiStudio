@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <UserSecretsId>dotnet-BytemountsAiStudio.Worker-dfb54938-b0fc-4943-b554-fa767267f0c2</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BytemountsAiStudio.Workflow\BytemountsAiStudio.Workflow.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Queue\BytemountsAiStudio.Queue.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Providers.Fake\BytemountsAiStudio.Providers.Fake.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Media.Rendering\BytemountsAiStudio.Media.Rendering.csproj" />
+  </ItemGroup>
+</Project>

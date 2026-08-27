@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BytemountsAiStudio.Core\BytemountsAiStudio.Core.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

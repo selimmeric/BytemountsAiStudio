@@ -1,0 +1,36 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Uyarı = hata. Bu proje uzun ömürlü; uyarı biriktirmeye başlarsak
+         gerçek sorunlar gürültünün içinde kaybolur. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors></WarningsNotAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- InvariantGlobalization KAPALI olmak zorunda: sistem çok dilli.
+         Türkçe i/I dönüşümü, tarih/sayı biçimleri ve metin sıralaması
+         kültüre bağlı. Açılırsa ToUpper("i") sessizce yanlış sonuç verir. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <Authors>Bytemounts</Authors>
+    <Product>BytemountsAiStudio</Product>
+    <NeutralLanguage>tr-TR</NeutralLanguage>
+  </PropertyGroup>
+
+  <!-- Test projeleri: uyarı-hata kuralı burada da geçerli, ama xUnit
+       analizörlerinin bazı stil kuralları testte gereksiz gürültü yapıyor. -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+</Project>

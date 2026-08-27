@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore BytemountsAiStudio.slnx
+
+      # Uyari = hata kurali Directory.Build.props'ta; ayrica burada da
+      # --no-restore ile derleme yapiliyor ki restore hatalari ayrisabilsin.
+      - name: Build
+        run: dotnet build BytemountsAiStudio.slnx --no-restore -c Release
+
+      # Faz 0-1'de tum testler FFmpeg olmadan kosar; piksel ve entegrasyon
+      # testleri "integration" ozelligiyle isaretlenip burada haric tutulacak.
+      - name: Test
+        run: dotnet test BytemountsAiStudio.slnx --no-build -c Release --verbosity normal
+
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Pano plandan turetilir. CI'da yeniden uretip fark var mi diye bakiyoruz;
+      # fark varsa biri panoyu elle duzenlemis ya da uretmeyi unutmus demektir.
+      - name: Pano guncel mi
+        run: |
+          python scripts/plan_progress.py
+          if ! git diff --quiet -- docs/plan-dashboard.html; then
+            echo "::error::docs/plan-dashboard.html guncel degil. 'python scripts/plan_progress.py' calistirip commit'leyin."
+            git --no-pager diff --stat -- docs/plan-dashboard.html
+            exit 1
+          fi

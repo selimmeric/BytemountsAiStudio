@@ -1,0 +1,56 @@
+# .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+artifacts/
+TestResults/
+*.trx
+*.coverage
+coverage*.xml
+
+# Rider / VS Code
+.idea/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Python (tools-sidecar, betikler)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Uygulama verisi — asla depoya girmez
+data/
+storage/
+assets-store/
+output/
+*.mp4
+*.wav
+*.mp3
+*.partial.*
+
+# Sırlar
+*.env
+.env.*
+appsettings.Local.json
+appsettings.*.Local.json
+secrets/
+*.pem
+*.key
+client_secret*.json
+token*.json
+
+# Üretilen pano — plandan türetilir, depoda tutulur ama elle düzenlenmez
+# (kasten yok sayılmıyor; ekip dışı biri de görebilsin)
+
+# İşletim sistemi
+Thumbs.db
+.DS_Store
+desktop.ini

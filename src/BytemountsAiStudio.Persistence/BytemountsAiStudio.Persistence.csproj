@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BytemountsAiStudio.Core\BytemountsAiStudio.Core.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Contracts\BytemountsAiStudio.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

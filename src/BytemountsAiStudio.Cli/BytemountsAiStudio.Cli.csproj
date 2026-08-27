@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BytemountsAiStudio.Workflow\BytemountsAiStudio.Workflow.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Queue\BytemountsAiStudio.Queue.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Providers.Fake\BytemountsAiStudio.Providers.Fake.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.Media.Rendering\BytemountsAiStudio.Media.Rendering.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+</Project>
