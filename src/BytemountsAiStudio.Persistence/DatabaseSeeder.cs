@@ -130,10 +130,7 @@ public static class DatabaseSeeder
 
         var current = workflow.Versions.MaxBy(v => v.Version);
 
-        // Karşılaştırma satır sonu normalize edilerek: aynı graf
-        // Windows ve Linux'ta farklı sayılmasın, yoksa her makinede bir
-        // sürüm daha eklenirdi.
-        if (current is not null && Normalize(current.GraphJson) == Normalize(FakeGraphJson))
+        if (!NeedsNewVersion(current?.GraphJson, FakeGraphJson))
         {
             return 0;
         }
@@ -145,6 +142,20 @@ public static class DatabaseSeeder
 
         return 1;
     }
+
+    /// Depodaki graf ile koddaki graf ayrıştı mı.
+    ///
+    /// Ayrı ve SAF: kararın kendisi veritabanı gerektirmiyor. İlk
+    /// denemede bu davranışı veritabanına bağlı bir testle sınamaya
+    /// çalıştım ve test, PAYLAŞILAN tohum verisini bozarak komşu testi
+    /// düşürdü — CI'da görüldü. Kararı ayırmak hem testi izole ediyor
+    /// hem veritabanı olmayan makinede de koşturuyor.
+    ///
+    /// Karşılaştırma satır sonu normalize edilerek: aynı graf Windows
+    /// ve Linux'ta farklı sayılmamalı, yoksa her makinede bir sürüm
+    /// daha eklenir ve sürüm numarası anlamını yitirirdi.
+    internal static bool NeedsNewVersion(string? storedGraph, string currentGraph)
+        => storedGraph is null || Normalize(storedGraph) != Normalize(currentGraph);
 
     private static string Normalize(string json)
         => json.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();

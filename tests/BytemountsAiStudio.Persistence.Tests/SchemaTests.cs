@@ -58,48 +58,6 @@ public sealed class SchemaTests(DatabaseFixture fixture)
             w => w.Key == DatabaseSeeder.FakeWorkflowKey, CancellationToken.None));
     }
 
-    /// Graf DEĞİŞTİĞİNDE yeni sürüm eklenmeli.
-    ///
-    /// Önceden yalnızca anahtarın varlığına bakılıyordu ve bu bir
-    /// tuzaktı: koddaki grafı değiştirmek MEVCUT bir veritabanında
-    /// hiçbir şey yapmıyordu. CI (boş veritabanı) yeşil yanıyor,
-    /// geliştirme makinesi (tohumlanmış veritabanı) eski grafla koşmaya
-    /// devam ediyor ve fark hiçbir yerde görünmüyordu.
-    [Fact]
-    public async Task Seed_GrafDegisince_YeniSurumEkler()
-    {
-        RequireDatabase();
-        await using var db = fixture.CreateContext();
-
-        await DatabaseSeeder.SeedAsync(db, CancellationToken.None);
-
-        var workflow = await db.Workflows
-            .Include(w => w.Versions)
-            .SingleAsync(w => w.Key == DatabaseSeeder.FakeWorkflowKey, CancellationToken.None);
-
-        var before = workflow.Versions.Count;
-
-        // Depodaki grafı taklit ederek eskitiyoruz: sanki kodda bir
-        // node eklenmiş de veritabanı geride kalmış gibi.
-        workflow.Versions.Single(v => v.Version == workflow.CurrentVersion).GraphJson = "{ \"nodes\": [] }";
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var added = await DatabaseSeeder.SeedAsync(db, CancellationToken.None);
-
-        await using var fresh = fixture.CreateContext();
-        var reloaded = await fresh.Workflows
-            .Include(w => w.Versions)
-            .SingleAsync(w => w.Key == DatabaseSeeder.FakeWorkflowKey, CancellationToken.None);
-
-        Assert.Equal(1, added);
-        Assert.Equal(before + 1, reloaded.Versions.Count);
-        Assert.Equal(reloaded.Versions.Max(v => v.Version), reloaded.CurrentVersion);
-
-        // Eski sürüm SİLİNMİYOR: koşan run'lar ona bağlı ve "bu video
-        // hangi grafla üretildi" sorusunun cevabı o kayıt.
-        Assert.Contains(reloaded.Versions, v => v.GraphJson.Contains("\"nodes\": []", StringComparison.Ordinal));
-    }
-
     [Fact]
     public async Task Enumlar_MetinOlarakSaklanir()
     {
