@@ -76,6 +76,10 @@ dotnet_diagnostic.CA1000.severity = none
 # VB yok ve olmayacak.
 dotnet_diagnostic.CA1716.severity = none
 
+# CA1711 "Queue/Collection gibi son eklerden kaçın": JobQueue tam olarak bir
+# kuyruk; alan terminolojisini kurala uydurmak için bozmanın anlamı yok.
+dotnet_diagnostic.CA1711.severity = none
+
 # CA1720 "tanımlayıcı tip adı içeriyor": ContentKind.Short, `short` tipiyle
 # ilgisi olmayan domain sözlüğü (YouTube Shorts). Yeniden adlandırmak alan
 # terminolojisini bozar.

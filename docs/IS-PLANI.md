@@ -35,10 +35,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ### 0.B Kuyruk ve engine
 
-- [ ] **P0-06** `5p` — Job kuyruğu: `FOR UPDATE SKIP LOCKED` lease, heartbeat, lease süpürücü, kuyruk sınıfları
-  - *Bitti:* Worker süreci `kill -9` ile öldürülünce iş lease süresi sonunda yeniden dağıtılıyor (test)
-- [ ] **P0-07** `3p` — Hata sınıflandırma (geçici/kalıcı/zehirli/kaynak) + retry politikaları + DLQ
-  - *Bitti:* Her sınıf için birim testi; DLQ'ya düşen iş tabloda görünüyor
+- [x] **P0-06** `5p` — Job kuyruğu: `FOR UPDATE SKIP LOCKED` lease, heartbeat, lease süpürücü, kuyruk sınıfları
+  - *Bitti:* ✔ 27 Ağu 2026 — `FOR UPDATE SKIP LOCKED` + kiralama + heartbeat + süpürücü. 15 test gerçek PostgreSQL'de. Çöken worker testi: negatif kiralama süresiyle taklit edilip geri alma doğrulandı, deneme sayacı korunuyor (sonsuz döngü olmaz). Duraklatılmış kanalın işi alınmıyor
+- [x] **P0-07** `3p` — Hata sınıflandırma (geçici/kalıcı/zehirli/kaynak) + retry politikaları + DLQ
+  - *Bitti:* ✔ 27 Ağu 2026 — Dört hata sınıfının dördü de farklı davranıyor: geçici→backoff, kalıcı→tekrar yok, zehirli→ilk denemede DLQ, **kaynak→erteleme (deneme sayacı bile artmıyor)**. Son denemede DLQ. Her sınıfın testi var
 - [ ] **P0-08** `3p` — Workflow tanım modeli: JSONB graf, şema doğrulama, `workflow_versions` sürümleme
   - *Bitti:* Geçersiz graf (döngü, kopuk node, bilinmeyen tip) reddediliyor
 - [ ] **P0-09** `5p` — DAG engine: run durum makinesi, node tetikleme, "çıktı yazımı + sonraki node kuyruğa" tek transaction

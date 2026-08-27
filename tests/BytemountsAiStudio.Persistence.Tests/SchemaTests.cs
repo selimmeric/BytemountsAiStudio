@@ -3,6 +3,7 @@ using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
+using BytemountsAiStudio.TestSupport;
 
 namespace BytemountsAiStudio.Persistence.Tests;
 

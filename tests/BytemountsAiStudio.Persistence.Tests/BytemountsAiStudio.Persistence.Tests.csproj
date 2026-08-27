@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.TestSupport\BytemountsAiStudio.TestSupport.csproj" />
   </ItemGroup>
 
 </Project>

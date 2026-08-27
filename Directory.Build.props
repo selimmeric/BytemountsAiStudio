@@ -26,6 +26,13 @@
     <NeutralLanguage>tr-TR</NeutralLanguage>
   </PropertyGroup>
 
+  <!-- Her üretim projesi kendi test projesine iç üyelerini açar.
+       Alternatifi, yalnızca test edilebilsin diye üyeleri public yapmaktı;
+       o da genel API yüzeyini gerçekte olduğundan geniş gösterirdi. -->
+  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+    <InternalsVisibleTo Include="$(MSBuildProjectName).Tests" />
+  </ItemGroup>
+
   <!-- Test projeleri: uyarı-hata kuralı burada da geçerli, ama xUnit
        analizörlerinin bazı stil kuralları testte gereksiz gürültü yapıyor. -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">

@@ -2,6 +2,7 @@ using System.Text;
 using BytemountsAiStudio.Contracts.Providers;
 using BytemountsAiStudio.Core.Assets;
 using BytemountsAiStudio.Persistence.Storage;
+using BytemountsAiStudio.TestSupport;
 
 namespace BytemountsAiStudio.Persistence.Tests;
 

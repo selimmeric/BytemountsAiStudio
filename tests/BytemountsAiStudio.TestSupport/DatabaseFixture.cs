@@ -1,11 +1,17 @@
+using Xunit;
 using System.Globalization;
 using BytemountsAiStudio.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-namespace BytemountsAiStudio.Persistence.Tests;
+namespace BytemountsAiStudio.TestSupport;
 
 /// Gerçek PostgreSQL'e karşı koşan testler için ortak kurulum.
+///
+/// Ayrı bir derlemede, çünkü hem kalıcılık hem kuyruk testleri kullanıyor.
+/// `CollectionDefinition` burada DEĞİL: xUnit koleksiyon tanımlarını yalnızca
+/// testin bulunduğu derlemede arıyor, o yüzden her test projesi kendi
+/// tanımını yapıyor.
 ///
 /// Neden bellek içi sağlayıcı değil: bu şemanın değerli kısımları — pgvector
 /// kolonu, kısmi indeksler, JSONB, `SKIP LOCKED` — bellek içi sağlayıcıda
@@ -88,10 +94,4 @@ public sealed class DatabaseFixture : IAsyncLifetime
     /// CI'da bağlantı ortam değişkeninden gelir; yerelde compose varsayılanı.
     private static string GetAdminConnectionString()
         => Environment.GetEnvironmentVariable("BMAI_TEST_CONNECTION") ?? AdminConnection;
-}
-
-[CollectionDefinition(Name)]
-public sealed class DatabaseCollection : ICollectionFixture<DatabaseFixture>
-{
-    public const string Name = "postgres";
 }

@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Queue\BytemountsAiStudio.Queue.csproj" />
+    <ProjectReference Include="..\BytemountsAiStudio.TestSupport\BytemountsAiStudio.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
   </ItemGroup>
 
 </Project>

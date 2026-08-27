@@ -19,6 +19,7 @@
     <Project Path="tests/BytemountsAiStudio.Persistence.Tests/BytemountsAiStudio.Persistence.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Providers.Fake.Tests/BytemountsAiStudio.Providers.Fake.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Queue.Tests/BytemountsAiStudio.Queue.Tests.csproj" />
+    <Project Path="tests/BytemountsAiStudio.TestSupport/BytemountsAiStudio.TestSupport.csproj" />
     <Project Path="tests/BytemountsAiStudio.Workflow.Tests/BytemountsAiStudio.Workflow.Tests.csproj" />
   </Folder>
 </Solution>
