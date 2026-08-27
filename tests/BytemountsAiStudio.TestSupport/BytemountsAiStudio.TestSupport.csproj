@@ -1,9 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
-  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Test PROJESI degil, testlerin paylastigi kutuphane.
+         Isaretlenmezse "dotnet test" bunu da kosmaya calisiyor ve
+         "Test Run Aborted" ile tum kosuyu dusuruyor. CI yakaladi. -->
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Npgsql" />
     <PackageReference Include="xunit" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+  </ItemGroup>
+
 </Project>
