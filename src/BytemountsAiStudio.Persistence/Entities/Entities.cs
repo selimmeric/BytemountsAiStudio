@@ -421,3 +421,28 @@ public sealed class Approval : EntityBase
 
     public DateTimeOffset? DecidedAt { get; set; }
 }
+
+/// Sistem geneli ayar (P2-04).
+///
+/// Anahtar/değer, çünkü ilk kullanıcısı tek bir bayrak (acil
+/// durdurma) ve onun için ayrı bir tablo açmak, ikinci bayrak
+/// geldiğinde ikinci bir şema göçü demekti.
+///
+/// VERİTABANINDA, bellekte DEĞİL. Acil durdurma statik bir alanken
+/// yalnızca o süreci durduruyordu: filodaki diğer worker'lar hiçbir
+/// şey görmüyor, yeniden başlatmada bayrak kayboluyordu — "tek tıkla
+/// her şey dursun" sözünün karşılığı yoktu.
+public sealed class Setting
+{
+    public required string Key { get; set; }
+
+    public required string Value { get; set; }
+
+    /// Kim değiştirdi ve neden. Acil durdurma gibi bir düğmede "kim
+    /// bastı" sorusu ilk sorulacak şey.
+    public string? UpdatedBy { get; set; }
+
+    public string? Reason { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}

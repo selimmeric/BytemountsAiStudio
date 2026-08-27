@@ -34,6 +34,8 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
 
     public DbSet<Approval> Approvals => Set<Approval>();
 
+    public DbSet<Setting> Settings => Set<Setting>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -206,6 +208,15 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
             // tamamen kaybettirirdi.
             e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<Setting>(e =>
+        {
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.Value).HasMaxLength(256);
+            e.Property(x => x.UpdatedBy).HasMaxLength(128);
+            e.Property(x => x.Reason).HasMaxLength(500);
         });
 
         b.Entity<Approval>(e =>

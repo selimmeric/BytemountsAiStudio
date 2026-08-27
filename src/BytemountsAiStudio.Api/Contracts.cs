@@ -110,3 +110,18 @@ internal sealed record DeadLetterEntry(
     int MaxAttempts,
     string? LastError,
     DateTimeOffset CreatedAt);
+
+/// Kanalın kontrol durumu (P2-04).
+internal sealed record ChannelControl(Guid Id, string Name, string Language, bool Paused, string Mode);
+
+/// Sistem kontrol paneli.
+internal sealed record ControlState(
+    bool KillSwitchEngaged,
+    string? By,
+    string? Reason,
+    DateTimeOffset? Since,
+    IReadOnlyList<ChannelControl> Channels);
+
+internal sealed record KillSwitchRequest(bool Engaged, string DecidedBy, string? Reason);
+
+internal sealed record ChannelPauseRequest(bool Paused);

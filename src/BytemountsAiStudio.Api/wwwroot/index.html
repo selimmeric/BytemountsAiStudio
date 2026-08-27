@@ -113,6 +113,7 @@ const TABS = [
   ["topics", "Konu havuzu"],
   ["dlq", "Ölü mektup"],
   ["cost", "Maliyet"],
+  ["control", "Kontrol"],
 ];
 
 let stream = null;
@@ -417,6 +418,91 @@ async function showCost() {
     ${panel("Sağlayıcı kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Düşen", "Tutar"], rows))}`;
 }
 
+/* ---- Kontroller (P2-04) ---- */
+
+async function showControl() {
+  const state = await api("/control");
+
+  const channels = state.channels.map((c) => `
+    <tr>
+      <td>${esc(c.name)}</td>
+      <td class="mono">${esc(c.language)}</td>
+      <td class="mono">${esc(c.mode)}</td>
+      <td>${c.paused ? `<span class="tag s-Cancelled">duraklatıldı</span>` : `<span class="tag s-Running">çalışıyor</span>`}</td>
+      <td><button class="act ${c.paused ? "" : "ghost warn"}"
+        data-channel="${esc(c.id)}" data-paused="${c.paused ? "1" : "0"}">
+        ${c.paused ? "Devam ettir" : "Duraklat"}</button></td>
+    </tr>`);
+
+  view.innerHTML = `
+    <section class="panel">
+      <h2>Acil durdurma</h2>
+      <div class="stats">
+        <div class="stat">
+          <b class="${state.killSwitchEngaged ? "s-Failed" : "s-Completed"}">
+            ${state.killSwitchEngaged ? "DURDURULDU" : "çalışıyor"}</b>
+          <span>Sistem</span>
+        </div>
+        ${state.killSwitchEngaged ? `
+        <div class="stat"><b style="font-size:15px">${esc(state.by ?? "—")}</b><span>Kim</span></div>
+        <div class="stat"><b style="font-size:15px">${esc(state.reason ?? "—")}</b><span>Neden</span></div>
+        <div class="stat"><b style="font-size:15px">${esc(when(state.since))}</b><span>Ne zaman</span></div>` : ""}
+      </div>
+      <div style="padding:0 14px 14px">
+        <button class="act ${state.killSwitchEngaged ? "" : "ghost"}" id="kill">
+          ${state.killSwitchEngaged ? "Sistemi tekrar başlat" : "ACİL DURDUR"}</button>
+      </div>
+    </section>
+    ${panel("Kanallar", table(["Kanal", "Dil", "Kip", "Durum", ""], channels))}`;
+
+  document.getElementById("kill").addEventListener("click", async () => {
+    const engaged = !state.killSwitchEngaged;
+
+    // DURDURMA onay istiyor, AÇMA istemiyor.
+    //
+    // Asimetri kasıtlı: yanlışlıkla durdurmak üretimi kesiyor,
+    // yanlışlıkla açmak yalnızca zaten olması gereken duruma
+    // dönüyor. Ve gerekçe zorunlu — "kim bastı, neden" sorusu bu
+    // düğmede ilk sorulacak şey.
+    let reason = null;
+
+    if (engaged) {
+      reason = prompt("Acil durdurma gerekçesi:");
+
+      if (!reason) {
+        return;
+      }
+    }
+
+    try {
+      await api("/control/kill-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engaged, decidedBy: "panel", reason }),
+      });
+
+      await showControl();
+    } catch (error) {
+      fail(error);
+    }
+  });
+
+  view.querySelectorAll("[data-channel]").forEach((button) =>
+    button.addEventListener("click", async () => {
+      try {
+        await api(`/control/channels/${button.dataset.channel}/pause`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paused: button.dataset.paused !== "1" }),
+        });
+
+        await showControl();
+      } catch (error) {
+        fail(error);
+      }
+    }));
+}
+
 /* ---- Sekmeler ---- */
 
 const VIEWS = {
@@ -425,6 +511,7 @@ const VIEWS = {
   topics: showTopics,
   dlq: showDlq,
   cost: showCost,
+  control: showControl,
 };
 
 async function select(key) {

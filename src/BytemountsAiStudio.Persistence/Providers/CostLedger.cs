@@ -70,18 +70,25 @@ public sealed class CostLedger(StudioDbContext db, TimeProvider? timeProvider = 
 /// §13.2: sistemin parayı kendi başına harcamasını durduran son nokta.
 /// Limit aşımında dönen hata KAYNAK sınıfında — iş başarısız olmaz,
 /// ertelenir. Kalıcı hata olsaydı bütçe dolduğu gün tüm run'lar ölürdü.
-public sealed class BudgetGate(StudioDbContext db, ICostLedger ledger) : IBudgetGate
+public sealed class BudgetGate(StudioDbContext db, ICostLedger ledger, SystemControl? control = null) : IBudgetGate
 {
-    /// Acil durdurma. Açıldığında hiçbir ücretli çağrı yapılmaz.
-    public static bool KillSwitchEngaged { get; set; }
+    private readonly SystemControl _control = control ?? new SystemControl(db);
 
     public async Task<Core.Result> AuthorizeAsync(
         Guid? channelId, decimal estimatedCost, CancellationToken cancellationToken)
     {
-        if (KillSwitchEngaged)
+        // ACİL DURDURMA VERİTABANINDAN okunuyor (P2-04).
+        //
+        // Önceki hâli statik bir alandı ve yalnızca o süreci
+        // durduruyordu: filodaki diğer worker'lar hiçbir şey görmüyor,
+        // yeniden başlatmada bayrak kayboluyordu.
+        var kill = await _control.KillSwitchAsync(cancellationToken).ConfigureAwait(false);
+
+        if (kill.Engaged)
         {
             return Core.Errors.Error.Resource(
-                "budget.kill_switch", "Acil durdurma etkin; ücretli çağrı yapılmıyor.",
+                "budget.kill_switch",
+                $"Acil durdurma etkin ({kill.By ?? "bilinmiyor"}): {kill.Reason ?? "gerekçe yok"}",
                 TimeSpan.FromHours(1));
         }
 
@@ -94,7 +101,24 @@ public sealed class BudgetGate(StudioDbContext db, ICostLedger ledger) : IBudget
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
             .ConfigureAwait(false);
 
-        if (channel?.DailyBudget is not { } dailyBudget)
+        if (channel is null)
+        {
+            return Core.Result.Success();
+        }
+
+        // KANAL DURAKLATMA acil durdurmadan AYRI: biri her şeyi,
+        // diğeri yalnızca o kanalın yeni işlerini durduruyor. Tek
+        // bayrağa indirmek, bir kanalı susturmak için bütün sistemi
+        // durdurmak demekti.
+        if (channel.IsPaused)
+        {
+            return Core.Errors.Error.Resource(
+                "budget.channel_paused",
+                $"'{channel.Name}' kanalı duraklatılmış.",
+                TimeSpan.FromHours(1));
+        }
+
+        if (channel.DailyBudget is not { } dailyBudget)
         {
             return Core.Result.Success();
         }

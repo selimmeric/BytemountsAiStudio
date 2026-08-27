@@ -19,12 +19,17 @@ public sealed class CostLedgerTests(DatabaseFixture fixture) : IAsyncLifetime
 
         await using var db = fixture.CreateContext();
         await db.Database.ExecuteSqlRawAsync("DELETE FROM provider_calls");
-        BudgetGate.KillSwitchEngaged = false;
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM settings");
+
+        // Surec geneli onbellek: bosaltilmazsa bir onceki testin
+        // durdurma bayragi bu testte de gorunur. Bu depoda paylasilan
+        // durumun komsu testleri kirmasi CI'i iki kez kirmizi yakti.
+        SystemControl.Invalidate();
     }
 
     public Task DisposeAsync()
     {
-        BudgetGate.KillSwitchEngaged = false;
+        SystemControl.Invalidate();
         return Task.CompletedTask;
     }
 
@@ -111,14 +116,19 @@ public sealed class CostLedgerTests(DatabaseFixture fixture) : IAsyncLifetime
     {
         RequireDatabase();
         await using var db = fixture.CreateContext();
-        var gate = new BudgetGate(db, new CostLedger(db));
+        var control = new SystemControl(db);
+        var gate = new BudgetGate(db, new CostLedger(db), control);
 
-        BudgetGate.KillSwitchEngaged = true;
+        await control.SetKillSwitchAsync(true, "selim", "test", CancellationToken.None);
 
         var result = await gate.AuthorizeAsync(null, 0.001m, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("budget.kill_switch", result.Error.Code);
+
+        // KIM BASTI ve NEDEN, hata mesajinda: acil durdurma gibi bir
+        // dugmede ilk sorulacak sey bu.
+        Assert.Contains("selim", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

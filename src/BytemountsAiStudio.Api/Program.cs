@@ -3,6 +3,7 @@ using BytemountsAiStudio.Api;
 using BytemountsAiStudio.Core.Execution;
 using BytemountsAiStudio.Nodes;
 using BytemountsAiStudio.Persistence;
+using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Persistence.Storage;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Workflow.Engine;
@@ -49,6 +50,7 @@ builder.Services.AddScoped<NodeRegistry>(services =>
 builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<DeadLetterTriage>();
+builder.Services.AddScoped<SystemControl>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();
@@ -184,6 +186,46 @@ app.MapPost("/dlq/{id:guid}/skip", async (
 app.MapPost("/dlq/{id:guid}/cancel", async (
     Guid id, ApprovalDecisionRequest request, DeadLetterTriage triage, CancellationToken cancellationToken) =>
     Triage(await triage.CancelRunAsync(id, request.DecidedBy, cancellationToken)));
+
+// ---- Kontroller (P2-04) ----
+//
+// ACIL DURDURMA ile KANAL DURAKLATMA ayri kavramlar: biri her seyi,
+// digeri yalnizca o kanalin yeni islerini durduruyor. Tek dugmeye
+// indirmek, bir kanali susturmak icin butun sistemi durdurmak
+// demekti.
+app.MapGet("/control", async (SystemControl control, StudioDbContext db, CancellationToken cancellationToken) =>
+{
+    var kill = await control.KillSwitchAsync(cancellationToken);
+
+    var channels = await db.Channels.AsNoTracking()
+        .OrderBy(c => c.Name)
+        .Select(c => new ChannelControl(c.Id, c.Name, c.Language, c.IsPaused, c.Mode.ToString()))
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(new ControlState(kill.Engaged, kill.By, kill.Reason, kill.Since, channels));
+});
+
+app.MapPost("/control/kill-switch", async (
+    KillSwitchRequest request, SystemControl control, CancellationToken cancellationToken) =>
+{
+    await control.SetKillSwitchAsync(request.Engaged, request.DecidedBy, request.Reason, cancellationToken);
+
+    return Results.NoContent();
+});
+
+app.MapPost("/control/channels/{id:guid}/pause", async (
+    Guid id, ChannelPauseRequest request, SystemControl control,
+    StudioDbContext db, CancellationToken cancellationToken) =>
+{
+    if (!await db.Channels.AsNoTracking().AnyAsync(c => c.Id == id, cancellationToken))
+    {
+        return Results.NotFound(new { error = $"Kanal bulunamadı: {id}" });
+    }
+
+    await control.SetChannelPausedAsync(id, request.Paused, cancellationToken);
+
+    return Results.NoContent();
+});
 
 // ---- Maliyet ----
 
