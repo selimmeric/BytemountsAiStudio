@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Media.Rendering\BytemountsAiStudio.Media.Rendering.csproj" />
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Media\BytemountsAiStudio.Media.csproj" />
   </ItemGroup>
 
 </Project>

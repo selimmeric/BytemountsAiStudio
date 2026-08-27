@@ -164,8 +164,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — Ücretsiz kullanıma açık AI görsel üretimi. Tohum veriliyorsa aynı prompt aynı görseli veriyor — render önbelleğini anlamlı kılan şey bu. Sunucu bazen hata sayfasını 200 ile döndürüyor; boyut ve içerik tipi kontrolü bunu yakalıyor
 - [ ] **P1-18** `1p` — AI görsel adaptörü + stok bulunamazsa fallback
   - *Bitti:* Ücretli sağlayıcı + yönlendirme politikasıyla fallback. **API anahtarı bekliyor**
-- [ ] **P1-19** `4p` — Timeline derleyici: ölçülen sürelerden sahne/altyazı/ducking üretimi
-  - *Bitti:* Ses ile görsel kayması < 50 ms (otomatik ölçüm)
+- [x] **P1-19** `4p` — Timeline derleyici: ölçülen sürelerden sahne/altyazı/ducking üretimi
+  - *Bitti:* ✔ 27 Ağu 2026 — Sahne/altyazı üretimi P1-16'da bağlandı (ses–görsel kayması sıfır; `TimelineBuilderTests` sahne toplamının ses toplamına eşit olduğunu ve sahnelerin boşluksuz geldiğini doğruluyor). **Müzik yatağı modelde VAAT EDİLİP render'da yok sayılıyordu** — `AudioTrack.Music` doluyken filtre grafiğine hiç girmiyordu, yani kanal ayarında müzik açık görünüyor, videoda müzik yok ve hiçbir şey hata vermiyordu. Zincir artık kurulu: giriş → döngü → seviye → süreye kırpma → fade → ducking → karışım. Ducking `sidechaincompress` ile; ilk girdi KISILAN (müzik), ikinci girdi TETİK (konuşma) — sıra ters olsa teknik olarak geçerli ama tam tersi bir video çıkardı. **Gerçek FFmpeg'e karşı doğrulandı ve bir varsayımım yanlış çıktı:** `asplit`'i "bir akış yalnızca bir kez tüketilebilir" diye gerekçelendirmiştim; FFmpeg ham girdi pad'lerini kendisi çoğaltıyor, kural yalnızca FİLTRE ÇIKIŞLARI için geçerli. Bizim konuşma akışımız filtre çıktısı olduğu için `asplit` yine gerekli — ama artık doğru gerekçeyle, ve her iki durum da canlı FFmpeg testiyle sabitlendi. 20 test (16 graf + 4 gerçek FFmpeg)
 - [ ] **P1-20** `3p` — Render preset `shorts-1080x1920`: Ken Burns, fade, yakılmış altyazı, watermark
   - *Bitti:* 50 sn'lik video < 3 dk'da render ediliyor (referans makinede)
 

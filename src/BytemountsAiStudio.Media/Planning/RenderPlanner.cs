@@ -255,17 +255,122 @@ public static class RenderPlanner
             nodes.Add(FilterNode.AMix(delayed, mixed));
         }
 
-        // Sesi tam süreye oturt: kısaysa sessizlikle uzat, sonra kes.
-        // İkisi birlikte olmazsa çıktı süresi videodan sapar.
         var seconds = timeline.Duration.TotalSeconds;
 
+        // MÜZİK YATAĞI.
+        //
+        // Model uzun süre bunu VAAT ETTİ ama render yok saydı:
+        // `AudioTrack.Music` doluydu, filtre grafiğine hiç girmiyordu.
+        // Sessizce yok saymak en kötü seçenekti — kanal ayarında müzik
+        // açık görünüyor, videoda müzik yok, ve hiçbir şey hata vermiyor.
+        var withMusic = AddMusic(timeline, resolvedPaths, inputs, nodes, issues, mixed, seconds);
+
+        // Sesi tam süreye oturt: kısaysa sessizlikle uzat, sonra kes.
+        // İkisi birlikte olmazsa çıktı süresi videodan sapar.
         var padded = new StreamRef("apadded", MediaKind.Audio);
-        nodes.Add(FilterNode.APadTrim(mixed, padded, seconds));
+        nodes.Add(FilterNode.APadTrim(withMusic, padded, seconds));
 
         var audioOut = new StreamRef("aout", MediaKind.Audio);
         nodes.Add(FilterNode.ATrim(padded, audioOut, seconds));
 
         return audioOut;
+    }
+
+    /// Müzik yatağını konuşmanın altına serer ve gerekiyorsa ducking uygular.
+    ///
+    /// Zincir: giriş → döngü → seviye → fade in/out → (ducking) → karışım
+    ///
+    /// Ducking varsa KONUŞMA İKİYE AYRILIYOR (`asplit`): bir kopya
+    /// sidechain tetiği, bir kopya nihai karışım. FFmpeg'de bir akış
+    /// yalnızca bir kez tüketilebiliyor; ayırmadan bağlamak "geçersiz
+    /// filtre grafiği" hatası veriyor ve o mesaj sorunun nerede
+    /// olduğunu hiç söylemiyor.
+    private static StreamRef AddMusic(
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> resolvedPaths,
+        List<InputDecl> inputs,
+        List<FilterNode> nodes,
+        List<ValidationIssue> issues,
+        StreamRef voice,
+        double seconds)
+    {
+        if (timeline.Audio.Music is not { } music)
+        {
+            return voice;
+        }
+
+        var path = Resolve(music.Asset, resolvedPaths, issues, "müzik yatağı");
+
+        if (path is null)
+        {
+            // `Resolve` sorunu zaten kaydetti. Müziksiz devam etmek
+            // yerine burada durmak videoyu tamamen kaybettirirdi;
+            // konuşma tek başına geçerli bir ses.
+            return voice;
+        }
+
+        inputs.Add(new InputDecl { Id = "music", Path = path, Kind = InputKind.Audio });
+
+        var current = new StreamRef("music", MediaKind.Audio);
+
+        if (music.Loop)
+        {
+            var looped = new StreamRef("m_loop", MediaKind.Audio);
+            nodes.Add(FilterNode.ALoop(current, looped));
+            current = looped;
+        }
+
+        var leveled = new StreamRef("m_gain", MediaKind.Audio);
+        nodes.Add(FilterNode.Volume(current, leveled, music.GainDb));
+        current = leveled;
+
+        // Müzik VİDEO SÜRESİNE kırpılıyor; fade-out'un başlangıcı buna
+        // göre hesaplanıyor. Kırpmadan fade koymak, sesin bittiği yerde
+        // değil müziğin bittiği yerde solmasına yol açardı.
+        var trimmed = new StreamRef("m_trim", MediaKind.Audio);
+        nodes.Add(FilterNode.ATrim(current, trimmed, seconds));
+        current = trimmed;
+
+        if (music.FadeIn.Value > 0)
+        {
+            var faded = new StreamRef("m_fin", MediaKind.Audio);
+            nodes.Add(FilterNode.AFadeIn(current, faded, music.FadeIn.TotalSeconds));
+            current = faded;
+        }
+
+        if (music.FadeOut.Value > 0 && music.FadeOut.TotalSeconds < seconds)
+        {
+            var faded = new StreamRef("m_fout", MediaKind.Audio);
+            nodes.Add(FilterNode.AFadeOut(
+                current, faded, seconds - music.FadeOut.TotalSeconds, music.FadeOut.TotalSeconds));
+            current = faded;
+        }
+
+        var voiceForMix = voice;
+
+        if (music.Ducking is { } ducking)
+        {
+            var trigger = new StreamRef("v_trigger", MediaKind.Audio);
+            var forMix = new StreamRef("v_mix", MediaKind.Audio);
+
+            nodes.Add(FilterNode.ASplit(voice, [trigger, forMix]));
+            voiceForMix = forMix;
+
+            var ducked = new StreamRef("m_duck", MediaKind.Audio);
+
+            nodes.Add(FilterNode.SidechainCompress(
+                current, trigger, ducked,
+                ducking.TargetGainDb - music.GainDb,
+                ducking.AttackMs,
+                ducking.ReleaseMs));
+
+            current = ducked;
+        }
+
+        var mixedWithMusic = new StreamRef("a_with_music", MediaKind.Audio);
+        nodes.Add(FilterNode.AMix([voiceForMix, current], mixedWithMusic));
+
+        return mixedWithMusic;
     }
 
     private static bool HasPan(KenBurns motion)

@@ -287,16 +287,24 @@ public sealed record FilterNode
     /// Bir ses akışını iki kopyaya ayırır.
     ///
     /// Ducking için ŞART: konuşma hem karışıma hem sidechain tetiğine
-    /// gidiyor ve FFmpeg'de bir akış yalnızca BİR KEZ tüketilebiliyor.
-    /// Ayırmadan bağlamak "filtre grafiği geçersiz" hatası veriyor —
-    /// ve bu hata mesajı sorunun nerede olduğunu hiç söylemiyor.
+    /// gidiyor ve FFmpeg'de bir FİLTRE ÇIKIŞI yalnızca BİR KEZ
+    /// tüketilebiliyor.
+    ///
+    /// Ayrım önemli ve canlı denemede öğrenildi: ham girdi pad'lerini
+    /// (`[1:a]`) FFmpeg kendisi çoğaltıyor, onlarda `asplit` gerekmiyor.
+    /// Bizim konuşma akışımız ham girdi DEĞİL — `amix`/`apad`
+    /// zincirinden çıkan bir filtre çıktısı, dolayısıyla kural bize
+    /// uyguluyor. Ayırmadan bağlamak "filtre grafiği geçersiz" hatası
+    /// veriyor ve o mesaj sorunun nerede olduğunu hiç söylemiyor.
+    /// İkisi de `DuckingFfmpegTests` içinde gerçek FFmpeg'e karşı
+    /// sabitlendi.
     public static FilterNode ASplit(StreamRef input, IReadOnlyList<StreamRef> outputs)
         => new()
         {
             Filter = "asplit",
             Inputs = [input],
             Outputs = outputs,
-            Args = [FilterArg.Positional(outputs.Count)],
+            Args = [FilterArg.Positional(outputs.Count.ToString(CultureInfo.InvariantCulture))],
             Comment = $"ses akisini {outputs.Count} kopyaya ayir",
         };
 
