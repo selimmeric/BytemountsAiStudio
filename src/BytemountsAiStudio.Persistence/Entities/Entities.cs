@@ -279,3 +279,34 @@ public sealed class ProviderCall : EntityBase
 
     public bool Succeeded { get; set; }
 }
+
+/// Şifrelenmiş API anahtarı (§16, P1-01).
+///
+/// Gizli değer burada ŞİFRELİ duruyor — `CipherText`. Düz metin saklamak,
+/// veritabanı yedeğini alan herkese bütün hesapları vermek demekti; yedekler
+/// de çoğu zaman kod deposundan daha az korunuyor.
+///
+/// Şifreleme anahtarı veritabanında değil, ASP.NET Data Protection'ın anahtar
+/// halkasında. İkisi ayrı yerde durmadıkça şifrelemenin bir anlamı olmazdı.
+public sealed class Credential : EntityBase
+{
+    /// null = genel kayıt; bütün kanallar için geçerli.
+    public Guid? ChannelId { get; set; }
+
+    public Channel? Channel { get; set; }
+
+    /// `config/providers.json` içindeki `key` ile aynı değer.
+    public required string ProviderKey { get; set; }
+
+    public required string CipherText { get; set; }
+
+    /// Son dört karakter, maskeli. Arayüzde göstermek için — bu alanı
+    /// okumak anahtarın çözülmesini gerektirmiyor.
+    public required string Masked { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// Kullanılmayan anahtarı görmek için: dönmesi gerekirken unutulmuş
+    /// ya da hiç devreye girmemiş kayıtlar buradan ayırt ediliyor.
+    public DateTimeOffset? LastUsedAt { get; set; }
+}

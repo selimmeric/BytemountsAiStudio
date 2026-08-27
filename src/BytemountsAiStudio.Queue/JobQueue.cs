@@ -1,5 +1,6 @@
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Errors;
+using BytemountsAiStudio.Core.Observability;
 using BytemountsAiStudio.Core.Execution;
 using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Persistence.Entities;
@@ -183,6 +184,11 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
 
         var now = _time.GetUtcNow();
 
+        // Hata metni `last_error` kolonuna gidiyor; bir saglayici istisnasi
+        // istegin basligini ya da URL'sini icerebiliyor. Suzgec cikista
+        // duruyor (P1-01) - metin veritabanina girmeden once.
+        var text = SecretRedactor.Redact(error.ToString());
+
         // Kaynak hatası bir BAŞARISIZLIK DEĞİL. Kota dolduğunda ya da bütçe
         // bittiğinde işi tüketmek yanlış olurdu; deneme sayacı bile artmamalı.
         if (error.Kind == ErrorKind.Resource)
@@ -192,7 +198,7 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
             await db.Database.ExecuteSqlAsync($"""
                 UPDATE jobs
                 SET state = 'Pending', leased_by = NULL, lease_expires_at = NULL,
-                    run_after = {retryAt}, attempt = attempt - 1, last_error = {error.ToString()}
+                    run_after = {retryAt}, attempt = attempt - 1, last_error = {text}
                 WHERE id = {job.Id}
                 """, cancellationToken).ConfigureAwait(false);
 
@@ -210,7 +216,7 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
             await db.Database.ExecuteSqlAsync($"""
                 UPDATE jobs
                 SET state = 'Pending', leased_by = NULL, lease_expires_at = NULL,
-                    run_after = {now.Add(delay)}, last_error = {error.ToString()}
+                    run_after = {now.Add(delay)}, last_error = {text}
                 WHERE id = {job.Id}
                 """, cancellationToken).ConfigureAwait(false);
 
@@ -222,7 +228,7 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
         await db.Database.ExecuteSqlAsync($"""
             UPDATE jobs
             SET state = {(deadLetter ? nameof(JobState.DeadLettered) : nameof(JobState.Failed))},
-                leased_by = NULL, lease_expires_at = NULL, last_error = {error.ToString()}
+                leased_by = NULL, lease_expires_at = NULL, last_error = {text}
             WHERE id = {job.Id}
             """, cancellationToken).ConfigureAwait(false);
 

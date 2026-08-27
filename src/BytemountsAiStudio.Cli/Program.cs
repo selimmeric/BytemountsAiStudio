@@ -12,7 +12,9 @@ using BytemountsAiStudio.Workflow.Engine;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Persistence;
+using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Persistence.Storage;
+using BytemountsAiStudio.Core.Observability;
 using Microsoft.EntityFrameworkCore;
 
 var command = args.Length > 0 ? args[0] : "help";
@@ -24,6 +26,7 @@ return command switch
     "run" => await RunWorkflowAsync(args, open: false).ConfigureAwait(false),
     "real" => await RunWorkflowAsync(args, open: true).ConfigureAwait(false),
     "providers" => ShowProviders(),
+    "credential" => await RunCredentialAsync(args).ConfigureAwait(false),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
@@ -51,6 +54,12 @@ static int Help()
                                         Ollama + Wikipedia + Pollinations +
                                         Windows TTS
           bmai providers                saglayici katalogunu goster
+          bmai credential list [--channel <id>]
+          bmai credential set <saglayici> [--channel <id>]
+                                        anahtari sifreleyerek saklar; deger
+                                        stdin'den okunur, komut satirina
+                                        yazilmaz
+          bmai credential rm <saglayici> [--channel <id>]
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
           bmai version                  surum
@@ -59,6 +68,7 @@ static int Help()
         Ortam degiskenleri:
           BMAI_CONNECTION               PostgreSQL baglantisi
           BMAI_STORAGE                  varlik deposu kok dizini
+          BMAI_KEYRING_PATH             sifreleme anahtar halkasinin yeri
         """);
     return 0;
 }
@@ -314,6 +324,108 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     return 5;
 }
 
+
+
+/// Kimlik yonetimi (P1-01).
+///
+/// Anahtar KOMUT SATIRINDAN alinmiyor, stdin'den okunuyor. Komut satirina
+/// yazilan bir deger kabuk gecmisine, islem listesine ve ekran goruntusune
+/// girer; uc yerde birden sizdirmanin gerekcesi yok.
+static async Task<int> RunCredentialAsync(string[] args)
+{
+    var subcommand = args.Length > 1 ? args[1] : "list";
+    var channelText = Option(args, "--channel", string.Empty);
+    Guid? channel = Guid.TryParse(channelText, out var parsed) ? parsed : null;
+
+    if (channelText.Length > 0 && channel is null)
+    {
+        Console.Error.WriteLine("--channel gecerli bir GUID olmali.");
+        return 2;
+    }
+
+    await using var db = CreateContext();
+    var store = new CredentialStore(db, KeyRing.Create());
+
+    switch (subcommand)
+    {
+        case "list":
+            var rows = await store.ListAsync(channel, CancellationToken.None).ConfigureAwait(false);
+
+            if (rows.Count == 0)
+            {
+                Console.WriteLine("Kayitli anahtar yok. 'bmai providers' hangilerinin beklendigini gosteriyor.");
+                return 0;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  {"SAGLAYICI",-20} {"DEGER",-10} {"KAPSAM",-10} SON KULLANIM"));
+            Console.WriteLine("  " + new string('-', 66));
+
+            foreach (var row in rows)
+            {
+                var scope = row.ChannelId is null ? "genel" : "kanal";
+                var used = row.LastUsedAt?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "-";
+
+                Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"  {row.ProviderKey,-20} {row.Masked,-10} {scope,-10} {used}"));
+            }
+
+            Console.WriteLine();
+            return 0;
+
+        case "set":
+            if (args.Length < 3 || args[2].StartsWith("--", StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine("Kullanim: bmai credential set <saglayici>");
+                return 2;
+            }
+
+            Console.Error.WriteLine($"'{args[2]}' anahtarini yapistirip Enter'a basin (ekranda gorunur):");
+            var secret = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(secret))
+            {
+                Console.Error.WriteLine("Bos deger okundu; hicbir sey saklanmadi.");
+                return 2;
+            }
+
+            var saved = await store.SetAsync(args[2], channel, secret.Trim(), CancellationToken.None)
+                .ConfigureAwait(false);
+
+            if (saved.IsFailure)
+            {
+                Console.Error.WriteLine(saved.Error.ToString());
+                return 1;
+            }
+
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"'{args[2]}' saklandi ({SecretRedactor.Mask4(secret.Trim())}). Anahtar halkasi: {KeyRing.Default.FullName}"));
+            return 0;
+
+        case "rm":
+            if (args.Length < 3)
+            {
+                Console.Error.WriteLine("Kullanim: bmai credential rm <saglayici>");
+                return 2;
+            }
+
+            var removed = await store.DeleteAsync(args[2], channel, CancellationToken.None).ConfigureAwait(false);
+
+            if (removed.IsFailure)
+            {
+                Console.Error.WriteLine(removed.Error.ToString());
+                return 1;
+            }
+
+            Console.WriteLine($"'{args[2]}' silindi.");
+            return 0;
+
+        default:
+            Console.Error.WriteLine($"Bilinmeyen credential komutu: {subcommand}");
+            return 2;
+    }
+}
 
 /// Saglayici katalogunu gosterir (config/providers.json).
 ///

@@ -103,8 +103,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [x] **P1-00** `2p` — **Sağlayıcı kataloğu:** `config/providers.json` + açılışta doğrulama + `bmai providers`
   - *Bitti:* ✔ 27 Ağu 2026 — 18 sağlayıcı, 11'i anahtarsız. Katalog veri olduğu için hatası derlemede yakalanmıyordu; doğrulama açılışa çekildi: yönlendirmede tanımsız/kapalı sağlayıcı ya da anahtarı ortamda olmayan bir servis varsa sistem hiç açılmıyor. Anahtar geldiğinde değişen tek şey iki JSON satırı — kod değişmiyor. 7 test + depodaki gerçek kataloğu doğrulayan test
-- [ ] **P1-01** `3p` — Kimlik deposu: şifreli credential (ASP.NET Data Protection), kanal başına set, redaction
-  - *Bitti:* Anahtarlar DB'de düz metin değil; loglara sızmıyor (test)
+- [x] **P1-01** `3p` — Kimlik deposu: şifreli credential (ASP.NET Data Protection), kanal başına set, redaction
+  - *Bitti:* ✔ 27 Ağu 2026 — Anahtarlar DB'de şifreli; yedeği alan kişi hesapları göremiyor (test bunu doğruluyor). Anahtar halkası veritabanının DIŞINDA — aynı yerde dursaydı şifrelemenin anlamı kalmazdı. Çözüm sırası kanal → genel → ortam değişkeni: ortamın en sonda olması bilinçli, yoksa sunucuda unutulmuş bir değişken bütün kanalları sessizce aynı hesaba bağlardı. Redaction kalıba değil BİLİNEN DEĞERE bakıyor (`sk-...` kalıbı yeni bir sağlayıcı formatını ıskalardı); süzgeç `run_events.message` ve `jobs.last_error` yazımında devrede — sızıntının gerçekte olduğu iki nokta. `bmai credential set` değeri stdin'den okuyor, komut satırından değil: komut satırı kabuk geçmişine, işlem listesine ve ekran görüntüsüne birden girer. 12 + 18 test
 - [x] **P1-02a** `2p` — LLM adaptörü: **Ollama (yerel)**
   - *Bitti:* ✔ 27 Ağu 2026 — Gerçek yerel modele karşı doğrulandı: `qwen2.5-coder:7b`, şemaya uygun JSON, 45→120 token, sıfır maliyet. Zorunlu araç Ollama'nın `format` alanıyla yapılıyor — `tools` desteği modele göre değişiyor, `format` her modelde aynı çalışıyor. 5xx geçici / 4xx kalıcı ayrımı testli
 - [ ] **P1-02b** `2p` — LLM adaptörleri: Gemini / OpenAI / OpenRouter

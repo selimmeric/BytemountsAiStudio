@@ -1,0 +1,54 @@
+using BytemountsAiStudio.Core;
+
+namespace BytemountsAiStudio.Contracts.Providers;
+
+/// API anahtarlarının saklandığı yer (mimari §16, P1-01).
+///
+/// Anahtar üç yerde aranıyor, bu sırayla:
+///   1. Kanala özel kayıt  — her kanal kendi hesabını kullanabilsin
+///   2. Genel kayıt        — tek hesabı bütün kanallar paylaşıyorsa
+///   3. Ortam değişkeni    — `config/providers.json` içindeki `key_env`
+///
+/// Ortam değişkeninin EN SONDA olması bilinçli: geliştirme makinesinde
+/// ortamdan okumak pratik, ama üretimde kanal başına ayrı hesap gerekiyor
+/// ve o zaman veritabanındaki kayıt ortamı ezmeli. Ters sırada olsaydı
+/// sunucuda unutulmuş bir ortam değişkeni bütün kanalları sessizce aynı
+/// hesaba bağlardı.
+public interface ICredentialStore
+{
+    /// Anahtarın açık hâlini döndürür. Bulunamazsa kalıcı hata —
+    /// yeniden denemek anahtarı var etmez.
+    Task<Result<string>> GetAsync(string providerKey, Guid? channelId, CancellationToken cancellationToken);
+
+    Task<Result> SetAsync(string providerKey, Guid? channelId, string secret, CancellationToken cancellationToken);
+
+    Task<Result> DeleteAsync(string providerKey, Guid? channelId, CancellationToken cancellationToken);
+
+    /// Kayıtların ÜST BİLGİSİ — gizli değer dönmüyor.
+    ///
+    /// Ayrı bir metot olması gerekiyordu: "hangi anahtarlar tanımlı"
+    /// sorusunun cevabı arayüzde ve loglarda gösteriliyor, ve o yol
+    /// üzerinde gizli değerin hiç bulunmaması gerekiyor.
+    Task<IReadOnlyList<CredentialInfo>> ListAsync(Guid? channelId, CancellationToken cancellationToken);
+}
+
+/// Bir kimlik kaydının gizli olmayan tarafı.
+public sealed record CredentialInfo
+{
+    public required string ProviderKey { get; init; }
+
+    /// null = genel kayıt, bütün kanallar için.
+    public Guid? ChannelId { get; init; }
+
+    /// Kaynak: `db` veya `env`. Hangi anahtarın kullanıldığı sorusunun
+    /// cevabı sorun giderirken en çok işe yarayan bilgi.
+    public required string Source { get; init; }
+
+    /// Değerin son dört karakteri, öncesi maskeli — "doğru anahtarı mı
+    /// koydum" sorusunu, anahtarı açığa çıkarmadan cevaplıyor.
+    public required string Masked { get; init; }
+
+    public DateTimeOffset? UpdatedAt { get; init; }
+
+    public DateTimeOffset? LastUsedAt { get; init; }
+}

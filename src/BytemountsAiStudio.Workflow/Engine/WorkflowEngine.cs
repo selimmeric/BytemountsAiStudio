@@ -419,12 +419,17 @@ public sealed class WorkflowEngine(
     private async Task LogAsync(
         Guid runId, string? nodeId, string level, string message, CancellationToken cancellationToken)
     {
+        // Sizinti noktasi burasi: bir saglayici istisnasinin mesaji istegin
+        // URL'sini ya da basligini icerebiliyor ve o metin oldugu gibi
+        // veritabanina yaziliyor. Suzgec cikista duruyor (P1-01).
+        var safe = SecretRedactor.Redact(message);
+
         db.RunEvents.Add(new RunEvent
         {
             RunId = runId,
             NodeId = nodeId,
             Level = level,
-            Message = message.Length > 2000 ? message[..2000] : message,
+            Message = safe.Length > 2000 ? safe[..2000] : safe,
         });
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

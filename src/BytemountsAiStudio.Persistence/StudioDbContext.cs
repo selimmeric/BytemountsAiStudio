@@ -26,6 +26,8 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
 
     public DbSet<ProviderCall> ProviderCalls => Set<ProviderCall>();
 
+    public DbSet<Credential> Credentials => Set<Credential>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -162,6 +164,33 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
             e.Property(x => x.SourceUrl).HasMaxLength(2000);
             e.Property(x => x.LicenseJson).HasColumnType("jsonb");
             e.HasIndex(x => x.Kind);
+        });
+
+        b.Entity<Credential>(e =>
+        {
+            e.Property(x => x.ProviderKey).HasMaxLength(64);
+            e.Property(x => x.Masked).HasMaxLength(16);
+
+            // Sifreli metin uzun olabiliyor (Data Protection basliklariyla
+            // birlikte); sinir koymak ileride sessiz bir kesilme olurdu.
+            e.Property(x => x.CipherText).HasColumnType("text");
+
+            // Bir saglayici + bir kapsam icin TEK kayit. Iki kayit olsaydi
+            // hangisinin kullanildigi belirsizlesirdi.
+            //
+            // NULL kanal (genel kayit) icin ayri kismi indeks gerekiyor:
+            // Postgres'te NULL != NULL oldugu icin bilesik tekil indeks
+            // genel kayitlarin coklanmasini engellemiyor.
+            e.HasIndex(x => new { x.ChannelId, x.ProviderKey })
+                .IsUnique()
+                .HasFilter("channel_id IS NOT NULL");
+
+            e.HasIndex(x => x.ProviderKey)
+                .IsUnique()
+                .HasFilter("channel_id IS NULL");
+
+            e.HasOne(x => x.Channel).WithMany().HasForeignKey(x => x.ChannelId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<ProviderCall>(e =>
