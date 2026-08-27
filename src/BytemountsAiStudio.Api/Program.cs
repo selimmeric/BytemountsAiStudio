@@ -57,6 +57,14 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Panel API ile AYNI sunucudan geliyor (P1-29).
+//
+// Ayri bir sunucu, CORS ayari ve ikinci bir dagitim adimi getirirdi;
+// panelin tek isi bu API'yi gostermek ve baska bir yerde durmasinin
+// hicbir faydasi yok.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 // Saglik ucu: hem insan hem izleme sistemi icin ilk temas noktasi.
 app.MapGet("/health", () => Results.Ok(new HealthResponse(
     Status: "ok",
@@ -153,6 +161,11 @@ app.MapPost("/approvals/{id:guid}/reject", async (
 
     return Decision(result);
 });
+
+// ---- Olu mektup kuyrugu ----
+
+app.MapGet("/dlq", async (StudioDbContext db, CancellationToken cancellationToken, int limit = 50) =>
+    Results.Ok(await RunQueries.DeadLettersAsync(db, limit, cancellationToken)));
 
 // ---- Maliyet ----
 

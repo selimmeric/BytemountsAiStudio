@@ -169,6 +169,27 @@ internal static class RunQueries
             run.ActualCost);
     }
 
+    /// Ölü mektup kuyruğu.
+    ///
+    /// EN YENİ ÖNCE: DLQ'ya bakmanın sebebi neredeyse her zaman "az
+    /// önce ne düştü". Onay kuyruğunun tersi — orada en eski önemli,
+    /// burada en yeni.
+    public static async Task<IReadOnlyList<DeadLetterEntry>> DeadLettersAsync(
+        StudioDbContext db, int limit, CancellationToken cancellationToken)
+    {
+        var jobs = await db.Jobs.AsNoTracking()
+            .Where(j => j.State == JobState.DeadLettered)
+            .OrderByDescending(j => j.CreatedAt)
+            .Take(Math.Clamp(limit, 1, 200))
+            .Select(j => new DeadLetterEntry(
+                j.Id, j.Queue.ToString(), j.RunId, j.NodeId,
+                j.Attempt, j.MaxAttempts, j.LastError, j.CreatedAt))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return jobs;
+    }
+
     /// Hata belgesinden kod ve mesaj.
     ///
     /// Ayrı ve `internal`: bozuk bir hata belgesi panelin tamamını

@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>İçerik Fabrikası · Panel</title>
+<!--
+  Dashboard v1 (P1-29).
+
+  TEK DOSYA, DERLEME ADIMI YOK. Bir npm ağacı getirmek, panelin
+  çalışması için ikinci bir araç zinciri ve ikinci bir CI adımı demekti;
+  panelin işi veriyi göstermek ve o iş bunu gerektirmiyor.
+
+  Kabul kriteri: "bu video neden böyle oldu" sorusu paneldan
+  cevaplanabiliyor. Bu yüzden run detayında üçü BİR ARADA:
+  zaman çizelgesi (hangi node, kaçıncı denemede, ne kadar sürdü),
+  loglar (ne oldu) ve maliyet (neye harcandı).
+-->
+<style>
+:root{
+  --ground:#EDF2F7; --surface:#FFFFFF; --surface-2:#F6F9FB;
+  --ink:#0C2337; --ink-soft:#4A647C; --ink-faint:#7E97AC;
+  --rule:#C6D6E3; --signal:#1B6FA8; --signal-soft:#DCEAF4;
+  --ok:#2E7D66; --warn:#B0741C; --bad:#B3261E; --idle:#B7C9D7;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0A1A26; --surface:#0E2433; --surface-2:#122B3C;
+    --ink:#DCE9F2; --ink-soft:#93AEC2; --ink-faint:#6A8AA1;
+    --rule:#1E3E54; --signal:#57AEDD; --signal-soft:#153347;
+    --ok:#4CBF9A; --warn:#D9A24A; --bad:#E5796F; --idle:#2C4C63;
+  }
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  font-size:14px;line-height:1.5;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-variant-numeric:tabular-nums}
+header{background:var(--surface);border-bottom:1px solid var(--rule);padding:14px 20px;
+  display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+h1{font-size:17px;margin:0;font-weight:600}
+h2{font-size:14px;margin:0;font-weight:600}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{background:transparent;border:1px solid var(--rule);color:var(--ink-soft);
+  padding:5px 12px;border-radius:3px;cursor:pointer;font:inherit;font-size:13px}
+.tabs button[aria-selected="true"]{background:var(--signal-soft);color:var(--ink);
+  border-color:var(--signal)}
+main{padding:18px 20px 60px;max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.panel > h2{padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--rule);
+  font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-faint)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+tr:last-child td{border-bottom:0}
+tbody tr.clickable{cursor:pointer}
+tbody tr.clickable:hover{background:var(--surface-2)}
+.tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11.5px;
+  border:1px solid currentColor}
+.s-Completed,.s-Succeeded{color:var(--ok)}
+.s-Failed,.s-DeadLettered{color:var(--bad)}
+.s-Running,.s-Leased{color:var(--signal)}
+.s-WaitingApproval,.s-WaitingResource,.s-Pending{color:var(--warn)}
+.s-Cancelled,.s-Skipped{color:var(--ink-faint)}
+.muted{color:var(--ink-faint)}
+.empty{padding:22px 14px;color:var(--ink-faint);text-align:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:12px 14px}
+.stat b{font-size:26px;font-weight:600;color:var(--signal)}
+.stat span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+button.act{background:var(--signal);color:#fff;border:0;padding:5px 12px;border-radius:3px;
+  cursor:pointer;font:inherit;font-size:12.5px}
+button.act.ghost{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+button.act[disabled]{opacity:.5;cursor:default}
+.log{max-height:280px;overflow:auto}
+.log div{padding:4px 14px;border-bottom:1px solid var(--rule);font-size:12.5px}
+.log .lvl{display:inline-block;min-width:44px}
+.lvl-error{color:var(--bad)} .lvl-warn{color:var(--warn)} .lvl-info{color:var(--ink-faint)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-faint)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--idle);display:inline-block}
+.live.on i{background:var(--ok)}
+.back{background:none;border:0;color:var(--signal);cursor:pointer;font:inherit;padding:0}
+.err{padding:10px 14px;color:var(--bad);font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>İçerik Fabrikası</h1>
+  <nav class="tabs" id="tabs"></nav>
+  <span class="live" id="live"><i></i><span id="live-text">bağlı değil</span></span>
+</header>
+
+<main id="view"></main>
+
+<script>
+"use strict";
+
+const view = document.getElementById("view");
+const tabsEl = document.getElementById("tabs");
+const liveEl = document.getElementById("live");
+const liveText = document.getElementById("live-text");
+
+const TABS = [
+  ["runs", "Koşular"],
+  ["approvals", "Onay kuyruğu"],
+  ["topics", "Konu havuzu"],
+  ["dlq", "Ölü mektup"],
+  ["cost", "Maliyet"],
+];
+
+let stream = null;
+
+/* Panel HER ZAMAN bir hata gösteriyor.
+ *
+ * Sessizce boş kalan bir tablo, "hiç veri yok" ile "API'ye
+ * ulaşılamadı" arasındaki farkı gizler ve kullanıcı yanlış sonuca
+ * varır - tam da bu projede tekrar tekrar yakalanan hata sınıfı. */
+async function api(path, options) {
+  const response = await fetch(path, options);
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { detail = (await response.json()).error || detail; } catch { /* gövde JSON değil */ }
+    throw new Error(`${response.status} · ${detail}`);
+  }
+
+  return response.status === 204 ? null : response.json();
+}
+
+const esc = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const short = (id) => (id ? String(id).slice(0, 8) : "—");
+const money = (value) => "$" + Number(value ?? 0).toFixed(4);
+const ms = (value) => (value >= 1000 ? (value / 1000).toFixed(1) + " sn" : value + " ms");
+const when = (value) => (value ? new Date(value).toLocaleString("tr-TR") : "—");
+const tag = (state) => `<span class="tag s-${esc(state)}">${esc(state)}</span>`;
+
+function panel(title, body, extra = "") {
+  return `<section class="panel"><h2>${esc(title)}${extra}</h2>${body}</section>`;
+}
+
+function table(headers, rows) {
+  if (!rows.length) {
+    return `<div class="empty">Kayıt yok.</div>`;
+  }
+
+  return `<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>`
+    + `<tbody>${rows.join("")}</tbody></table>`;
+}
+
+function fail(error) {
+  view.innerHTML = `<section class="panel"><div class="err">Yüklenemedi: ${esc(error.message)}</div></section>`;
+}
+
+/* ---- Koşu listesi ---- */
+
+async function showRuns() {
+  const runs = await api("/runs?limit=50");
+
+  const rows = runs.map((r) => `
+    <tr class="clickable" data-run="${esc(r.id)}">
+      <td class="mono">${esc(short(r.id))}</td>
+      <td>${tag(r.state)}</td>
+      <td class="mono">${r.nodeCount}${r.failedNodes ? ` <span class="s-Failed">(${r.failedNodes} hata)</span>` : ""}</td>
+      <td class="mono">${esc(money(r.actualCost))}</td>
+      <td class="muted">${esc(when(r.startedAt))}</td>
+    </tr>`);
+
+  view.innerHTML = panel("Koşular", table(["Koşu", "Durum", "Node", "Maliyet", "Başlangıç"], rows));
+
+  view.querySelectorAll("[data-run]").forEach((row) =>
+    row.addEventListener("click", () => showRun(row.dataset.run)));
+}
+
+/* ---- Koşu detayı: "bu video neden böyle oldu" ---- */
+
+async function showRun(id) {
+  const detail = await api(`/runs/${id}`);
+  const run = detail.run;
+
+  const timeline = detail.timeline.map((n) => `
+    <tr>
+      <td class="mono">${esc(n.nodeId)}</td>
+      <td class="muted">${esc(n.nodeType)}</td>
+      <td>${tag(n.state)}</td>
+      <td class="mono">${n.attempt}</td>
+      <td class="mono">${esc(ms(n.durationMs))}</td>
+      <td>${n.errorCode ? `<span class="s-Failed mono">${esc(n.errorCode)}</span><br><span class="muted">${esc(n.errorMessage ?? "")}</span>` : "—"}</td>
+    </tr>`);
+
+  const costs = detail.costs.map((c) => `
+    <tr>
+      <td>${esc(c.providerKey)}</td>
+      <td class="muted">${esc(c.operation)}</td>
+      <td class="mono">${c.calls}${c.failures ? ` <span class="s-Failed">(${c.failures} düştü)</span>` : ""}</td>
+      <td class="mono">${esc(ms(c.totalLatencyMs))}</td>
+      <td class="mono">${esc(money(c.cost))}</td>
+    </tr>`);
+
+  const logs = detail.events.length
+    ? detail.events.map((e) => `<div><span class="lvl lvl-${esc(e.level)} mono">${esc(e.level)}</span>
+        <span class="muted mono">${esc(when(e.at))}</span>
+        ${e.nodeId ? `<span class="mono">[${esc(e.nodeId)}]</span> ` : ""}${esc(e.message)}</div>`).join("")
+    : `<div class="empty">Kayıt yok.</div>`;
+
+  view.innerHTML = `
+    <button class="back" id="back">← Koşulara dön</button>
+    <section class="panel">
+      <h2>Koşu ${esc(short(run.id))}</h2>
+      <div class="stats">
+        <div class="stat"><b>${esc(run.state)}</b><span>Durum</span></div>
+        <div class="stat"><b id="live-done">${run.nodeCount - run.failedNodes}</b><span>Tamamlanan</span></div>
+        <div class="stat"><b>${run.failedNodes}</b><span>Hatalı</span></div>
+        <div class="stat"><b>${esc(money(run.actualCost))}</b><span>Maliyet</span></div>
+        <div class="stat"><b>${run.finishedAt ? esc(when(run.finishedAt)) : "sürüyor"}</b><span>Bitiş</span></div>
+      </div>
+    </section>
+    ${panel("Zaman çizelgesi", table(["Node", "Tip", "Durum", "Deneme", "Süre", "Hata"], timeline))}
+    ${panel("Maliyet kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Gecikme", "Tutar"], costs))}
+    ${panel("Loglar", `<div class="log">${logs}</div>`)}`;
+
+  document.getElementById("back").addEventListener("click", () => select("runs"));
+
+  listen(run.id);
+}
+
+/* ---- Canlı ilerleme (SSE) ----
+ *
+ * Panonun YENİLEMEDEN ilerleme görmesi buradan geliyor (P1-28'in
+ * kabul kriteri). Bitmiş bir koşuda sunucu akışı kapatıyor; burada
+ * yeniden bağlanmaya çalışmıyoruz, yoksa tamamlanmış her koşu sonsuz
+ * bir bağlantı döngüsü açardı. */
+function listen(runId) {
+  closeStream();
+
+  stream = new EventSource(`/runs/${runId}/stream`);
+
+  stream.addEventListener("open", () => setLive(true, "canlı"));
+
+  stream.addEventListener("progress", (event) => {
+    const progress = JSON.parse(event.data);
+    const done = document.getElementById("live-done");
+
+    if (done) {
+      done.textContent = progress.completed;
+    }
+
+    setLive(true, `canlı · ${progress.state}${progress.current_node ? " · " + progress.current_node : ""}`);
+  });
+
+  stream.addEventListener("done", () => {
+    setLive(false, "koşu bitti");
+    closeStream();
+  });
+
+  stream.addEventListener("error", () => setLive(false, "bağlantı koptu"));
+}
+
+function closeStream() {
+  if (stream) {
+    stream.close();
+    stream = null;
+  }
+}
+
+function setLive(on, text) {
+  liveEl.classList.toggle("on", on);
+  liveText.textContent = text;
+}
+
+/* ---- Onay kuyruğu ---- */
+
+async function showApprovals() {
+  const pending = await api("/approvals?limit=50");
+
+  const rows = pending.map((a) => `
+    <tr>
+      <td class="mono">${esc(short(a.runId))}</td>
+      <td class="mono">${esc(a.nodeId)}</td>
+      <td>${esc(a.reason)}</td>
+      <td class="muted">${esc(when(a.requestedAt))}</td>
+      <td>
+        <button class="act" data-approve="${esc(a.id)}">Onayla</button>
+        <button class="act ghost" data-reject="${esc(a.id)}">Reddet</button>
+      </td>
+    </tr>`);
+
+  view.innerHTML = panel("Onay bekleyenler", table(["Koşu", "Node", "Gerekçe", "İstek", ""], rows));
+
+  const decide = async (id, action, button) => {
+    // Butonlar kilitleniyor: iki kez tıklamak ikinci bir karar
+    // gönderirdi ve sunucu onu 409 ile reddediyor - ama kullanıcı
+    // hata mesajını hak etmiyor, tıklama zaten kazaydı.
+    view.querySelectorAll("button.act").forEach((b) => (b.disabled = true));
+
+    try {
+      await api(`/approvals/${id}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decidedBy: "panel", note: null }),
+      });
+
+      await showApprovals();
+    } catch (error) {
+      fail(error);
+    }
+  };
+
+  view.querySelectorAll("[data-approve]").forEach((b) =>
+    b.addEventListener("click", () => decide(b.dataset.approve, "approve", b)));
+
+  view.querySelectorAll("[data-reject]").forEach((b) =>
+    b.addEventListener("click", () => decide(b.dataset.reject, "reject", b)));
+}
+
+/* ---- Konu havuzu ---- */
+
+async function showTopics() {
+  const topics = await api("/topics?limit=50");
+
+  const rows = topics.map((t) => `
+    <tr>
+      <td>${esc(t.title)}</td>
+      <td class="mono">${esc(t.language)}</td>
+      <td class="mono">${Number(t.overallScore).toFixed(2)}</td>
+      <td>${tag(t.state)}</td>
+      <td class="muted">${esc(when(t.createdAt))}</td>
+    </tr>`);
+
+  view.innerHTML = panel("Konu havuzu (skora göre)", table(["Başlık", "Dil", "Skor", "Durum", "Eklendi"], rows));
+}
+
+/* ---- Ölü mektup kuyruğu ---- */
+
+async function showDlq() {
+  const jobs = await api("/dlq?limit=50");
+
+  const rows = jobs.map((j) => `
+    <tr>
+      <td class="mono">${esc(j.queue)}</td>
+      <td class="mono">${esc(short(j.runId))}</td>
+      <td class="mono">${esc(j.nodeId ?? "—")}</td>
+      <td class="mono">${j.attempt}/${j.maxAttempts}</td>
+      <td class="s-Failed">${esc(j.lastError ?? "—")}</td>
+      <td class="muted">${esc(when(j.createdAt))}</td>
+    </tr>`);
+
+  view.innerHTML = panel("Kalıcı olarak düşen işler", table(
+    ["Kuyruk", "Koşu", "Node", "Deneme", "Son hata", "Zaman"], rows));
+}
+
+/* ---- Maliyet ---- */
+
+async function showCost() {
+  const summary = await api("/cost");
+
+  const rows = summary.byProvider.map((c) => `
+    <tr>
+      <td>${esc(c.providerKey)}</td>
+      <td class="muted">${esc(c.operation)}</td>
+      <td class="mono">${c.calls}</td>
+      <td class="mono">${c.failures ? `<span class="s-Failed">${c.failures}</span>` : "0"}</td>
+      <td class="mono">${esc(money(c.cost))}</td>
+    </tr>`);
+
+  view.innerHTML = `
+    <section class="panel">
+      <h2>Özet</h2>
+      <div class="stats">
+        <div class="stat"><b>${esc(money(summary.totalCost))}</b><span>Toplam</span></div>
+        <div class="stat"><b>${summary.runCount}</b><span>Koşu</span></div>
+        <div class="stat"><b>${esc(money(summary.averagePerRun))}</b><span>Koşu başına</span></div>
+      </div>
+    </section>
+    ${panel("Sağlayıcı kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Düşen", "Tutar"], rows))}`;
+}
+
+/* ---- Sekmeler ---- */
+
+const VIEWS = {
+  runs: showRuns,
+  approvals: showApprovals,
+  topics: showTopics,
+  dlq: showDlq,
+  cost: showCost,
+};
+
+async function select(key) {
+  closeStream();
+  setLive(false, "bağlı değil");
+
+  [...tabsEl.children].forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === key)));
+  location.hash = key;
+
+  try {
+    await VIEWS[key]();
+  } catch (error) {
+    fail(error);
+  }
+}
+
+tabsEl.innerHTML = TABS.map(([key, label]) =>
+  `<button data-tab="${key}" aria-selected="false">${label}</button>`).join("");
+
+[...tabsEl.children].forEach((b) => b.addEventListener("click", () => select(b.dataset.tab)));
+
+select(VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : "runs");
+</script>
+</body>
+</html>

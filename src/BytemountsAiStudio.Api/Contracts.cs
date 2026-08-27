@@ -95,3 +95,18 @@ internal sealed record RunProgress(
     int Pending,
     string? CurrentNode,
     decimal Cost);
+
+/// Ölü mektup kuyruğundaki bir iş.
+///
+/// DLQ panelde ayrı bir bölüm çünkü ayrı bir soru: "hangi işler
+/// kalıcı olarak düştü ve neden". Run listesinde göstermek, bu
+/// soruyu binlerce başarılı koşunun arasına gömerdi.
+internal sealed record DeadLetterEntry(
+    Guid Id,
+    string Queue,
+    Guid? RunId,
+    string? NodeId,
+    int Attempt,
+    int MaxAttempts,
+    string? LastError,
+    DateTimeOffset CreatedAt);
