@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BytemountsAiStudio.Nodes\BytemountsAiStudio.Nodes.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Workflow\BytemountsAiStudio.Workflow.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
     <ProjectReference Include="..\BytemountsAiStudio.Queue\BytemountsAiStudio.Queue.csproj" />

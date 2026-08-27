@@ -437,6 +437,19 @@ public sealed class WorkflowEngine(
 
             if (node is null || handler is null)
             {
+                // SESSİZCE ATLANMIYOR.
+                //
+                // Kayıtta olmayan bir node atlanırsa run "Running"
+                // görünür, kuyrukta iş kalmaz ve hiçbir şey kırılmadığı
+                // için kimse durduğunu fark etmez. Graf doğrulaması
+                // bunu run başlangıcında yakalıyor ama onaydan sonra
+                // devam eden yolda o doğrulama koşmuyor — kaydı eksik
+                // bir süreçten (örneğin API) çağrıldığında burası tek
+                // savunma.
+                await LogAsync(run.Id, nodeId, "error",
+                    $"'{node?.Type ?? nodeId}' için işleyici kayıtlı değil; node kuyruğa atılamadı.",
+                    cancellationToken).ConfigureAwait(false);
+
                 continue;
             }
 

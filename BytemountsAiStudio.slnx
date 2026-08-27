@@ -17,6 +17,7 @@
     <Project Path="src/BytemountsAiStudio.Workflow/BytemountsAiStudio.Workflow.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BytemountsAiStudio.Api.Tests/BytemountsAiStudio.Api.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Contracts.Tests/BytemountsAiStudio.Contracts.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Core.Tests/BytemountsAiStudio.Core.Tests.csproj" />
     <Project Path="tests/BytemountsAiStudio.Media.Rendering.Tests/BytemountsAiStudio.Media.Rendering.Tests.csproj" />
