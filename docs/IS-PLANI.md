@@ -22,8 +22,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [x] **P0-01** `2p` — Solution iskeleti: `BytemountsAiStudio.slnx`, 15 proje, `Directory.Build.props`, merkezi paket yönetimi, `.editorconfig`, `.gitattributes`, nullable + warnings-as-errors
   - *Bitti:* ✔ 27 Ağu 2026 — `dotnet build` 0 uyarı 0 hata, `dotnet test` yeşil, bağımlılık yönü `MediaPurityTests` ile IL seviyesinde korunuyor
-- [ ] **P0-01b** `1p` — CI: GitHub Actions (build + test + pano tazelik kontrolü)
-  - *Bitti:* Uzak depoda yeşil koşu. İş akışı dosyası hazır (`.github/workflows/ci.yml`); uzak depo bağlanmayı bekliyor
+- [x] **P0-01b** `1p` — CI: GitHub Actions (build + test + pano tazelik kontrolü)
+  - *Bitti:* ✔ 27 Ağu 2026 — `selimmeric/BytemountsAiStudio` deposunda `build` ve `plan` işleri yeşil. Pano tazelik kontrolü ilk koşuda kırmızıya döndü ve gerçek bir sapmayı yakaladı
 - [ ] **P0-02** `2p` — Geliştirme ortamı: Docker Compose ile PostgreSQL 16 + pgvector + Seq
   - *Bitti:* `docker compose up` sonrası `select vector_dims(...)` çalışıyor
 - [ ] **P0-03** `5p` — EF Core `DbContext` + ilk migration: channels, topics, workflows, workflow_versions, runs, node_executions, run_events, jobs, assets, provider_calls
