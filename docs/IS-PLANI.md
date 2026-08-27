@@ -133,8 +133,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [ ] **P1-12** `4p` — Script Agent + format şablonları (hook–list–payoff), `display_text`/`speech_text` ayrımı
   - *Bitti:* Knowledge base dışı iddia üretilirse QC yakalıyor
-- [ ] **P1-13** `3p` — `ISpeechNormalizer`: dil başına sayı/tarih/kısaltma/para normalizasyonu
-  - *Bitti:* 30 örneklik altın küme her iki dilde de doğru okunuyor
+- [x] **P1-13** `3p` — `ISpeechNormalizer`: dil başına sayı/tarih/kısaltma/para normalizasyonu
+  - *Bitti:* ✔ 27 Ağu 2026 — Türkçe + İngilizce, kural tabanlı (LLM değil: aynı sayı her videoda aynı okunmalı). Türkçe'de bin/yüz önündeki "bir" düşüyor; İngilizce'de 1453 "fourteen fifty-three" okunuyor. Yüzde/para sayıdan önce işleniyor, binlik ayırıcı tek sayı sayılıyor. Desteklenmeyen dil metni olduğu gibi döndürüyor — üçüncü dili engellememek için. 30 test
 - [ ] **P1-14** `4p` — TTS adaptörü + segment üretimi + gerçek süre ölçümü
   - *Bitti:* Segment süreleri ffprobe ile doğrulanıyor
 - [ ] **P1-15** `3p` — Kelime zamanları: önce TTS'ten, yoksa ASR sidecar
