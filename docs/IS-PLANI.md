@@ -28,8 +28,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Bitti:* ✔ 27 Ağu 2026 — PostgreSQL 16.15 (ICU locale provider), `vector` 0.8.6 + `pg_trgm` + `uuid-ossp` kurulu, kosinüs mesafesi doğrulandı. Seq 2026.1 ayakta (HTTP 200, ingestion açık). Portlar `127.0.0.1`'e bağlı
 - [x] **P0-03** `5p` — EF Core `DbContext` + ilk migration: channels, topics, workflows, workflow_versions, runs, node_executions, run_events, jobs, assets, provider_calls
   - *Bitti:* ✔ 27 Ağu 2026 — 10 tablo, snake_case, `vector(768)` kolonu, 4 kısmi indeks. Migration uygulandı → geri alındı (1 tablo kaldı) → yeniden uygulandı (11 tablo). Seed idempotent. 7 test gerçek PostgreSQL'e karşı koşuyor; CI'a da Postgres servisi eklendi
-- [ ] **P0-04** `3p` — İçerik-adresli varlık deposu (CAS): `Put/Open/GetLocalPath`, sha256 adresleme, dizin sharding
-  - *Bitti:* Aynı dosya iki kez yazılınca tek kopya kalıyor; testi var
+- [x] **P0-04** `3p` — İçerik-adresli varlık deposu (CAS): `Put/Open/GetLocalPath`, sha256 adresleme, dizin sharding
+  - *Bitti:* ✔ 27 Ağu 2026 — Akış tek geçişte hem hash'lenip hem yazılıyor (ağ akışları seekable değil). Yazma sırası önce dosya sonra kayıt: en kötü durum yetim dosya, "kayıt var dosya yok" değil. 6 test
 - [ ] **P0-05** `2p` — Serilog + OpenTelemetry + correlation id (run/node bazında)
   - *Bitti:* Bir run'ın tüm logları tek id ile Seq'te filtreleniyor
 
