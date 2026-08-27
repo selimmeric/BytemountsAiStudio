@@ -221,10 +221,11 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Kalan:* `JobQueue.LeaseAsync`'e bağlanması (veritabanı gerekiyor)
 - [ ] **P2-06** `4p` — Semantik QC: görsel alaka (VLM, örneklemeli), ton, yanıltıcı başlık, politika sınıflandırıcı
   - *Bitti:* Alakasız görsel yerleştirilen test videosu yakalanıyor
-- [ ] **P2-07** `3p` — Hedefli retry: `retry_target` ile yalnız ilgili node'dan yeniden koşma + `max_loops`
-  - *Bitti:* QC retry'ı tüm pipeline'ı yeniden koşturmuyor (maliyet ölçümü kanıt)
-- [ ] **P2-08** `3p` — Selective approval: yalnız skoru eşiğin altındakiler insana
-  - *Bitti:* Onay kuyruğu günde 20 videoda yönetilebilir kalıyor
+- [~] **P2-07** `3p` — Hedefli retry: `retry_target` ile yalnız ilgili node'dan yeniden koşma + `max_loops`
+  - *Kısmen:* 28 Ağu 2026 — Plan saf ve sınandı; maliyet farkı **sayı olarak** ölçülüyor (`Saved`): render'a dönmek senaryoyu yeniden üretmiyor. Hedefin kendisi ve sonrası koşuyor, öncesi hiç dokunulmuyor — araştırma yeniden yapılmıyor, kaynaklar yeniden çekilmiyor. **Yalnızca `Retry` kararı yeniden koşuyor**: `NeedsApproval` bir düşüş değil bir yönlendirme (P2-08) ve onu da koşturmak, insanın zaten kabul edeceği videoyu bir kez daha üretmekti. Hedefsiz düşüş yeniden koşmuyor — ölçülemeyen bir süre, aynı adım tekrarlanınca yine ölçülemez. Döngü sınırı 3: iki tur düzeltmeyen kusur genelde üçüncüde de düzelmiyor ve sınırsız döngü aynı hatayı sonsuza kadar para harcayarak tekrarlıyor. **Sınır dolunca run başarısız değil**, hedef korunarak insana gidiyor — başarısız saymak, üç turdur düzelmeyen ama belki kabul edilebilir bir videoyu çöpe atmaktı. 13 test
+  - *Kalan:* Motorun bu planı uygulaması — hedeften sonraki node'ları yeniden kuyruğa atması (veritabanı gerekiyor)
+- [x] **P2-08** `3p` — Selective approval: yalnız skoru eşiğin altındakiler insana
+  - *Bitti:* ✔ 28 Ağu 2026 — P1-27 ile birlikte geldi: `ChannelMode.Selective` + `min_score` eşiği. Ölçeklenmenin tek yolu bu — her videoyu insana göstermek, günde 50 video değil günde 5 video demek. **Skor yoksa insana soruluyor**: "ölçülmedi" ile "iyi" aynı şey değil ve kalitesi bilinmeyen bir videoyu kimse görmeden yayına vermek en kötü seçenekti. Eşiğe eşit olmak geçiyor (`>=`), aksi hâlde eşik değerinin kendisi hiçbir zaman geçemezdi. Gerekçe skoru ve eşiği birlikte yazıyor — "eşiğin altında" tek başına, eşiğin yanlış ayarlandığını mı videonun gerçekten kötü olduğunu mu söylemiyor. 17 test
 - [ ] **P2-09** `3p` — Arka plan müziği + ducking + **lisans kanıtı kaydı**
   - *Bitti:* Lisanssız müzik varlığı yayına giremiyor (bloklayıcı kontrol)
 - [ ] **P2-10** `3p` — DLQ triyaj ekranı: yeniden dene / node atla / run iptal
