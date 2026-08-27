@@ -123,3 +123,34 @@ Ders: "komut PATH'te yok" ile "program kurulu değil" aynı şey değil. Ortam t
 İkisi de CI'ın neden var olduğunun somut örneği.
 
 **Kalan Faz 0 görevleri:** P0-05 (Serilog/OTel), P0-12 (worker host), P0-14 (dekoratör zinciri), P0-16 (maliyet defteri), P0-17 (rate limit/devre kesici), P0-24 (Skia metin katmanı), P0-26 (golden testler), P0-27 (engine üzerinden CLI), P0-28 (faz kabulü). 26 puan.
+
+
+---
+
+## 27 Ağustos 2026 (gece, ikinci blok) — Faz 0 tamamlandı
+
+**Talimat:** *"devam et ben uyumaya gidiyorum sonuna kadar yap %100 olana kadar devam et sonra bkarız"*
+
+**Faz 0 %100.** `bmai run --topic "..."` komutu workflow engine üzerinden tam hattı koşuyor ve altyazılı bir mp4 üretiyor. İki bağımsız koşu birebir aynı sha256 veriyor.
+
+Bu blokta tamamlananlar: P0-05, P0-12, P0-14, P0-16, P0-17, P0-24, P0-26, P0-27, P0-28 · ayrıca Faz 1'den P1-02a (Ollama) ve P1-13 (konuşma normalizasyonu).
+
+**Bulunan gerçek hatalar:**
+
+1. Gün başlangıcı yerel saat diliminde hesaplanıyordu; Npgsql UTC dışı offset kabul etmiyor. Ayrıca "bugün" tanımı sunucunun saat dilimine göre kaymamalı.
+2. Seed grafında sıra hatası: `TimelineBuilder` görselleri gerektiriyor, dolayısıyla `visuals` düğümü `timeline`'dan önce gelmeli.
+3. `.mp4.partial` FFmpeg'in muxer seçimini bozuyor — ek uzantıdan önce gelmeli.
+
+**Bilinen maliyet:** 27 altyazı overlay filtresi render süresini 2.4 sn'den 30 sn'ye çıkardı. İleride altyazılar tek bir katman videosunda birleştirilecek.
+
+**Faz 1'de sizden girdi bekleyenler:**
+
+| Görev | Bekleyen |
+|---|---|
+| P1-02b | OpenAI / Gemini / OpenRouter API anahtarı |
+| P1-05 | Brave / Tavily anahtarı (Wikipedia ve SearXNG anahtarsız çalışır) |
+| P1-14 | ElevenLabs veya OpenAI TTS anahtarı |
+| P1-17 | Pexels API anahtarı |
+| P1-24/25 | YouTube OAuth istemci gizli dosyası + kanal seçimi |
+
+Bu beşi olmadan Faz 1 tamamlanamaz; kalan görevler (kimlik deposu, prompt registry, tools-sidecar, Wikipedia adaptörü) anahtarsız ilerletilebilir.
