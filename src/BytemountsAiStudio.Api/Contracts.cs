@@ -151,6 +151,36 @@ public sealed record MorningSummary(
     public bool AcceptanceMet => UnattendedVideos >= 3;
 }
 
+/// Varlık gezginindeki tek bir kayıt (P3-08).
+public sealed record AssetEntry(
+    string Sha256,
+    string Kind,
+    string MimeType,
+    long Bytes,
+    int? Width,
+    int? Height,
+    string? SourceProvider,
+    string? SourceUrl,
+    string? LicenseName,
+    string? LicenseAuthor,
+    bool RequiresAttribution,
+    /// Uyum riski. `null` = sorun yok.
+    ///
+    /// METİN, BAYRAK DEĞİL: "riskli" tek başına ne yapılacağını
+    /// söylemiyor ve üç ayrı sebep üç ayrı düzeltme gerektiriyor.
+    string? Risk,
+    DateTimeOffset CreatedAt);
+
+public sealed record LicenseCount(string License, int Count);
+
+/// Varlık envanteri ve lisans raporu (P3-08).
+public sealed record AssetReport(
+    int Total,
+    int Risky,
+    long TotalBytes,
+    IReadOnlyList<LicenseCount> ByLicense,
+    IReadOnlyList<AssetEntry> Assets);
+
 /// SSE ile yayılan ilerleme.
 ///
 /// Panonun yenilemeden ilerleme görmesi için gereken en küçük belge.

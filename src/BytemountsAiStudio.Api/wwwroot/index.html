@@ -115,6 +115,7 @@ const TABS = [
   ["dlq", "Ölü mektup"],
   ["cost", "Maliyet"],
   ["providers", "Sağlayıcılar"],
+  ["varliklar", "Varlıklar"],
   ["control", "Kontrol"],
 ];
 
@@ -420,6 +421,67 @@ async function showCost() {
     ${panel("Sağlayıcı kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Düşen", "Tutar"], rows))}`;
 }
 
+/* ---- Varlık gezgini ve lisans raporu (P3-08) ---- */
+
+/* Lisans bir metadata değil, bir UYUM KAYDI. "Bu videoda kullandığımız
+ * görselin lisansı neydi" sorusu bir talep geldiğinde soruluyor ve o an
+ * aramaya başlamak çok geç — üstelik varlık kırk videoda kullanılmış
+ * olabiliyor.
+ *
+ * RİSKLİLER EN ÜSTTE: rapor bir envanter değil, bir risk listesi.
+ * Alfabetik sıralamak tek bir eksik kaydı yüzlerce satırın arasına
+ * gömerdi.
+ */
+let assetsRiskyOnly = false;
+
+async function showAssets() {
+  const r = await api("/varliklar" + (assetsRiskyOnly ? "?risky=true" : ""));
+
+  const mb = (b) => (b / 1048576).toFixed(1) + " MB";
+
+  const rows = r.assets.map((a) => `
+    <tr>
+      <td>${a.risk
+        ? `<span class="tag s-Failed">risk</span>`
+        : `<span class="tag s-Completed">tamam</span>`}</td>
+      <td class="mono">${esc(a.kind)}</td>
+      <td class="mono" title="${esc(a.sha256)}">${esc(short(a.sha256))}</td>
+      <td>${esc(a.licenseName ?? "—")}${a.requiresAttribution
+        ? ` <span class="muted">(atıf: ${esc(a.licenseAuthor ?? "YOK")})</span>` : ""}</td>
+      <td class="muted">${esc(a.sourceProvider ?? "—")}</td>
+      <td class="mono">${a.width ? a.width + "×" + a.height : "—"}</td>
+      <td class="mono">${(a.bytes / 1024).toFixed(0)} KB</td>
+      <td class="muted">${a.risk ? esc(a.risk) : ""}</td>
+    </tr>`);
+
+  const licenses = r.byLicense.map((l) => `
+    <tr><td>${esc(l.license)}</td><td class="mono">${l.count}</td></tr>`);
+
+  view.innerHTML = `
+    <section class="panel">
+      <h2>Varlıklar</h2>
+      <div class="stats">
+        <div class="stat"><b>${r.total}</b><span>varlık</span></div>
+        <div class="stat">
+          <b class="${r.risky ? "s-Failed" : "s-Completed"}">${r.risky}</b>
+          <span>uyum riski</span>
+        </div>
+        <div class="stat"><b>${esc(mb(r.totalBytes))}</b><span>toplam</span></div>
+      </div>
+      <button class="act ${assetsRiskyOnly ? "" : "ghost"}" id="risky">
+        ${assetsRiskyOnly ? "Hepsini göster" : "Yalnızca riskliler"}</button>
+    </section>
+
+    ${panel("Lisanslara göre", table(["Lisans", "Adet"], licenses))}
+    ${panel("Kayıtlar", table(
+      ["Durum", "Tür", "Kimlik", "Lisans", "Sağlayıcı", "Ölçü", "Boyut", "Sebep"], rows))}`;
+
+  view.querySelector("#risky")?.addEventListener("click", () => {
+    assetsRiskyOnly = !assetsRiskyOnly;
+    showAssets().catch(fail);
+  });
+}
+
 /* ---- Gece raporu (P2-13) ---- */
 
 /* Otonom bir sistemde sabah ilk sorulacak soru "gece ne oldu" ve
@@ -613,6 +675,7 @@ const VIEWS = {
   dlq: showDlq,
   cost: showCost,
   providers: showProviders,
+  varliklar: showAssets,
   control: showControl,
 };
 

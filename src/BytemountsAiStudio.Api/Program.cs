@@ -287,6 +287,19 @@ app.MapGet("/rapor", async (
         db, TimeSpan.FromHours(hours), cancellationToken));
 });
 
+// ---- Varlık gezgini ve lisans raporu (P3-08) ----
+//
+// Lisans bir metadata değil, bir UYUM KAYDI (§2.3/14). "Bu videoda
+// kullandığımız görselin lisansı neydi" sorusu bir talep geldiğinde
+// soruluyor ve o an aramaya başlamak çok geç.
+app.MapGet("/varliklar", async (
+    StudioDbContext db,
+    CancellationToken cancellationToken,
+    string? kind = null,
+    bool risky = false,
+    int limit = AssetQueries.DefaultLimit) =>
+    Results.Ok(await AssetQueries.BuildAsync(db, kind, risky, limit, cancellationToken)));
+
 app.Run();
 
 /// Karar sonucunu HTTP'ye çevirir.

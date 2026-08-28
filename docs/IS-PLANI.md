@@ -282,7 +282,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 - [ ] **P3-05** `6p` — React Flow workflow editörü: node ekleme/bağlama, ayar formları, doğrulama
 - [ ] **P3-06** `3p` — Workflow sürümleme UI + çalışan run'ların eski sürümde kalması
 - [ ] **P3-07** `3p` — Prompt registry UI + eval sonuçları
-- [ ] **P3-08** `3p` — Varlık gezgini + lisans raporu
+- [x] **P3-08** `3p` — Varlık gezgini + lisans raporu
+  - *Bitti:* ✔ 28 Ağu 2026 — `/varliklar` + panelde sekme. **Rapor bir envanter değil, bir RİSK LİSTESİ**: riskliler en üstte, çünkü alfabetik sıralamak tek bir eksik kaydı yüzlerce satırın arasına gömerdi. Lisans bir metadata değil, bir uyum kaydı (§2.3/14) — "bu videodaki görselin lisansı neydi" sorusu bir talep geldiğinde soruluyor ve o an aramaya başlamak çok geç.
+    **Gerçek veriye bakmak kendi kuralımı düzeltti:** ilk yazımda TÜRE bakıyordum ("ses ve müzikte lisans zorunlu") ve rapor kendi ürettiğimiz **38 seslendirme dosyasını** uyum riski olarak işaretledi. Yüzlerce yanlış alarm raporu okunmaz yapardı ve gerçek bir risk o gürültünün içinde kaybolurdu. Ayıran şey tür değil **kaynak**: `SourceUrl` boşsa üreten biziz. Düzeltmeden sonra 120 varlıkta 0 risk — doğru sonuç, çünkü hepsi ya bizim ya lisanslı.
+    Okunamayan lisans kaydı "lisans yok" sayılıyor, "sorun yok" değil: bozuk bir JSON'u geçerli saymak, uyum kaydını olmadığı hâlde varmış gibi göstermekti. İki yazım biçimi de okunuyor (PascalCase ve snake_case) — kayıtlar farklı zamanlarda farklı serileştiricilerden geçti ve eski kayıtların lisansını sessizce kaybetmek, uyum kaydında kabul edilebilir bir cevap değil. 17 test
 - [x] **P3-09** `3p` — Üçüncü dil (konfigürasyonla) — soyutlamanın sınavı
   - *Bitti:* ✔ 28 Ağu 2026 — **Arapça kanal tek satır SQL ile eklendi ve uçtan uca koştu**, hiç kod değişmeden: `ar-SA`, ses `kanal-ar-ozel` (kanaldan), yazı tipi `["Noto Naskh Arabic","Arial"]` (kanaldan), render 1080×1920 / 45 sn / −16 LUFS, QC 0,97, `Completed`.
     Arapça bilinçli seçildi: Türkçe ve İngilizce'nin ikisi de soldan sağa ve Latin alfabesi. İki soldan sağa dil desteklemek "çok dilli" olmayı kanıtlamıyor — ilk gerçek sınav sağdan sola. **Yön bilgisi dilin kendisinden türüyor**, elle tutulan bir liste değil; liste olsaydı dördüncü dilde yine kod değişikliği isterdi.
