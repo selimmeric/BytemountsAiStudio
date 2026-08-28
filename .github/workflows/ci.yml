@@ -67,6 +67,33 @@ jobs:
           sudo apt-get install -y --no-install-recommends ffmpeg
           ffmpeg -version | head -1
 
+      # KAYNAK DOSYASI YOK SAYILIYOR MU.
+      #
+      # Bu hata iki kez oldu ve ikisinde de derleme hatasi olarak,
+      # yani en gec anda goruldu. Ankrajsiz bir `storage/` deseni
+      # `src/.../Storage/` kaynak klasorunu yutuyordu; `git add -A`
+      # yok sayilan dosyalari SESSIZCE atliyor, yani commit basarili
+      # gorunuyor ve eksik dosya ancak CI derlemesinde ortaya cikiyor.
+      #
+      # Burada bakmak, sebebi "StorageSelection does not exist"
+      # yerine adiyla soyluyor.
+      - name: Yok sayilan kaynak dosyasi var mi
+        run: |
+          # `obj/` ve `bin/` DISLANIYOR: oradaki `.cs` dosyalari
+          # derleme sirasinda uretiliyor ve yok sayilmalari dogru.
+          # Ilk yazimda dislanmamislardi ve kontrol yuzlerce satirla
+          # her zaman dusuyordu -- her zaman dusen bir kontrol, hicbir
+          # sey kontrol etmiyor demek.
+          KAYIP=$(git ls-files --others --ignored --exclude-standard -- 'src/**/*.cs' 'tests/**/*.cs' \
+                  | grep -vE '/(obj|bin)/' || true)
+          if [ -n "$KAYIP" ]; then
+            echo "Bu kaynak dosyalari .gitignore tarafindan yok sayiliyor:"
+            echo "$KAYIP"
+            echo "Muhtemelen ankrajsiz bir desen (ornegin 'storage/') kaynak klasorunu yutuyor."
+            exit 1
+          fi
+          echo "Yok sayilan kaynak dosyasi yok."
+
       - name: Restore
         run: dotnet restore BytemountsAiStudio.slnx
 

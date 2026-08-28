@@ -27,10 +27,22 @@ venv/
 .ruff_cache/
 
 # Uygulama verisi — asla depoya girmez
-data/
-storage/
-assets-store/
-output/
+#
+# HEPSI DEPO KOKUNE ANKRAJLI (basinda /) ve bu bir uslup tercihi
+# degil: ankrajsiz "storage/" deseni `src/.../Storage/` KAYNAK
+# klasorunu de yutuyor. Windows'ta ignore eslesmesi buyuk/kucuk harf
+# duyarsiz oldugu icin `Storage` ile `storage` ayni sayiliyor.
+#
+# BU HATA IKI KEZ OLDU. Ilkinde `FileSystemAssetStore.cs` hic commit
+# edilmedi; asagiya ankrajli desenler eklendi ama ANKRAJSIZ OLANLAR
+# SILINMEDI, yani duzeltme yarim kaldi. Ikincisinde ayni desen uc
+# dosyayi birden yuttu (`S3AssetStore`, `StorageSelection`,
+# `RetentionPolicy`) ve `git add -A` tek kelime etmedi -- yok sayilan
+# dosyalar sessizce atlaniyor. Ikisini de CI yakaladi.
+/data/
+/storage/
+/assets-store/
+/output/
 *.mp4
 *.wav
 *.mp3
@@ -55,9 +67,4 @@ Thumbs.db
 .DS_Store
 desktop.ini
 
-# Uretilen ciktilar (depoya girmez)
-# Basinda / var: yalnizca depo kokundeki klasorleri yok say. Ankrajsiz
-# "storage/" deseni src/.../Storage/ kaynak klasorunu de yutuyordu ve
-# FileSystemAssetStore.cs hic commit edilmedi; CI yakaladi.
-/output/
-/storage/
+# (Uretilen ciktilar yukarida, ankrajli olarak tanimli.)
