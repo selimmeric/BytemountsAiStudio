@@ -181,6 +181,18 @@ public sealed class NodeExecution : EntityBase
     /// ADR-010: aynı anahtarla ikinci kez çalışma API'ye gitmez.
     public required string IdempotencyKey { get; set; }
 
+    /// Bu adımı HANGİ WORKER çalıştırdı (P4-01).
+    ///
+    /// Tek makineli kurulumda gereksiz görünüyordu; render worker'ları
+    /// ayrı makineye çıkınca "bu videoyu hangi makine üretti" gerçek
+    /// bir soru oldu ve cevabı hiçbir yerde yoktu. `jobs.leased_by`
+    /// var ama iş bitince temizleniyor, yani tam da soruyu sorduğunuz
+    /// anda kayıp.
+    ///
+    /// Bir makine bozuk çıktı üretmeye başladığında (eski ffmpeg,
+    /// eksik yazı tipi, dolu disk) ayıran tek şey bu alan olabiliyor.
+    public string? WorkerId { get; set; }
+
     public string? OutputJson { get; set; }
 
     public decimal Cost { get; set; }

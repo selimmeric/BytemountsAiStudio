@@ -67,7 +67,30 @@ builder.Services.AddScoped(sp =>
         new ChannelPolicy(sp.GetRequiredService<StudioDbContext>())));
 
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
-builder.Services.AddSingleton(new WorkerHostOptions());
+// WORKER ROLU (P4-01): `BMAI_ROLE` -- all | render | light.
+//
+// Render bir makinenin butun cekirdeklerini ve gigabaytlarca
+// bellegini yiyor; LLM ve varlik isleri ag bekliyor. Ikisini ayni
+// surecte tutmak, ag bekleyen isleri render'in bitmesini bekleyen bir
+// makineye hapsetmek demek.
+//
+// Ayiran sey KOD DEGIL, YAPILANDIRMA: kuyruk zaten kiralama tabanli
+// (`FOR UPDATE SKIP LOCKED`), iki worker ayni veritabanina bakiyor ve
+// hicbiri digerinin isini almiyor.
+var role = WorkerRoles.Parse(Environment.GetEnvironmentVariable("BMAI_ROLE"));
+
+if (role.Warning is not null)
+{
+    Log.Warning("{Uyari}", role.Warning);
+}
+
+Log.Information("Worker rolu: {Rol} ({Kuyruk} kuyruk)",
+    role.Role, WorkerRoles.ConcurrencyFor(role.Role).Count);
+
+builder.Services.AddSingleton(new WorkerHostOptions
+{
+    Concurrency = WorkerRoles.ConcurrencyFor(role.Role),
+});
 builder.Services.AddSingleton(TimeProvider.System);
 
 // SAGLIK SINYALI (P4-05).

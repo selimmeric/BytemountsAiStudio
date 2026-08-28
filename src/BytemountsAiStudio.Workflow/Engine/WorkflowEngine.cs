@@ -225,7 +225,7 @@ public sealed class WorkflowEngine(
             else
             {
                 await RecordExecutionAsync(run, node, handlerLease.Attempt, NodeState.Failed,
-                    null, outcome.Error, elapsed, idempotencyKey, cancellationToken).ConfigureAwait(false);
+                    null, outcome.Error, elapsed, idempotencyKey, workerId, cancellationToken).ConfigureAwait(false);
             }
 
             var disposition = await _queue.FailAsync(handlerLease, outcome.Error, cancellationToken)
@@ -249,7 +249,7 @@ public sealed class WorkflowEngine(
             .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         await RecordExecutionAsync(run, node, handlerLease.Attempt, NodeState.Succeeded,
-            outcome.Value, null, elapsed, idempotencyKey, cancellationToken).ConfigureAwait(false);
+            outcome.Value, null, elapsed, idempotencyKey, workerId, cancellationToken).ConfigureAwait(false);
 
         await MergeContextAsync(run, node.Id, outcome.Value, cancellationToken).ConfigureAwait(false);
         run.State = RunState.Running;
@@ -600,11 +600,17 @@ public sealed class WorkflowEngine(
     private async Task RecordExecutionAsync(
         Run run, WorkflowNode node, int attempt, NodeState state,
         JsonElement? output, Error? error, int durationMs, string idempotencyKey,
-        CancellationToken cancellationToken)
+        string workerId, CancellationToken cancellationToken)
     {
         db.NodeExecutions.Add(new NodeExecution
         {
             RunId = run.Id,
+
+            // HANGİ MAKİNE ÇALIŞTIRDI (P4-01): render worker'ları ayrı
+            // makineye çıkınca "bu videoyu hangi makine üretti" gerçek
+            // bir soru oldu. `jobs.leased_by` iş bitince temizleniyor,
+            // yani tam da soruyu sorduğunuz anda kayıp.
+            WorkerId = workerId,
             NodeId = node.Id,
             NodeType = node.Type,
             // TUR: hedefli retry aynı node'u ikinci bir turda

@@ -337,7 +337,18 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ## Faz 4 — Ölçek
 
-- [ ] **P4-01** `5p` — Render worker'ların ayrı makineye çıkarılması + iş dağıtımı
+- [x] **P4-01** `5p` — Render worker'ların ayrı makineye çıkarılması + iş dağıtımı
+  - *Bitti:* ✔ 28 Ağu 2026 — **İki worker aynı anda koştu ve iş gerçekten bölündü:**
+
+    | worker | rol | adım | render |
+    |---|---|---|---|
+    | `…-37452` | `light` | 27 | **0** |
+    | `…-70936` | `render` | 2 | **2** |
+
+    İki video da tamamlandı (47,9 sn ve 603,4 sn), sıfır retry, **aynı adım iki kez çalışmadı** (0 çakışma).
+  - *Ayıran şey kod değil, yapılandırma:* kuyruk zaten kiralama tabanlı (`FOR UPDATE SKIP LOCKED`), iki worker aynı veritabanına bakıyor ve hiçbiri diğerinin işini almıyor. "Ayrı makine" bunun bir sonucu, yeni bir mekanizma değil. `BMAI_ROLE` üç değer alıyor: `all`, `render`, `light`.
+    **Yükleme render rolünde**, çünkü yüklenecek dosya o makinede duruyor — ayrı bir makineye almak gigabaytlarca videoyu iki kez taşımak demekti. **Tanınmayan rol sessizce `all`'a düşmüyor**: yazım hatası olan bir rol, bütün kuyrukları dinleyen bir render makinesi demekti ve bunu ancak o makinenin neden LLM işi aldığını merak eden biri fark ederdi. Bir test iki rolün **birlikte bütün kuyrukları kapsadığını** ölçüyor — bir kuyruk ikisinde de yoksa o iş hiç koşmuyor ve run sessizce asılı kalıyor. 9 test
+  - *Bu iş bir gözlemlenebilirlik boşluğu ortaya çıkardı:* "bu videoyu hangi makine üretti" sorusunun cevabı **hiçbir yerde yoktu**. `jobs.leased_by` var ama iş bitince temizleniyor — yani tam da soruyu sorduğunuz anda kayıp. Tek makineli kurulumda önemsizdi; render worker'ları ayrı makineye çıkınca gerçek bir soru oldu. `node_executions.worker_id` eklendi: bir makine bozuk çıktı üretmeye başladığında (eski ffmpeg, eksik yazı tipi, dolu disk) ayıran tek şey bu alan olabiliyor
 - [x] **P4-02** `4p` — S3 uyumlu nesne deposu (MinIO/R2) + retention politikaları
   - *Bitti:* ✔ 28 Ağu 2026 — `S3AssetStore`, `FileSystemAssetStore` ile **aynı sözleşme**: içerik-adresli, önce nesne sonra kayıt. **İki video nesne deposu üzerinden üretildi** (47,9 sn ve 603,4 sn, QC 0,97, sıfır retry); MinIO'da 31 nesne / 65 MiB, `ab/cd/sha256.uzantı` düzeniyle.
     **Gerçek MinIO'ya karşı test ediliyor**, sahte bir S3 istemcisine karşı değil: sahte istemci imzaları doğrular ama "nesne anahtarı kabul ediliyor mu", "olmayan nesne 404 mü dönüyor", "yükleme imzası geçiyor mu" soruları onda hiç sorulmaz. Bu depoda bellek içi sağlayıcıyla geçip gerçek sistemde düşen testlerin bedeli birden fazla kez ödendi. 13 test
