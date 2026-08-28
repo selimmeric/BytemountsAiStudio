@@ -174,7 +174,12 @@ static async Task<int> RunPipelineAsync(string[] args)
         return 3;
     }
 
-    var storage = new FileSystemAssetStore(db, StorageRoot());
+    // Depo secimi tek yerde (P4-02): CLI de ayni secimi yapiyor.
+    var storage = StorageSelection.Build(db, StorageRoot());
+
+    // Depo acilista hazirlaniyor (P4-02): kova yoksa olusturuluyor.
+    // Ilk yazmaya birakmak, hatayi uretimin ortasinda gormek demekti.
+    await StorageSelection.EnsureReadyAsync(storage, CancellationToken.None);
     var pipeline = new FakeShortsPipeline(storage);
 
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"konu      : {topic}"));
@@ -235,7 +240,12 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
         return 3;
     }
 
-    var storage = new FileSystemAssetStore(db, StorageRoot());
+    // Depo secimi tek yerde (P4-02): CLI de ayni secimi yapiyor.
+    var storage = StorageSelection.Build(db, StorageRoot());
+
+    // Depo acilista hazirlaniyor (P4-02): kova yoksa olusturuluyor.
+    // Ilk yazmaya birakmak, hatayi uretimin ortasinda gormek demekti.
+    await StorageSelection.EnsureReadyAsync(storage, CancellationToken.None);
     var outputDirectory = Path.Combine(Directory.GetCurrentDirectory(), "output");
 
     // `run` sahte saglayicilarla, `real` anahtarsiz gercek saglayicilarla.

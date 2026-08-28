@@ -104,8 +104,43 @@ services:
       # makineden istek yaptirmak demekti.
       - "127.0.0.1:8099:8099"
 
+  # S3 uyumlu nesne deposu (P4-02).
+  #
+  # NEDEN MINIO: S3 API'sini konuşuyor, ücretsiz ve tamamen yerel
+  # çalışıyor. Gerçek S3'e karşı geliştirmek anahtar, hesap ve her
+  # testte para demekti; MinIO aynı protokolü konuştuğu için kod
+  # değişmeden R2/S3'e taşınıyor.
+  #
+  # `storage` profilinde: dosya sistemi deposu hâlâ varsayılan ve çoğu
+  # geliştirme oturumunda nesne deposu gerekmiyor.
+  minio:
+    image: minio/minio:latest
+    container_name: bmai-minio
+    profiles: ["storage"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      # Geliştirme kimlik bilgileri — yalnızca 127.0.0.1'e bağlı bir
+      # kap. Gerçek anahtarlar hiçbir zaman bu dosyaya girmez.
+      MINIO_ROOT_USER: bmai
+      MINIO_ROOT_PASSWORD: bmai_dev_secret
+    ports:
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # web arayüzü
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      # Uygulama, kap "başladı" dediğinde değil, gerçekten istek kabul
+      # ettiğinde bağlanmalı.
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
 volumes:
   piper-voices:
   postgres-data:
   seq-data:
   searxng-data:
+  minio-data:

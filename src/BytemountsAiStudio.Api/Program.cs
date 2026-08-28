@@ -49,7 +49,8 @@ builder.Services.AddScoped<NodeRegistry>(services =>
     // kimliği (ses, yazı tipi, en-boy, onay modu) varsayılana
     // düşüyordu — sessizce.
     return NodeHandlerRegistration.BuildOpenRegistry(
-        new FileSystemAssetStore(db, storageRoot),
+        // Depo seçimi tek yerde (P4-02).
+        StorageSelection.Build(db, storageRoot),
         http,
         outputDirectory,
         new TitleUniqueness(db),

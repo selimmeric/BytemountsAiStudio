@@ -338,7 +338,13 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 ## Faz 4 — Ölçek
 
 - [ ] **P4-01** `5p` — Render worker'ların ayrı makineye çıkarılması + iş dağıtımı
-- [ ] **P4-02** `4p` — S3 uyumlu nesne deposu (MinIO/R2) + retention politikaları
+- [x] **P4-02** `4p` — S3 uyumlu nesne deposu (MinIO/R2) + retention politikaları
+  - *Bitti:* ✔ 28 Ağu 2026 — `S3AssetStore`, `FileSystemAssetStore` ile **aynı sözleşme**: içerik-adresli, önce nesne sonra kayıt. **İki video nesne deposu üzerinden üretildi** (47,9 sn ve 603,4 sn, QC 0,97, sıfır retry); MinIO'da 31 nesne / 65 MiB, `ab/cd/sha256.uzantı` düzeniyle.
+    **Gerçek MinIO'ya karşı test ediliyor**, sahte bir S3 istemcisine karşı değil: sahte istemci imzaları doğrular ama "nesne anahtarı kabul ediliyor mu", "olmayan nesne 404 mü dönüyor", "yükleme imzası geçiyor mu" soruları onda hiç sorulmaz. Bu depoda bellek içi sağlayıcıyla geçip gerçek sistemde düşen testlerin bedeli birden fazla kez ödendi. 13 test
+  - *`GetLocalPathAsync` ADR-007'nin somutlaştığı yer:* render ağa çıkmıyor, uzak varlık render **başlamadan önce** indiriliyor. ffmpeg bir HTTP adresini de açabilirdi ve çalışıyor görünürdü — ama on dakikalık bir render'ın ortasında kopan bağlantı yarım bir video bırakır ve o video QC'den geçebilir (süre doğru, çözünürlük doğru, son sahne eksik). Yarım inen dosya geçici adla yazılıyor: nihai ada yazmak, sonraki çağrının onu "önbellekte var" sayması demekti.
+  - *Koşturmak iki hata daha buldu:* (1) `EnsureBucketAsync` **yazılmıştı ama hiçbir yerden çağrılmıyordu** — sistem sorunsuz başladı, iki run başlattı ve ilk seslendirmede "bucket does not exist" ile düştü; artık açılışta hazırlanıyor. (2) Olmayan kova **geçici** sayılıyordu, yani bir yapılandırma hatası için aynı iş üç kez denendi — artık kalıcı (ADR-011)
+  - *Güvenlik:* `AWSSDK.Core`'un geçişli sürümünde bilinen bir açık vardı (GHSA-9cvc-h2w8-phrp) ve uyarılar hata sayıldığı için restore düştü — doğru davranış. Sürüm açıkça sabitlendi; geçişli sürüme güvenmek, S3 paketi her güncellendiğinde aynı kumarı oynamak demekti
+  - *Retention iki yönlü bir risk:* hiçbir şey silinmezse maliyet üretimle değil **geçmişle** orantılı oluyor; körü körüne silmek daha kötü çünkü bazı şeyler geri **gelemez**. Yayınlanmış içerik ve lisanslı dış varlık hiç silinmiyor (platformdaki kopya bizim değil; lisans kaydı dosyasız bir şeyi ispatlamıyor). Nihai video yayınlanmamış olsa da saklanıyor — ara ürünlerden farkı yeniden üretilemez olması. Ara ürünler 30 günden sonra silinebilir: içerik-adresli oldukları için karar geri alınabilir. **Her karar gerekçe taşıyor** — sınır testi gerçek bir hata yakaladı, kural "30 günden eski" derken kod tam 30 günü siliyordu
 - [ ] **P4-03** `3p` — Redis: dağıtık rate-limit + circuit breaker durumu
 - [ ] **P4-04** `4p` — Çoklu GCP projesi / kota havuzu yönetimi
 - [x] **P4-05** `4p` — Docker + Linux dağıtımı, sağlık kontrolleri, otomatik yeniden başlatma

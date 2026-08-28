@@ -43,8 +43,12 @@ builder.Services.AddScoped<JobQueue>();
 
 // Depolama ve node kaydi SCOPED: ikisi de DbContext'e bagli. Singleton
 // yapilsaydi tum worker donguleri ayni change tracker uzerinde yarisirdi.
+// DEPO SECIMI TEK YERDE (P4-02): `BMAI_S3_ENDPOINT` doluysa nesne
+// deposu, bossa dosya sistemi. Uc host'ta ayri `if` yazmak, birinin
+// S3'e digerinin dosya sistemine bakmasi demekti -- ve bu depoda tam
+// olarak o hata (CLI ile Worker'in farkli kurulmasi) bir gunu goturdu.
 builder.Services.AddScoped<IStorageProvider>(sp =>
-    new FileSystemAssetStore(sp.GetRequiredService<StudioDbContext>(), storageRoot));
+    StorageSelection.Build(sp.GetRequiredService<StudioDbContext>(), storageRoot));
 
 // TEKILLIK VE KANAL POLITIKASI BURADA DA VERILIYOR.
 //
@@ -82,6 +86,11 @@ builder.Services.AddHostedService<HeartbeatWriter>();
 // eden bir kabi Compose kendi basina yeniden baslatmiyor. Yani saglik
 // kontrolu tek basina "otomatik yeniden baslatma" demek degildi.
 builder.Services.AddHostedService<SelfRestartService>();
+
+// DEPO ACILISTA HAZIRLANIYOR (P4-02): kova yoksa olusturuluyor.
+// Ilk yazmaya birakmak, ayni hatayi her kanalda ayri ayri ve uretimin
+// ortasinda gormek demekti.
+builder.Services.AddHostedService<StorageReadyService>();
 
 builder.Services.AddHostedService<QueueWorker>();
 
