@@ -362,6 +362,18 @@ app.MapGet("/istemler", () =>
     return Results.Ok(prompts);
 });
 
+// İSTEM DEĞERLENDİRME SONUÇLARI (P3-07).
+//
+// İstek anında koşuyor çünkü sonuç diskteki istem dosyalarının O ANKİ
+// hâline bağlı. Bir kez koşup saklamak, istem düzenlendikten sonra
+// ekranın eski sonucu göstermesi demekti — ve "geçiyor" yazan eski
+// bir sonuç, hiç sonuç olmamasından daha kötü.
+//
+// Modelsiz koşuyor: fixture'lar DOLDURULMUŞ İSTEMİ doğruluyor, model
+// çıktısını değil. O yüzden milisaniyeler sürüyor ve ekran açılırken
+// koşturmak makul.
+app.MapGet("/istemler/degerlendirme", () => Results.Ok(PromptEvalQueries.Build()));
+
 app.Run();
 
 /// Karar sonucunu HTTP'ye çevirir.

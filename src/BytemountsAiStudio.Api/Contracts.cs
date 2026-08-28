@@ -222,6 +222,34 @@ public sealed record PromptSummary(
     int UserLength,
     IReadOnlyList<string> Variables);
 
+/// Tek bir fixture'ın sonucu (P3-07).
+public sealed record EvalRow(
+    string Name,
+    string PromptKey,
+    /// Hangi istem SÜRÜMÜ sınandı. Fixture sürüm sabitlemiyorsa en
+    /// yüksek sürüm koşuyor, yani damga koşudan koşuya değişebiliyor
+    /// — bunu yazmadan "geçti" hangi metin için geçti belirsiz kalır.
+    string? Stamp,
+    bool Passed,
+    int RenderedChars,
+    IReadOnlyList<string> Failures);
+
+/// Değerlendirme ekranı (P3-07).
+public sealed record EvalScreen(
+    /// Değerlendirme KOŞTU mu. `false` iken sayılar anlamsız.
+    bool Ran,
+    string Directory,
+    int Passed,
+    int Failed,
+    IReadOnlyList<EvalRow> Rows,
+    /// Koşamadıysa sebebi. `null` = koştu.
+    ///
+    /// AYRI BİR ALAN, çünkü "koşmadı" ile "koştu, hepsi geçti"
+    /// ikisi de sıfır düşüş gösteriyor ve ikisini aynı ekranda
+    /// göstermek, hiç sınanmamış bir istem setini sınanmış gibi
+    /// okuturdu.
+    string? Problem);
+
 /// SSE ile yayılan ilerleme.
 ///
 /// Panonun yenilemeden ilerleme görmesi için gereken en küçük belge.

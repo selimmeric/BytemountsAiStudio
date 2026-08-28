@@ -66,6 +66,7 @@ tbody tr.clickable:hover{background:var(--surface-2)}
 .s-WaitingApproval,.s-WaitingResource,.s-Pending{color:var(--warn)}
 .s-Cancelled,.s-Skipped{color:var(--ink-faint)}
 .muted{color:var(--ink-faint)}
+.ok{color:var(--ok)} .bad{color:var(--bad);font-weight:600} .warn{color:var(--warn)}
 .empty{padding:22px 14px;color:var(--ink-faint);text-align:center}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 .stat{display:flex;flex-direction:column;gap:2px;padding:12px 14px}
@@ -470,7 +471,10 @@ async function showWorkflows() {
  * zamanında hata veriyor.
  */
 async function showPrompts() {
-  const prompts = await api("/istemler");
+  const [prompts, evals] = await Promise.all([
+    api("/istemler"),
+    api("/istemler/degerlendirme"),
+  ]);
 
   const rows = prompts.map((p) => `
     <tr>
@@ -485,7 +489,50 @@ async function showPrompts() {
   view.innerHTML = panel(
     "İstem kayıt defteri",
     table(["Anahtar", "Sürüm", "Özet", "Açıklama", "Karakter", "Değişkenler"], rows),
-    ` <span class="muted">${prompts.length} şablon</span>`);
+    ` <span class="muted">${prompts.length} şablon</span>`)
+    + evalPanel(evals);
+}
+
+/* ---- İstem değerlendirme sonuçları (P3-07) ---- */
+
+/* NE DOĞRULANIYOR: doldurulmuş istemin KENDİSİ, model çıktısı değil.
+ * Bir yer tutucu düşürülmüş mü, bir kural silinmiş mi, metin bağlam
+ * sınırını taşırıyor mu. Üçü de modelsiz yakalanıyor.
+ *
+ * "KOŞMADI" İLE "HEPSİ GEÇTİ" AYRI GÖSTERİLİYOR: ikisi de sıfır düşüş
+ * demek ve aynı ekranda göstermek, hiç sınanmamış bir istem setini
+ * sınanmış gibi okuturdu. En tehlikeli hâli de bu: yeşil bir ekran,
+ * hiçbir şey sınanmamışken.
+ */
+function evalPanel(r) {
+  if (!r.ran) {
+    return panel("Değerlendirme",
+      `<p class="muted" style="padding:12px 0">
+         Değerlendirme koşmadı — ${esc(r.problem ?? "sebep bilinmiyor")}
+       </p>`,
+      ` <span class="warn">koşmadı</span>`);
+  }
+
+  /* DÜŞENLER ÖNCE geliyor (sunucu sıralıyor); burada da düşenin
+   * sebebi satırın içinde yazılı: "geçmedi" tek başına ne
+   * düzeltileceğini söylemiyor. */
+  const rows = r.rows.map((e) => `
+    <tr>
+      <td>${e.passed ? '<span class="ok">geçti</span>' : '<span class="bad">DÜŞTÜ</span>'}</td>
+      <td class="mono">${esc(e.promptKey)}</td>
+      <td>${esc(e.name)}</td>
+      <td class="mono muted" title="${esc(e.stamp ?? "")}">${esc((e.stamp ?? "").split("#")[1] ?? "—")}</td>
+      <td class="mono">${e.renderedChars}</td>
+      <td class="muted">${e.failures.map(esc).join(" · ") || "—"}</td>
+    </tr>`);
+
+  const summary = r.failed > 0
+    ? ` <span class="bad">${r.failed} düştü</span> <span class="muted">/ ${r.passed} geçti</span>`
+    : ` <span class="ok">${r.passed} fixture geçti</span>`;
+
+  return panel("Değerlendirme",
+    table(["Sonuç", "İstem", "Fixture", "Özet", "Karakter", "Sebep"], rows),
+    summary);
 }
 
 /* ---- Varlık gezgini ve lisans raporu (P3-08) ---- */
