@@ -329,6 +329,116 @@ public sealed class TargetedRetryTests(DatabaseFixture fixture) : IAsyncLifetime
         Assert.Equal(["render"], graph.ResolveTargets(["render", "media.render"]));
     }
 
+    /// BİRLEŞEN DAL, RETRY TURUNDA ESKİ ÇIKTIYLA KOŞMUYOR.
+    ///
+    /// Gerçek bir koşuda yakalandı. `timeline` iki daldan besleniyor
+    /// (görsel ve müzik). Retry turunda müzik önce bittiğinde, motor
+    /// "görseller zaten başarılı" görüp timeline'ı hemen koşturuyordu
+    /// — ESKİ turun görselleriyle. Yani düzeltme için yeniden üretilen
+    /// görseller videoya hiç girmiyor, sistem yine de "retry çalıştı"
+    /// diyordu.
+    ///
+    /// Doğru soru "bu öncül koştu mu" değil, "bu öncül BU TURDA hazır
+    /// mı".
+    [Fact]
+    public async Task RetryTurunda_BirlesenDalEskiCiktiylaKosmuyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        // yaz → (gorsel, muzik) → birlestir → qc
+        var graph = new WorkflowGraph
+        {
+            Key = "birlesim",
+            Name = "Birlesen dal",
+            Nodes =
+            [
+                new() { Id = "yaz", Type = "test.script", Config = ScriptedHandler.Json("{}") },
+                new() { Id = "gorsel", Type = "test.visual", Config = ScriptedHandler.Json("{}") },
+                new() { Id = "muzik", Type = "test.music", Config = ScriptedHandler.Json("{}") },
+                new() { Id = "birlestir", Type = "test.merge", Config = ScriptedHandler.Json("{}") },
+                new() { Id = "qc", Type = "test.qc", Config = ScriptedHandler.Json("{}") },
+            ],
+            Edges =
+            [
+                new() { From = "yaz", To = "gorsel" },
+                new() { From = "yaz", To = "muzik" },
+                new() { From = "gorsel", To = "birlestir" },
+                new() { From = "muzik", To = "birlestir" },
+                new() { From = "birlestir", To = "qc" },
+            ],
+        };
+
+        var order = new List<string>();
+
+        var script = new ScriptedHandler("test.script", QueueClass.Llm, _ =>
+        {
+            order.Add("yaz");
+            return ScriptedHandler.Json("{}");
+        });
+
+        // GÖRSEL YAVAŞ, müzik hızlı: retry turunda müzik önce biter ve
+        // hatalı motor timeline'ı orada tetiklerdi.
+        var visual = new ScriptedHandler("test.visual", QueueClass.ImageGeneration, _ =>
+        {
+            order.Add("gorsel");
+            return ScriptedHandler.Json("{}");
+        });
+
+        var music = new ScriptedHandler("test.music", QueueClass.Search, _ =>
+        {
+            order.Add("muzik");
+            return ScriptedHandler.Json("{}");
+        });
+
+        var merge = new ScriptedHandler("test.merge", QueueClass.Render, _ =>
+        {
+            order.Add("birlestir");
+            return ScriptedHandler.Json("{}");
+        });
+
+        var qcCalls = 0;
+
+        var qc = new ScriptedHandler("test.qc", QueueClass.Upload, _ =>
+        {
+            order.Add("qc");
+
+            return ++qcCalls == 1
+                ? ScriptedHandler.Json("""{"retry":{"decision":"Rerun","nodes":["yaz"]}}""")
+                : ScriptedHandler.Json("{}");
+        });
+
+        var engine = new WorkflowEngine(db, new JobQueue(db), new NodeRegistry()
+            .Register(script).Register(visual).Register(music).Register(merge).Register(qc));
+
+        var versionId = await CreateWorkflowAsync(db, graph);
+        await engine.StartRunAsync(versionId, null, null, CancellationToken.None);
+
+        await DrainAsync(engine, maxSteps: 60);
+
+        // İKİ TAM TUR koştu.
+        Assert.Equal(2, merge.Calls.Count);
+        Assert.Equal(2, visual.Calls.Count);
+
+        // BİRLEŞTİRME HER İKİ TURDA DA GÖRSELDEN SONRA.
+        //
+        // Hatalı motorda ikinci turda "muzik, birlestir, gorsel"
+        // sırası çıkıyordu: birleştirme eski görselle koşuyordu.
+        for (var i = 0; i < order.Count; i++)
+        {
+            if (order[i] != "birlestir")
+            {
+                continue;
+            }
+
+            var before = order.Take(i).ToList();
+
+            Assert.True(
+                before.Count(x => x == "gorsel") >= before.Count(x => x == "birlestir") + 1,
+                $"birlestirme gorselden once kostu: {string.Join(" > ", order)}");
+        }
+    }
+
     /// Sözleşme: motor node TİPİNE değil ÇIKTIYA bakıyor.
     [Theory]
     [InlineData("""{"retry":{"decision":"None","nodes":["a"]}}""")]

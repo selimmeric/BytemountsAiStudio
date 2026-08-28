@@ -447,7 +447,7 @@ public sealed class WorkflowEngine(
                 continue;
             }
 
-            if (await AllPredecessorsDoneAsync(run.Id, graph, edge.To, cancellationToken).ConfigureAwait(false))
+            if (await AllPredecessorsDoneAsync(run, graph, edge.To, cancellationToken).ConfigureAwait(false))
             {
                 next.Add(edge.To);
             }
@@ -456,8 +456,29 @@ public sealed class WorkflowEngine(
         return next;
     }
 
+    /// Birleşen dalların hepsi hazır mı.
+    ///
+    /// TUR FARKI BURADA HAYATİ ve gerçek bir koşuda ortaya çıktı.
+    ///
+    /// Önceki hâli "bu node bir kez başarılı olmuş mu" diye soruyordu.
+    /// İlk turda doğru; RETRY TURUNDA YANLIŞ: `timeline` iki daldan
+    /// besleniyor (`visuals` ve `muzik`) ve retry turunda müzik önce
+    /// bittiğinde, timeline "görseller zaten başarılı" görüp hemen
+    /// koşuyordu — ESKİ turun görselleriyle. Yani düzeltme için
+    /// yeniden üretilen görseller videoya hiç girmiyordu ve sonuç
+    /// "retry çalıştı" diye raporlanıyordu.
+    ///
+    /// Doğru soru: "bu öncül BU TURDA hazır mı". İki yoldan hazır
+    /// olabiliyor:
+    ///
+    /// 1. Bu turda başarıyla koştu, ya da
+    /// 2. Bu turda HİÇ koşmayacak (retry kapsamında değil) ve daha
+    ///    önce başarılı olmuş.
+    ///
+    /// İkincisi olmadan kilitlenirdik: hedefli retry'ın anlamı,
+    /// dokunulmayan node'ların yeniden koşmaması.
     private async Task<bool> AllPredecessorsDoneAsync(
-        Guid runId, WorkflowGraph graph, string nodeId, CancellationToken cancellationToken)
+        Run run, WorkflowGraph graph, string nodeId, CancellationToken cancellationToken)
     {
         var predecessors = graph.Predecessors(nodeId);
 
@@ -466,14 +487,45 @@ public sealed class WorkflowEngine(
             return true;
         }
 
-        var done = await db.NodeExecutions
-            .Where(e => e.RunId == runId && e.State == NodeState.Succeeded)
-            .Select(e => e.NodeId)
-            .Distinct()
+        var succeeded = await db.NodeExecutions.AsNoTracking()
+            .Where(e => e.RunId == run.Id && e.State == NodeState.Succeeded)
+            .Select(e => new { e.NodeId, e.Loop })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return predecessors.All(p => done.Contains(p, StringComparer.Ordinal));
+        // BU TURDA KUYRUKTA OLAN ya da ÇALIŞAN node'lar: bunlar
+        // beklenecek. `Pending` bir iş "henüz koşmadı" demek ve onu
+        // hazır saymak, tam olarak yukarıdaki hatayı üretirdi.
+        var scheduled = await db.Jobs.AsNoTracking()
+            .Where(j => j.RunId == run.Id
+                        && (j.State == JobState.Pending || j.State == JobState.Leased)
+                        && j.NodeId != null)
+            .Select(j => j.NodeId!)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var predecessor in predecessors)
+        {
+            var runs = succeeded.Where(e => string.Equals(e.NodeId, predecessor, StringComparison.Ordinal)).ToList();
+
+            if (runs.Count == 0)
+            {
+                return false;
+            }
+
+            if (runs.Any(e => e.Loop == run.RetryLoop))
+            {
+                continue;
+            }
+
+            // Bu turda koşmamış: koşacak mı?
+            if (scheduled.Contains(predecessor, StringComparer.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private async Task<bool> IsRunCompleteAsync(

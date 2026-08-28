@@ -26,6 +26,24 @@ public sealed class FileSystemAssetStore(StudioDbContext db, string rootPath) : 
 
     public string RootPath => rootPath;
 
+    /// VERİTABANI ERİŞİMİ SIRAYA SOKULUYOR.
+    ///
+    /// `DbContext` iş parçacığı güvenli DEĞİL ve bu depo tek bir
+    /// bağlamı paylaşıyor. Görsel node'u sahneleri PARALEL üretiyor
+    /// (ikişer ikişer) ve her biri bittiğinde buraya yazıyor — yani
+    /// aynı bağlam üzerinde iki eşzamanlı sorgu.
+    ///
+    /// Sonuç: "A second operation was started on this context
+    /// instance" ve node'un düşmesi. Gerçek bir veritabanıyla ilk
+    /// uçtan uca koşuda ortaya çıktı; testler sahte depo kullandığı
+    /// için hiç görünmemişti.
+    ///
+    /// KİLİT YALNIZCA VERİTABANI BÖLÜMÜNDE. Dosyayı diske yazmak ve
+    /// hash almak paralel kalıyor — işin pahalı kısmı orası ve onu da
+    /// sıraya sokmak, paralel görsel üretiminin bütün kazancını
+    /// silerdi.
+    private static readonly SemaphoreSlim DatabaseGate = new(1, 1);
+
     public async Task<Result<StoredAsset>> PutAsync(
         Stream content,
         AssetMetadata metadata,
@@ -66,9 +84,20 @@ public sealed class FileSystemAssetStore(StudioDbContext db, string rootPath) : 
         var relativePath = assetRef.RelativePath(ExtensionFor(metadata.MimeType));
         var finalPath = Path.Combine(rootPath, relativePath);
 
-        var existing = await db.Assets
-            .FirstOrDefaultAsync(a => a.Sha256 == sha, cancellationToken)
-            .ConfigureAwait(false);
+        Asset? existing;
+
+        await DatabaseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            existing = await db.Assets
+                .FirstOrDefaultAsync(a => a.Sha256 == sha, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            DatabaseGate.Release();
+        }
 
         if (existing is not null && File.Exists(finalPath))
         {
@@ -98,8 +127,27 @@ public sealed class FileSystemAssetStore(StudioDbContext db, string rootPath) : 
 
         if (existing is null)
         {
-            db.Assets.Add(new Asset
+            await DatabaseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
             {
+                // İÇERİK-ADRESLİ DEPODA YARIŞ NORMAL: iki sahne aynı
+                // görseli üretebiliyor (aynı sha) ve ikisi de "yok"
+                // görüp eklemeye kalkabiliyor. Kilit içinde bir kez
+                // daha bakmak, birincil anahtar ihlalini önlüyor.
+                if (await db.Assets.AnyAsync(a => a.Sha256 == sha, cancellationToken).ConfigureAwait(false))
+                {
+                    return new StoredAsset
+                    {
+                        Ref = assetRef,
+                        Bytes = bytes,
+                        Metadata = metadata,
+                        AlreadyExisted = true,
+                    };
+                }
+
+                db.Assets.Add(new Asset
+                {
                 Sha256 = sha,
                 Kind = metadata.Kind.ToString(),
                 MimeType = metadata.MimeType,
@@ -110,10 +158,15 @@ public sealed class FileSystemAssetStore(StudioDbContext db, string rootPath) : 
                 StoragePath = relativePath,
                 SourceProvider = metadata.SourceProvider,
                 SourceUrl = metadata.SourceUrl?.ToString(),
-                LicenseJson = metadata.License is null ? null : JsonSerializer.Serialize(metadata.License),
-            });
+                    LicenseJson = metadata.License is null ? null : JsonSerializer.Serialize(metadata.License),
+                });
 
-            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                DatabaseGate.Release();
+            }
         }
 
         return new StoredAsset
