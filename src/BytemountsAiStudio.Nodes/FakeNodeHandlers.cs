@@ -660,7 +660,9 @@ public sealed class VisualResolveHandler(
         ArgumentNullException.ThrowIfNull(context);
 
         var topic = NodeJson.Text(context.RunContext, "topic.topic") ?? "konu";
-        var canvas = Canvas.Shorts1080;
+        // Görseller de aynı tuvalde üretiliyor: farklı oranda üretip
+        // render'da kırpmak, her karenin kenarlarını kesmek olurdu.
+        var canvas = Canvas.ForAspect(NodeJson.Text(context.Config, "aspect"));
 
         if (!context.RunContext.TryGetProperty("tts", out var tts)
             || !tts.TryGetProperty("segments", out var segments))
@@ -873,7 +875,16 @@ public sealed class TimelineCompileHandler(
                 .ConfigureAwait(false))?.FontStack
             : null;
 
-        var build = TimelineBuilder.Build(context.RunContext, fonts);
+        // TUVAL GRAFTAN (P3-03): kısa video dikey, uzun video yatay.
+        //
+        // `aspect` ayarı graftaki timeline node'unda duruyordu ve
+        // hiçbir şey okumuyordu — uzun video grafı `16:9` diyordu ama
+        // her video 1080×1920 çıkıyordu. Aynı sınıftan bir kusur:
+        // kaydediliyor, okunmuyor.
+        var aspect = NodeJson.Text(context.Config, "aspect");
+        var canvas = Canvas.ForAspect(aspect);
+
+        var build = TimelineBuilder.Build(context.RunContext, fonts, canvas);
         if (build.IsFailure)
         {
             return Result.Failure<JsonElement>(build.Error);
@@ -912,6 +923,12 @@ public sealed class TimelineCompileHandler(
                 // bu depoda tam olarak öyle olmuştu.
                 font_stack = timeline.FontStack,
                 font_source = fonts is not null ? "kanal" : "varsayilan",
+                canvas = timeline.Canvas.ToString(),
+                // TANINMAYAN ORAN KAYDA GEÇİYOR: sessizce dikeye düşen
+                // bir yatay video ancak render bittikten sonra fark
+                // edilirdi ve o noktada on beş dakikalık bir render
+                // harcanmış olurdu.
+                aspect_recognised = aspect is null || Canvas.TryParseAspect(aspect) is not null,
                 music = timeline.Audio.Music is not null,
             }));
     }

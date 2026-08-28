@@ -57,6 +57,7 @@ static int Help()
           bmai pipeline [--topic "<konu>"] [--out <dosya.mp4>] [--lang tr-TR] [--dot <graf.dot>]
                                         sahte boru hatti: konu -> mp4
           bmai run [--topic "<konu>"] [--lang tr-TR] [--channel "<kanal adi>"]
+                   [--workflow shorts-fake|video-uzun]
                                         sahte saglayicilarla kosar
           bmai real [--topic "<konu>"] [--lang tr-TR]
                                         ANAHTARSIZ gercek saglayicilar:
@@ -263,15 +264,19 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     var queue = new JobQueue(db);
     var engine = new WorkflowEngine(db, queue, registry);
 
+    // IS AKISI SECILEBILIR: ayni motor kisa ve uzun videoyu ayni
+    // sekilde kosturuyor, degisen tek sey graf (paragraf 34).
+    var workflowKey = OptionOrNull(args, "--workflow") ?? DatabaseSeeder.FakeWorkflowKey;
+
     var version = await db.WorkflowVersions
-        .Where(v => v.Workflow!.Key == DatabaseSeeder.FakeWorkflowKey)
+        .Where(v => v.Workflow!.Key == workflowKey)
         .OrderByDescending(v => v.Version)
         .FirstOrDefaultAsync()
         .ConfigureAwait(false);
 
     if (version is null)
     {
-        Console.Error.WriteLine("shorts-fake workflow bulunamadi.");
+        Console.Error.WriteLine($"'{workflowKey}' is akisi bulunamadi.");
         return 4;
     }
 

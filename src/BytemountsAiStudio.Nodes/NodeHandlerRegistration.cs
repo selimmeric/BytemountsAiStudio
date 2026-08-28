@@ -43,6 +43,36 @@ public static class NodeHandlerRegistration
                         sentences = ScriptGenerateHandler.BuildSentences(last, turkish ? "tr-TR" : "en-US"),
                     }),
 
+                    // UZUN VIDEO: bolum plani ve bolum senaryosu (P3-02).
+                    //
+                    // Sahte hat bunlari da kosmali, yoksa uzun video
+                    // grafi ilk node'da duser ve yapinin dogru olup
+                    // olmadigini ancak gercek bir modelle ogrenirdik.
+                    //
+                    // BES BOLUM: on dakikalik hedefte planlayicinin
+                    // sinirlarina uyan bir sayi. Uc bolum de gecerdi
+                    // ama bes, kirpma ve dagitim yollarini da
+                    // kosturuyor.
+                    "emit_chapters" => System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        chapters = Enumerable.Range(1, 5).Select(i => new
+                        {
+                            title = turkish ? $"Sahte bolum {i}" : $"Fake chapter {i}",
+                            question = turkish
+                                ? $"{i}. bolum hangi soruyu cevapliyor"
+                                : $"What does chapter {i} answer",
+                        }),
+                    }),
+
+                    // Bolum senaryosu: istemde gecen cumle sayisini
+                    // TAM olarak uretmiyor cunku gercek model de
+                    // uretmiyor - yaklasik veriyor ve hat buna
+                    // dayanikli olmali.
+                    "emit_chapter_script" => System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        sentences = ScriptGenerateHandler.BuildSentences(last, turkish ? "tr-TR" : "en-US"),
+                    }),
+
                     // Sahte metadata GERCEKCI uzunlukta: sinirlarin
                     // altinda kalan bir baslik, kirpma yolunu hic
                     // sinamazdi. Kirpmanin kendi testleri ayri

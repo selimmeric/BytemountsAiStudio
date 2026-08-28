@@ -101,7 +101,7 @@ public static class DatabaseSeeder
             { "id": "script",    "type": "script.long",      "config": {} },
             { "id": "claims",    "type": "claim.check",      "config": {} },
             { "id": "tts",       "type": "tts.synthesize",   "config": {} },
-            { "id": "visuals",   "type": "visual.resolve",   "config": {} },
+            { "id": "visuals",   "type": "visual.resolve",   "config": { "aspect": "16:9" } },
             { "id": "music",     "type": "music.select",     "config": { "mood": "documentary" } },
             { "id": "timeline",  "type": "timeline.compile", "config": { "aspect": "16:9" } },
             { "id": "render",    "type": "media.render",     "config": { "preset": "video-1920x1080", "segmented": true } },

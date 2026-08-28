@@ -16,13 +16,20 @@ namespace BytemountsAiStudio.Nodes;
 public static class TimelineBuilder
 {
     public static Result<TimelineDocument> Build(JsonElement runContext)
-        => Build(runContext, null);
+        => Build(runContext, null, null);
+
+    public static Result<TimelineDocument> Build(
+        JsonElement runContext, IReadOnlyList<string>? fontStack)
+        => Build(runContext, fontStack, null);
 
     /// `fontStack` kanaldan geliyor (P3-01). `null` ise varsayılan
     /// zincir kullanılıyor — kanal ayarı yoksa altyazısız video değil,
     /// makul bir yazı tipi doğru davranış.
+    /// `canvas` graftan geliyor (P3-03): kısa video dikey, uzun video
+    /// yatay. `null` ise dikey — bu sistem ağırlıklı olarak Shorts
+    /// üretiyor.
     public static Result<TimelineDocument> Build(
-        JsonElement runContext, IReadOnlyList<string>? fontStack)
+        JsonElement runContext, IReadOnlyList<string>? fontStack, Canvas? canvasOverride)
     {
         if (!runContext.TryGetProperty("tts", out var tts)
             || !tts.TryGetProperty("segments", out var segmentsJson))
@@ -39,7 +46,7 @@ public static class TimelineBuilder
         var language = LanguageTag.Create(
             NodeJson.Text(runContext, "topic.language") ?? "tr-TR");
 
-        var canvas = Canvas.Shorts1080;
+        var canvas = canvasOverride ?? Canvas.Shorts1080;
 
         // SES ve SAHNE ayrı listeler.
         //
