@@ -911,8 +911,25 @@ public sealed class MediaRenderHandler(
         // Varlıklar render ÖNCESİ yerelde hazır ediliyor (ADR-007).
         var paths = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var refToResolve in timeline.Scenes.Select(s => s.Visual.Asset)
-                     .Concat(timeline.Audio.VoiceSegments.Select(s => s.Asset)))
+        // MÜZİK DE ÇÖZÜMLENİYOR.
+        //
+        // Uzun süre eksikti ve GÖRÜNMÜYORDU: müzik node'unun çıktısı
+        // yanlış anahtarla yazıldığı için timeline'a hiç ulaşmıyordu,
+        // dolayısıyla render'ın onu çözümlemesi de gerekmiyordu.
+        // Anahtar düzelince eksik hemen ortaya çıktı — render "müzik
+        // yatağı çözümlenmemiş" diyerek düştü.
+        //
+        // İki hatanın birbirini gizlemesi tam olarak bu: biri
+        // düzelmeden diğeri görünmüyor.
+        var toResolve = timeline.Scenes.Select(s => s.Visual.Asset)
+            .Concat(timeline.Audio.VoiceSegments.Select(s => s.Asset));
+
+        if (timeline.Audio.Music is { } musicBed)
+        {
+            toResolve = toResolve.Append(musicBed.Asset);
+        }
+
+        foreach (var refToResolve in toResolve)
         {
             var path = await storage.GetLocalPathAsync(refToResolve, cancellationToken).ConfigureAwait(false);
             if (path.IsFailure)

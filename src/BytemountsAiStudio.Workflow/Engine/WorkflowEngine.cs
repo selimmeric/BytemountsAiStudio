@@ -178,6 +178,7 @@ public sealed class WorkflowEngine(
             RunContext = runContext,
             IdempotencyKey = idempotencyKey,
             CorrelationId = run.Id.ToString("N"),
+            ChannelId = run.ChannelId,
         };
 
         var started = _time.GetUtcNow();

@@ -1,3 +1,4 @@
+using BytemountsAiStudio.Contracts.Providers;
 using System.Text.Json;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Execution;
@@ -19,7 +20,7 @@ namespace BytemountsAiStudio.Nodes;
 /// çünkü bu node başarıyla bitiyor ve sonraki node'lar kuyruğa
 /// GİRMİYOR. Beklemeyi bir işin içinde yapmak — uyuyup tekrar bakmak —
 /// bir worker'ı saatlerce tutmak demekti.
-public sealed class ApprovalGateHandler : INodeHandler
+public sealed class ApprovalGateHandler(IChannelPolicy? channels = null) : INodeHandler
 {
     public string NodeType => "human.approval";
 
@@ -27,17 +28,37 @@ public sealed class ApprovalGateHandler : INodeHandler
     /// ölçülebilir bir kaynak tüketmiyor. En hafif sınıf seçildi.
     public QueueClass Queue => QueueClass.Search;
 
-    public Task<Result<JsonElement>> ExecuteAsync(NodeContext context, CancellationToken cancellationToken)
+    public async Task<Result<JsonElement>> ExecuteAsync(NodeContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var mode = ApprovalGate.ParseMode(NodeJson.Text(context.Config, "mode"));
+        // ---- MOD ÖNCE KANALDAN ----
+        //
+        // `channels.mode` kolonu vardı, tohumlanıyordu, panelde
+        // görünüyordu ve HİÇBİR ŞEY onu okumuyordu: mod yalnızca node
+        // ayarından alınıyordu. Yani bir kanalı "seçici onay"a almak
+        // hiçbir işe yaramıyor, her video insana gidiyordu — Faz 2'nin
+        // kabul kriteri tam buradan kırılıyordu.
+        //
+        // SIRA: kanal → node ayarı → varsayılan. Kanal ayarı node
+        // ayarını EZİYOR çünkü kanal politikası graftan daha
+        // özeldir: aynı graf iki kanalda farklı onay rejimiyle
+        // koşabilmeli.
+        //
+        // Kanal yoksa varsayılan `Approval` ve öyle kalmalı:
+        // yapılandırılmamış bir kanal için otomatik yayın kararı
+        // vermek, hiç kimsenin bakmadığı bir videoyu yayına vermekti.
+        var mode = channels is not null && context.ChannelId is { } channelId
+            ? await channels.ModeAsync(channelId, cancellationToken).ConfigureAwait(false)
+                ?? ApprovalGate.ParseMode(NodeJson.Text(context.Config, "mode"))
+            : ApprovalGate.ParseMode(NodeJson.Text(context.Config, "mode"));
+
         var threshold = ConfigDouble(context.Config, "min_score", 0.75);
         var score = ScoreFrom(context.RunContext);
 
         var decision = ApprovalGate.Decide(mode, score, threshold);
 
-        return Task.FromResult(Result.Success(NodeJson.From(new Dictionary<string, object?>(StringComparer.Ordinal)
+        return Result.Success(NodeJson.From(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             [ApprovalGate.AwaitingField] = decision.Awaiting,
             ["reason"] = decision.Reason,
@@ -46,7 +67,7 @@ public sealed class ApprovalGateHandler : INodeHandler
             // Skor da yazılıyor: karardan sonra eşiği tartışan biri,
             // o koşudaki gerçek skoru aramak zorunda kalmasın.
             ["score"] = score,
-        })));
+        }));
     }
 
     /// QC skorunu run bağlamından okur.

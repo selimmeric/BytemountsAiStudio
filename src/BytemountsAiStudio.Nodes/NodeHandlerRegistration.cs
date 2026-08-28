@@ -24,7 +24,8 @@ public static class NodeHandlerRegistration
         string outputDirectory,
         string ffmpegPath = "ffmpeg",
         string ffprobePath = "ffprobe",
-        ITopicUniqueness? uniqueness = null)
+        ITopicUniqueness? uniqueness = null,
+        IChannelPolicy? channels = null)
     {
         var llm = new FakeLlmProvider
         {
@@ -115,7 +116,7 @@ public static class NodeHandlerRegistration
             // semantik kontrolün hiç var olmadığı bir hat demekti ve
             // model geldiğinde de kimse eklemeyi hatırlamazdı.
             .Register(new SemanticQualityHandler(storage))
-            .Register(new ApprovalGateHandler());
+            .Register(new ApprovalGateHandler(channels));
     }
 
     /// ANAHTARSIZ GERÇEK hat (ADR-015).
@@ -135,7 +136,8 @@ public static class NodeHandlerRegistration
         string outputDirectory,
         string ffmpegPath = "ffmpeg",
         string ffprobePath = "ffprobe",
-        ITopicUniqueness? uniqueness = null)
+        ITopicUniqueness? uniqueness = null,
+        IChannelPolicy? channels = null)
     {
         // Yerel LLM TEK YERDE kuruluyor.
         //
@@ -234,7 +236,7 @@ public static class NodeHandlerRegistration
             // Onay kapısı HER İKİ hatta da kayıtlı: sahte hatta
             // kayıtlı olmasaydı onay içeren bir graf sahte koşuda
             // "bilinmeyen node tipi" diye reddedilirdi.
-            .Register(new ApprovalGateHandler());
+            .Register(new ApprovalGateHandler(channels));
     }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.

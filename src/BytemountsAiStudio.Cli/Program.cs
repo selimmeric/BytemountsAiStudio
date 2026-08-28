@@ -56,7 +56,7 @@ static int Help()
         Kullanim:
           bmai pipeline [--topic "<konu>"] [--out <dosya.mp4>] [--lang tr-TR] [--dot <graf.dot>]
                                         sahte boru hatti: konu -> mp4
-          bmai run [--topic "<konu>"] [--lang tr-TR]
+          bmai run [--topic "<konu>"] [--lang tr-TR] [--channel "<kanal adi>"]
                                         sahte saglayicilarla kosar
           bmai real [--topic "<konu>"] [--lang tr-TR]
                                         ANAHTARSIZ gercek saglayicilar:
@@ -98,9 +98,16 @@ static int Unknown(string command)
 }
 
 static string Option(string[] args, string name, string fallback)
+    => OptionOrNull(args, name) ?? fallback;
+
+/// Verilmemiş bir seçenek için `null`.
+///
+/// Varsayılanı ÇAĞIRAN belirlesin: "kanal verilmedi" ile "kanal boş
+/// verildi" farklı şeyler ve boş dize dönmek ikisini eşitlerdi.
+static string? OptionOrNull(string[] args, string name)
 {
     var index = Array.IndexOf(args, name);
-    return index >= 0 && index + 1 < args.Length ? args[index + 1] : fallback;
+    return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
 }
 
 static string StorageRoot()
@@ -241,11 +248,17 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     // yayinlamanin en sessiz yolu olurdu.
     var uniqueness = new TitleUniqueness(db);
 
+    // KANAL POLITIKASI: onay modu kanaldan okunuyor. Verilmezse kapi
+    // "her videoyu sor" diyor - yapilandirilmamis bir kanal icin
+    // otomatik yayin karari vermek, hic kimsenin bakmadigi bir videoyu
+    // yayina vermekti.
+    var channelPolicy = new ChannelPolicy(db);
+
     var registry = open
         ? NodeHandlerRegistration.BuildOpenRegistry(
-            storage, http, outputDirectory, uniqueness: uniqueness)
+            storage, http, outputDirectory, uniqueness: uniqueness, channels: channelPolicy)
         : NodeHandlerRegistration.BuildFakeRegistry(
-            storage, outputDirectory, uniqueness: uniqueness);
+            storage, outputDirectory, uniqueness: uniqueness, channels: channelPolicy);
 
     var queue = new JobQueue(db);
     var engine = new WorkflowEngine(db, queue, registry);
@@ -267,7 +280,33 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
         input = new { topic, language = languageTag },
     });
 
-    var started = await engine.StartRunAsync(version.Id, null, null, CancellationToken.None, input)
+    // KANAL İSTEĞE BAĞLI ama davranışı değiştiriyor: kanal yoksa onay
+    // kapısı "her videoyu sor" moduna düşüyor. Bu güvenli varsayılan
+    // ve öyle kalmalı — yapılandırılmamış bir kanal için otomatik
+    // yayın kararı vermek, hiç kimsenin bakmadığı bir videoyu yayına
+    // vermekti.
+    Guid? channelId = null;
+    var channelName = OptionOrNull(args, "--channel");
+
+    if (channelName is not null)
+    {
+        var channel = await db.Channels
+            .FirstOrDefaultAsync(c => c.Name == channelName)
+            .ConfigureAwait(false);
+
+        if (channel is null)
+        {
+            Console.Error.WriteLine($"Kanal bulunamadi: {channelName}");
+            return 5;
+        }
+
+        channelId = channel.Id;
+
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"kanal     : {channel.Name} ({channel.Mode})"));
+    }
+
+    var started = await engine.StartRunAsync(version.Id, channelId, null, CancellationToken.None, input)
         .ConfigureAwait(false);
 
     if (started.IsFailure)

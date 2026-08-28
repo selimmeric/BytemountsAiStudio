@@ -26,6 +26,20 @@ public sealed record NodeContext
     public required string IdempotencyKey { get; init; }
 
     public required string CorrelationId { get; init; }
+
+    /// Bu run hangi kanala ait.
+    ///
+    /// `null` = kanalsız koşu (CLI denemesi, bakım). Node'lar bunu
+    /// kanala özel ayarları okumak için kullanıyor: onay modu, ses,
+    /// bütçe.
+    ///
+    /// EKSİKLİĞİ SESSİZ BİR HATAYA YOL AÇTI: `channels.mode` kolonu
+    /// vardı, tohumlanıyordu, panelde görünüyordu ve HİÇBİR ŞEY onu
+    /// okumuyordu. Onay kapısı modu yalnızca node ayarından alıyordu,
+    /// yani bir kanalı "seçici onay"a almak hiçbir işe yaramıyor,
+    /// her video insana gidiyordu — Faz 2'nin kabul kriteri tam
+    /// buradan kırılıyordu.
+    public Guid? ChannelId { get; init; }
 }
 
 /// Bir node tipini çalıştıran işleyici.
