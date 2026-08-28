@@ -105,11 +105,20 @@ public sealed record ChannelSettings
 
     private static ChannelPacing ReadPacing(JsonElement root, List<string> warnings)
     {
-        var pacing = root.TryGetProperty("pacing", out var nested) && nested.ValueKind == JsonValueKind.Object
-            ? nested
-            : root;
+        // TEMPO AYARLARI HEM `pacing` ICINDE HEM KOKTE ARANIYOR.
+        //
+        // Yalnizca birine bakmak, yarisini ic ice yarisini kokte yazan
+        // birinin ayarlarinin sessizce yok sayilmasi demekti — ve bu
+        // gercekten oldu: `daily_target` kokte, `time_zone` icerideyken
+        // hedef gorulmuyordu. Ses kimliginde de ayni esneklik var
+        // (`voice.voice_id` ve duz `voice_id`).
+        var nested = root.TryGetProperty("pacing", out var block) && block.ValueKind == JsonValueKind.Object
+            ? block
+            : default;
 
-        var target = Int(pacing, "daily_target");
+        var pacing = nested.ValueKind == JsonValueKind.Object ? nested : root;
+
+        var target = Int(pacing, "daily_target") ?? Int(root, "daily_target");
 
         if (target is null)
         {
@@ -120,7 +129,7 @@ public sealed record ChannelSettings
             warnings.Add($"`daily_target` negatif ({target}); 0 sayıldı");
         }
 
-        var zone = Text(pacing, "time_zone");
+        var zone = Text(pacing, "time_zone") ?? Text(root, "time_zone");
 
         if (zone is not null && !TimeZoneExists(zone))
         {
@@ -134,7 +143,9 @@ public sealed record ChannelSettings
         return new ChannelPacing
         {
             DailyTarget = Math.Max(target ?? 1, 0),
-            PublishWindows = ReadWindows(pacing, warnings),
+            PublishWindows = ReadWindows(pacing, warnings) is { Count: > 0 } windows
+                ? windows
+                : ReadWindows(root, warnings),
             MinimumGap = ReadGap(pacing, warnings),
             TimeZoneId = zone ?? "Europe/Istanbul",
         };

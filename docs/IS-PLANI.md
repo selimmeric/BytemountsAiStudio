@@ -283,7 +283,11 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 - [ ] **P3-06** `3p` — Workflow sürümleme UI + çalışan run'ların eski sürümde kalması
 - [ ] **P3-07** `3p` — Prompt registry UI + eval sonuçları
 - [ ] **P3-08** `3p` — Varlık gezgini + lisans raporu
-- [ ] **P3-09** `3p` — Üçüncü dil (konfigürasyonla) — soyutlamanın sınavı
+- [x] **P3-09** `3p` — Üçüncü dil (konfigürasyonla) — soyutlamanın sınavı
+  - *Bitti:* ✔ 28 Ağu 2026 — **Arapça kanal tek satır SQL ile eklendi ve uçtan uca koştu**, hiç kod değişmeden: `ar-SA`, ses `kanal-ar-ozel` (kanaldan), yazı tipi `["Noto Naskh Arabic","Arial"]` (kanaldan), render 1080×1920 / 45 sn / −16 LUFS, QC 0,97, `Completed`.
+    Arapça bilinçli seçildi: Türkçe ve İngilizce'nin ikisi de soldan sağa ve Latin alfabesi. İki soldan sağa dil desteklemek "çok dilli" olmayı kanıtlamıyor — ilk gerçek sınav sağdan sola. **Yön bilgisi dilin kendisinden türüyor**, elle tutulan bir liste değil; liste olsaydı dördüncü dilde yine kod değişikliği isterdi.
+    **Sınav gerçek bir hata buldu:** .NET `tr_TR` etiketini kabul ediyor ve adını `tr_tr` yapıyor — yani `tr-TR` ile **eşit olmayan** ikinci bir dil nesnesi. Sonuçları sessiz ve ağırdı: `Primary` değeri "tr" değil "tr_tr" çıkıyor (ses ve yazı tipi seçimi hiçbir şeyle eşleşmiyor) ve tekillik sorgusu dile göre filtrelediği için `tr_tr` konuları `tr-TR` konularını hiç görmüyor, aynı video ikinci kez üretiliyordu. **Sınıfın kendi belge yorumu tam olarak bu senaryoyu "önlendi" diye anlatıyordu; önlenmemişti.**
+    İkinci bulgu: tempo ayarlarının yarısı `pacing` içinde yarısı kökte yazıldığında kökteki sessizce yok sayılıyordu. Artık ikisine de bakılıyor — ses kimliğindeki esnekliğin aynısı. 21 test
 - [ ] **P3-10** `2p` — 🏁 **Faz 3 kabul:** iki kanal farklı workflow'larla, biri uzun video üretiyor
 
 ---
