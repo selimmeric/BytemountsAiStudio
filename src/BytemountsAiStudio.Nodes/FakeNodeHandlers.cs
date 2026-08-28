@@ -391,7 +391,8 @@ public sealed class TtsSynthesizeHandler(
     ITtsProvider tts,
     IStorageProvider storage,
     string ffprobePath = "ffprobe",
-    IAsrProvider? asr = null) : INodeHandler
+    IAsrProvider? asr = null,
+    IChannelPolicy? channels = null) : INodeHandler
 {
     public string NodeType => "tts.synthesize";
 
@@ -408,7 +409,24 @@ public sealed class TtsSynthesizeHandler(
         ArgumentNullException.ThrowIfNull(context);
 
         var language = LanguageTag.Create(NodeJson.Text(context.RunContext, "topic.language") ?? "tr-TR");
-        var voiceId = NodeJson.Text(context.Config, "voice_id") ?? $"fake-{language.Primary}-f1";
+        // SES ÖNCE KANALDAN (P3-01).
+        //
+        // `voice.voice_id` kanal ayarında duruyordu ve HİÇBİR ŞEY onu
+        // okumuyordu: ses yalnızca node ayarından geliyordu, yani
+        // kanalı değiştirmek sesi değiştirmiyordu. İki kanalın aynı
+        // grafla farklı sesle konuşabilmesi, çoklu kanalın en temel
+        // vaadi.
+        //
+        // SIRA: kanal → node ayarı → dile göre varsayılan. Kanal
+        // ayarı node ayarını eziyor çünkü kanal kimliği graftan daha
+        // özel.
+        var channelSettings = channels is not null && context.ChannelId is { } ttsChannel
+            ? await channels.SettingsAsync(ttsChannel, cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var voiceId = channelSettings?.VoiceId
+                      ?? NodeJson.Text(context.Config, "voice_id")
+                      ?? $"fake-{language.Primary}-f1";
 
         if (!context.RunContext.TryGetProperty("script", out var script)
             || !script.TryGetProperty("sentences", out var sentences))
@@ -826,7 +844,9 @@ public sealed class VisualResolveHandler(
 /// context'e yalnızca referansı giriyor. Belgeyi context'e gömmek run
 /// bağlamını şişirir ve "hangi timeline render edildi" sorusunun cevabını
 /// kaybettirirdi.
-public sealed class TimelineCompileHandler(IStorageProvider storage) : INodeHandler
+public sealed class TimelineCompileHandler(
+    IStorageProvider storage,
+    IChannelPolicy? channels = null) : INodeHandler
 {
     public string NodeType => "timeline.compile";
 
@@ -836,7 +856,18 @@ public sealed class TimelineCompileHandler(IStorageProvider storage) : INodeHand
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var build = TimelineBuilder.Build(context.RunContext);
+        // YAZI TİPİ ZİNCİRİ KANALDAN (P3-01).
+        //
+        // `font_stack` kanal ayarında duruyordu, timeline sabit bir
+        // liste kullanıyordu. Bir kanalın altyazı karakterini
+        // değiştirmek imkânsızdı — üstelik dile göre farklı yazı tipi
+        // gerekebiliyor (Arapça, Japonca).
+        var fonts = channels is not null && context.ChannelId is { } timelineChannel
+            ? (await channels.SettingsAsync(timelineChannel, cancellationToken)
+                .ConfigureAwait(false))?.FontStack
+            : null;
+
+        var build = TimelineBuilder.Build(context.RunContext, fonts);
         if (build.IsFailure)
         {
             return Result.Failure<JsonElement>(build.Error);

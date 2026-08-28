@@ -19,4 +19,11 @@ public interface IChannelPolicy
     /// "kanal her videoyu sormak istiyor". Eşitlemek, silinmiş bir
     /// kanalın politikasını varmış gibi göstermekti.
     Task<ChannelMode?> ModeAsync(Guid channelId, CancellationToken cancellationToken);
+
+    /// Kanalın tüm çalışma ayarları (P3-01): ses, yazı tipi, tempo,
+    /// tür karışımı, bütçe eylemi.
+    ///
+    /// TEK ÇAĞRIDA HEPSİ: her ayar için ayrı sorgu, aynı belgeyi
+    /// node başına birkaç kez okumak olurdu. Kanal yoksa `null`.
+    Task<ChannelSettings?> SettingsAsync(Guid channelId, CancellationToken cancellationToken);
 }

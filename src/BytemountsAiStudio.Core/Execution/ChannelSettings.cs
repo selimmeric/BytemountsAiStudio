@@ -23,6 +23,29 @@ public sealed record ChannelSettings
     /// Hangi iş akışıyla üretiliyor. Boşsa çağıran varsayılanı seçiyor.
     public string? WorkflowKey { get; init; }
 
+    /// Kanalın sesi (P3-01).
+    ///
+    /// KANALIN KİMLİĞİNİN PARÇASI: iki kanal aynı grafla koşup farklı
+    /// sesle konuşabilmeli. Ayar kaydediliyordu ama hiçbir yerde
+    /// okunmuyordu — ses yalnızca node ayarından geliyordu, yani
+    /// kanalı değiştirmek sesi değiştirmiyordu.
+    public string? VoiceId { get; init; }
+
+    /// Yazı tipi zinciri (P3-01).
+    ///
+    /// Aynı hikâye: kanal ayarında duruyordu, timeline sabit bir liste
+    /// kullanıyordu. Bir kanalın altyazı karakterini değiştirmek
+    /// imkânsızdı — üstelik dile göre farklı yazı tipi gerekebiliyor
+    /// (Arapça, Japonca).
+    ///
+    /// Boşsa `null`: çağıran kendi varsayılanını seçsin. Boş liste
+    /// dönmek "yazı tipi yok" demekti ve o hâlde hiçbir altyazı
+    /// çizilemezdi.
+    public IReadOnlyList<string>? FontStack { get; init; }
+
+    /// Onay rejimi (P2-08).
+    public ChannelMode? Mode { get; init; }
+
     /// AYARDA ANLAŞILMAYAN NE VARSA BURADA.
     ///
     /// Varsayılana düşmek doğru davranış ama SESSİZCE düşmek değil:
@@ -74,6 +97,8 @@ public sealed record ChannelSettings
             BudgetAction = BudgetPolicy.ParseAction(Text(root, "action_on_exceed")),
             Genres = ReadGenres(root, warnings),
             WorkflowKey = Text(root, "workflow_key"),
+            VoiceId = ReadVoiceId(root),
+            FontStack = ReadFontStack(root, warnings),
             Warnings = warnings,
         };
     }
@@ -223,6 +248,53 @@ public sealed record ChannelSettings
         {
             return false;
         }
+    }
+
+    /// Ses kimliği: `voice.voice_id` ya da düz `voice_id`.
+    ///
+    /// İkisi de kabul ediliyor çünkü ayar belgesi ikisini de görüyor —
+    /// yalnız birini desteklemek, diğerini yazan kullanıcının ayarının
+    /// sessizce yok sayılması olurdu.
+    private static string? ReadVoiceId(JsonElement root)
+    {
+        if (root.TryGetProperty("voice", out var voice) && voice.ValueKind == JsonValueKind.Object)
+        {
+            var nested = Text(voice, "voice_id");
+
+            if (!string.IsNullOrWhiteSpace(nested))
+            {
+                return nested;
+            }
+        }
+
+        var flat = Text(root, "voice_id");
+
+        return string.IsNullOrWhiteSpace(flat) ? null : flat;
+    }
+
+    private static List<string>? ReadFontStack(JsonElement root, List<string> warnings)
+    {
+        if (!root.TryGetProperty("font_stack", out var array) || array.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var fonts = array.EnumerateArray()
+            .Where(f => f.ValueKind == JsonValueKind.String)
+            .Select(f => f.GetString()!)
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .ToList();
+
+        if (fonts.Count == 0)
+        {
+            // BOŞ LİSTE `null` OLUYOR: "yazı tipi yok" diye okunursa
+            // hiçbir altyazı çizilemez. Yapılandırma hatasının bedeli
+            // varsayılan yazı tipi olmalı, altyazısız video değil.
+            warnings.Add("`font_stack` boş; varsayılan yazı tipleri kullanılıyor");
+            return null;
+        }
+
+        return fonts;
     }
 
     private static string? Text(JsonElement element, string name)

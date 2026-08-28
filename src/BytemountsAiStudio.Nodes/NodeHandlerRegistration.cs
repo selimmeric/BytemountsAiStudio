@@ -83,7 +83,8 @@ public static class NodeHandlerRegistration
             .Register(new TopicSelectHandler(uniqueness))
             .Register(new ResearchHandler())
             .Register(new ScriptGenerateHandler(llm))
-            .Register(new TtsSynthesizeHandler(new FakeTtsProvider(), storage, ffprobePath))
+            .Register(new TtsSynthesizeHandler(
+                new FakeTtsProvider(), storage, ffprobePath, channels: channels))
             .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
             // MUZIK TIMELINE'DAN ONCE: derleme adimi bagladan muzigi
             // okuyor ve o sirada indirilmis olmasi gerekiyor.
@@ -92,7 +93,7 @@ public static class NodeHandlerRegistration
             // gecerli goründuğu icin.
             .Register(new MusicSelectHandler(
                 new FakeMusicProvider(), storage, FakeMusicDownloader()))
-            .Register(new TimelineCompileHandler(storage))
+            .Register(new TimelineCompileHandler(storage, channels))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             // Cikarim ve dogrulama AYNI sahte modelden; gercek hatta
             // da su an oyle. Ayrimin gerekcesi ClaimCheckHandler'da.
@@ -187,7 +188,8 @@ public static class NodeHandlerRegistration
                 ]),
                 storage,
                 ffprobePath,
-                sidecar))
+                sidecar,
+                channels))
             // ONCE STOK, BULUNAMAZSA URET (P1-18).
             //
             // Openverse gercek fotograf veriyor; uretilen gorselde eller,
@@ -208,7 +210,7 @@ public static class NodeHandlerRegistration
             // gecerli gorundugu icin.
             .Register(new MusicSelectHandler(
                 new OpenverseMusicProvider(http), storage, MusicSelectHandler.HttpDownloader(http)))
-            .Register(new TimelineCompileHandler(storage))
+            .Register(new TimelineCompileHandler(storage, channels))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm))

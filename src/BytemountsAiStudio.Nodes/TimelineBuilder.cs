@@ -16,6 +16,13 @@ namespace BytemountsAiStudio.Nodes;
 public static class TimelineBuilder
 {
     public static Result<TimelineDocument> Build(JsonElement runContext)
+        => Build(runContext, null);
+
+    /// `fontStack` kanaldan geliyor (P3-01). `null` ise varsayılan
+    /// zincir kullanılıyor — kanal ayarı yoksa altyazısız video değil,
+    /// makul bir yazı tipi doğru davranış.
+    public static Result<TimelineDocument> Build(
+        JsonElement runContext, IReadOnlyList<string>? fontStack)
     {
         if (!runContext.TryGetProperty("tts", out var tts)
             || !tts.TryGetProperty("segments", out var segmentsJson))
@@ -130,7 +137,7 @@ public static class TimelineBuilder
             Language = language,
             RightToLeft = language.IsRightToLeft,
             Duration = total,
-            FontStack = ["Inter", "Noto Sans", "Segoe UI", "Arial"],
+            FontStack = fontStack ?? ["Inter", "Noto Sans", "Segoe UI", "Arial"],
             Audio = new AudioTrack { VoiceSegments = segments, Music = MusicFrom(runContext) },
             Scenes = scenes,
             Captions = cues.Count > 0
