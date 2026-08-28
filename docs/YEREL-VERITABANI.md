@@ -156,3 +156,59 @@ koşmaya devam ediyor.
 | `-Action stop` | Sunucuyu durdur |
 | `-Action status` | Durum + pgvector var mı |
 | `-Action remove` | Her şeyi sil |
+
+---
+
+## Docker açılmıyorsa: yetim soket dosyaları
+
+**28 Ağu 2026 — çözüldü, ama tekrar edecek bir arıza.**
+
+Docker Desktop açılışta şu hatayla çöküyordu ve arayüz yalnızca
+"unexpected error" diyordu:
+
+```
+backend cancelling with error: starting services: initializing Ingest server:
+listening on unix://.../Docker/run/sailor-ingest.sock:
+remove .../sailor-ingest.sock: The file cannot be accessed by the system.
+```
+
+### Sebep
+
+Sert çökmelerden (mavi ekran) sonra Docker'ın AF_UNIX soket dosyaları
+diskte **yetim** kalıyor. Bunlar sıradan dosya değil, `ReparsePoint`:
+arkalarındaki çekirdek nesnesi öldüğü için Windows onlara erişemiyor —
+okunamıyor, **silinemiyor**. Docker açılışta üzerlerine yazmayı deniyor,
+silemiyor ve vazgeçiyor.
+
+`Remove-Item -Force` çalışmıyor: "Sistem dosyaya erişemiyor."
+
+### Çözüm: dosyayı değil DİZİNİ yeniden adlandır
+
+Dosyaya erişilemiyor ama **dizin girdisi** hâlâ değiştirilebiliyor:
+
+```powershell
+Get-Process -Name "*docker*","com.docker*" | Stop-Process -Force
+Rename-Item "$env:LOCALAPPDATA\Docker\run" "run-bozuk"
+New-Item -ItemType Directory "$env:LOCALAPPDATA\Docker\run"
+```
+
+**İKİ AYRI DİZİNE BAKIN.** İlk denemede yalnızca `Docker\run`
+temizlendi ve Docker bu kez `docker-secrets-engine` dizinindeki başka
+bir yetim sokette çöktü — aynı arıza, farklı yer:
+
+- `%LOCALAPPDATA%\Docker\run`
+- `%LOCALAPPDATA%\docker-secrets-engine`
+
+Her ikisinde de `ReparsePoint` özniteliği taşıyan dosya varsa dizini
+yeniden adlandırın. Docker açılışta yenisini oluşturuyor; bu dizinlerde
+kullanıcı verisi yok, yalnızca çalışma zamanı soketleri.
+
+Adlandırılan dizinler silinemiyor ama zararsız: içindeki dosyalar
+erişilemez olduğu için yer kaplamıyorlar (0 bayt).
+
+### Neden "sıfırlama" gerekmiyor
+
+Docker'ın kendi hata ekranı "Reset to factory defaults" öneriyor. O
+seçenek **bütün imajları ve volume'leri siliyor** — yani veritabanı
+verisini de. Yetim soket sorununda gereksiz: sorun yapılandırmada değil,
+dört tane erişilemez dosyada.
