@@ -82,6 +82,37 @@ internal sealed record CostSummary(
     decimal AveragePerRun,
     IReadOnlyList<ProviderCostEntry> ByProvider);
 
+/// Bir sağlayıcının GÖZLENEN sağlığı (P2-04).
+///
+/// Devre kesicinin kendi durumu SÜREÇ İÇİ ve öyle kalıyor: bayrağı her
+/// çağrıda veritabanına yazmak, para harcamayan bir kontrolü hattın en
+/// sık sorgusuna çevirirdi. Panelde gösterilen şey o yüzden bir
+/// worker'ın özel sayacı değil, FİLONUN TAMAMININ gözlemi —
+/// `provider_calls` zaten yazılıyor ve doğru soruya cevap veren de bu:
+/// "bu sağlayıcı şu an sağlıklı mı", "şu worker'da devre açık mı"
+/// değil.
+internal sealed record ProviderHealthEntry(
+    string ProviderKey,
+    int Calls,
+    int Failures,
+    /// SONDAKİ ART ARDA HATA SAYISI.
+    ///
+    /// Toplam hata oranından farklı ve daha keskin: sabah beş hata alıp
+    /// sonra düzelmiş bir sağlayıcı ile şu an art arda beş hata veren
+    /// sağlayıcı aynı orana sahip olabiliyor, ama biri sağlıklı diğeri
+    /// ölü. Devre kesicinin baktığı sayı da bu.
+    int ConsecutiveFailures,
+    bool Unhealthy,
+    DateTimeOffset? LastCallAt,
+    DateTimeOffset? LastSuccessAt,
+    int AverageLatencyMs,
+    decimal Cost);
+
+internal sealed record ProviderHealthSummary(
+    int WindowMinutes,
+    int FailureThreshold,
+    IReadOnlyList<ProviderHealthEntry> Providers);
+
 /// SSE ile yayılan ilerleme.
 ///
 /// Panonun yenilemeden ilerleme görmesi için gereken en küçük belge.

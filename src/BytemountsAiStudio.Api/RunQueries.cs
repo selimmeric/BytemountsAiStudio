@@ -220,4 +220,63 @@ internal static class RunQueries
             return null;
         }
     }
+
+    /// Sağlayıcı sağlığı (P2-04): son pencerede ne oldu.
+    ///
+    /// PENCERE ŞART. Pencere olmasaydı, aylar önce bir kez bozulmuş
+    /// bir sağlayıcı sonsuza kadar "hatalı" görünürdü ve panel bir
+    /// süre sonra hiçbir şey söylemez olurdu.
+    ///
+    /// ART ARDA HATA, toplam hata oranından ayrı hesaplanıyor: sabah
+    /// beş hata alıp düzelmiş bir sağlayıcı ile şu an art arda beş
+    /// hata veren sağlayıcı aynı orana sahip olabiliyor ama biri
+    /// sağlıklı, diğeri ölü.
+    public static async Task<IReadOnlyList<ProviderHealthEntry>> ProviderHealthAsync(
+        StudioDbContext db, TimeSpan window, int failureThreshold, CancellationToken cancellationToken)
+    {
+        var since = DateTimeOffset.UtcNow - window;
+
+        var calls = await db.ProviderCalls.AsNoTracking()
+            .Where(c => c.CreatedAt >= since)
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new { c.ProviderKey, c.Succeeded, c.CreatedAt, c.LatencyMs, c.Cost })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return [.. calls
+            .GroupBy(c => c.ProviderKey, StringComparer.Ordinal)
+            .Select(g =>
+            {
+                // Sondan geriye: ilk başarıda duruyor.
+                var consecutive = 0;
+
+                foreach (var call in g.Reverse())
+                {
+                    if (call.Succeeded)
+                    {
+                        break;
+                    }
+
+                    consecutive++;
+                }
+
+                var failures = g.Count(c => !c.Succeeded);
+
+                return new ProviderHealthEntry(
+                    g.Key,
+                    g.Count(),
+                    failures,
+                    consecutive,
+                    consecutive >= failureThreshold,
+                    g.Max(c => c.CreatedAt),
+                    g.Where(c => c.Succeeded).Select(c => (DateTimeOffset?)c.CreatedAt).Max(),
+                    (int)g.Average(c => c.LatencyMs),
+                    g.Sum(c => c.Cost));
+            })
+            // SAĞLIKSIZ OLANLAR ÖNCE: panelde ilk görülmesi gereken
+            // satır, sorunu olan satır.
+            .OrderByDescending(p => p.Unhealthy)
+            .ThenByDescending(p => p.ConsecutiveFailures)
+            .ThenBy(p => p.ProviderKey, StringComparer.Ordinal)];
+    }
 }

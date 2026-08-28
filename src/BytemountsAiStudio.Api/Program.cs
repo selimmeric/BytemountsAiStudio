@@ -246,6 +246,33 @@ app.MapGet("/cost", async (StudioDbContext db, CancellationToken cancellationTok
         byProvider));
 });
 
+// Kaç art arda hata "sağlıksız" sayılıyor.
+//
+// Devre kesicinin eşiğiyle AYNI (5): panelde kırmızı görünen satır
+// ile devrenin gerçekten açılacağı an aynı olmalı, yoksa panel
+// "sağlıklı" derken çağrılar reddedilir ve kimse sebebini anlamaz.
+const int ProviderFailureThreshold = 5;
+
+// ---- Sağlayıcı sağlığı (P2-04) ----
+//
+// Devre kesicinin süreç içi durumu DEĞİL, filonun gözlemi. Bayrağı
+// her çağrıda veritabanına yazmak, para harcamayan bir kontrolü
+// hattın en sık sorgusuna çevirirdi; oysa `provider_calls` zaten
+// yazılıyor ve "bu sağlayıcı şu an sağlıklı mı" sorusuna asıl cevap
+// veren de o.
+app.MapGet("/providers", async (
+    StudioDbContext db, CancellationToken cancellationToken, int windowMinutes = 30) =>
+{
+    // Pencere makul sınırlar içinde: sıfır ya da negatif bir değer
+    // hiçbir çağrıyı kapsamaz ve panel boş görünürdü.
+    var minutes = Math.Clamp(windowMinutes, 1, 24 * 60);
+
+    var providers = await RunQueries.ProviderHealthAsync(
+        db, TimeSpan.FromMinutes(minutes), ProviderFailureThreshold, cancellationToken);
+
+    return Results.Ok(new ProviderHealthSummary(minutes, ProviderFailureThreshold, providers));
+});
+
 app.Run();
 
 /// Karar sonucunu HTTP'ye çevirir.

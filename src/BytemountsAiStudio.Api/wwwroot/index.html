@@ -113,6 +113,7 @@ const TABS = [
   ["topics", "Konu havuzu"],
   ["dlq", "Ölü mektup"],
   ["cost", "Maliyet"],
+  ["providers", "Sağlayıcılar"],
   ["control", "Kontrol"],
 ];
 
@@ -418,6 +419,49 @@ async function showCost() {
     ${panel("Sağlayıcı kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Düşen", "Tutar"], rows))}`;
 }
 
+/* ---- Sağlayıcı sağlığı (P2-04) ---- */
+
+/* Devre kesicinin SÜREÇ İÇİ durumu değil, filonun gözlemi.
+ *
+ * Bir worker'ın özel sayacını göstermek yanıltıcı olurdu: üç worker'lı
+ * bir kurulumda üçünün sayacı farklı ve panel hangisini gösterirse
+ * göstersin diğer ikisi hakkında yalan söylüyor. Burada gösterilen
+ * şey gerçekte olan: son pencerede kaç çağrı yapıldı, kaçı düştü,
+ * şu an art arda kaç hata var.
+ */
+async function showProviders() {
+  const summary = await api("/providers");
+
+  const rows = summary.providers.map((p) => `
+    <tr>
+      <td>${esc(p.providerKey)}</td>
+      <td>${p.unhealthy
+        ? `<span class="tag s-Failed">sağlıksız</span>`
+        : `<span class="tag s-Running">sağlıklı</span>`}</td>
+      <td class="mono">${p.calls}</td>
+      <td class="mono">${p.failures ? `<span class="s-Failed">${p.failures}</span>` : "0"}</td>
+      <td class="mono">${p.consecutiveFailures}/${summary.failureThreshold}</td>
+      <td class="mono">${esc(ms(p.averageLatencyMs))}</td>
+      <td class="muted">${esc(when(p.lastSuccessAt))}</td>
+      <td class="mono">${esc(money(p.cost))}</td>
+    </tr>`);
+
+  /* HİÇ ÇAĞRI YOKSA BUNU SÖYLÜYOR.
+   *
+   * Boş bir tablo "her şey yolunda" gibi okunurdu; oysa "son yarım
+   * saatte hiç çağrı yapılmamış" bambaşka bir bilgi ve gece boyu
+   * çalışması beklenen bir sistemde bu, başlı başına bir arıza
+   * işareti. */
+  view.innerHTML = rows.length
+    ? panel(
+        `Son ${summary.windowMinutes} dakika`,
+        table(["Sağlayıcı", "Durum", "Çağrı", "Düşen", "Art arda", "Ortalama", "Son başarı", "Tutar"], rows),
+        `<span class="muted">Art arda ${summary.failureThreshold} hata = devre açılır</span>`)
+    : panel("Sağlayıcılar",
+        `<p class="muted">Son ${summary.windowMinutes} dakikada hiç sağlayıcı çağrısı yok.
+         Sistem çalışıyorsa bu beklenen bir durum değil.</p>`);
+}
+
 /* ---- Kontroller (P2-04) ---- */
 
 async function showControl() {
@@ -511,6 +555,7 @@ const VIEWS = {
   topics: showTopics,
   dlq: showDlq,
   cost: showCost,
+  providers: showProviders,
   control: showControl,
 };
 
