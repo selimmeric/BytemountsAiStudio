@@ -34,6 +34,7 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
         await db.Database.ExecuteSqlRawAsync("DELETE FROM runs");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM topics");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM channels");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM workflows");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM settings");
 
         SystemControl.Invalidate();
@@ -50,6 +51,25 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
 
     private static RunPlanner Planner(StudioDbContext db, TimeProvider time)
         => new(db, new SystemControl(db, time), new CostLedger(db, time), new TopicPool(db), time);
+
+    /// GERÇEK bir iş akışı sürümü: `runs.workflow_version_id` yabancı
+    /// anahtar taşıyor ve uydurma bir kimlik kısıtı ihlal ediyor.
+    private static async Task<Guid> VersionAsync(StudioDbContext db)
+    {
+        var workflow = new Persistence.Entities.Workflow
+        {
+            Key = "planner-" + Guid.NewGuid().ToString("N")[..8],
+            Name = "Planlayici testi",
+            CurrentVersion = 1,
+        };
+
+        var version = new WorkflowVersion { Version = 1, GraphJson = "{}" };
+        workflow.Versions.Add(version);
+        db.Workflows.Add(workflow);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        return version.Id;
+    }
 
     private static async Task<Channel> ChannelAsync(
         StudioDbContext db, string settings = """{"daily_target":3}""", bool withTopic = true)
@@ -141,7 +161,12 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
 
         var channel = await ChannelAsync(db);
 
-        db.Runs.Add(new Run { ChannelId = channel.Id, State = RunState.Running, WorkflowVersionId = Guid.CreateVersion7() });
+        db.Runs.Add(new Run
+        {
+            ChannelId = channel.Id,
+            State = RunState.Running,
+            WorkflowVersionId = await VersionAsync(db),
+        });
         await db.SaveChangesAsync(CancellationToken.None);
 
         var verdict = await Planner(db, new FakeTimeProvider(Noon)).DecideAsync(channel, CancellationToken.None);
@@ -167,7 +192,7 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
         {
             ChannelId = channel.Id,
             State = RunState.WaitingApproval,
-            WorkflowVersionId = Guid.CreateVersion7(),
+            WorkflowVersionId = await VersionAsync(db),
         });
 
         await db.SaveChangesAsync(CancellationToken.None);
@@ -191,7 +216,7 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
         {
             ChannelId = channel.Id,
             State = RunState.Completed,
-            WorkflowVersionId = Guid.CreateVersion7(),
+            WorkflowVersionId = await VersionAsync(db),
             CreatedAt = Noon.AddHours(-5),
         });
 
@@ -217,7 +242,7 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
             {
                 ChannelId = channel.Id,
                 State = RunState.Completed,
-                WorkflowVersionId = Guid.CreateVersion7(),
+                WorkflowVersionId = await VersionAsync(db),
                 CreatedAt = Noon.AddHours(-6 + i),
             });
         }
@@ -244,7 +269,7 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
         {
             ChannelId = channel.Id,
             State = RunState.Completed,
-            WorkflowVersionId = Guid.CreateVersion7(),
+            WorkflowVersionId = await VersionAsync(db),
             CreatedAt = Noon.AddMinutes(-30),
         });
 
@@ -389,7 +414,7 @@ public sealed class RunPlannerTests(DatabaseFixture fixture) : IAsyncLifetime
         {
             ChannelId = channel.Id,
             State = RunState.Completed,
-            WorkflowVersionId = Guid.CreateVersion7(),
+            WorkflowVersionId = await VersionAsync(db),
             CreatedAt = Noon.AddHours(-2),
             ContextJson = """{"genre":"tarih"}""",
         });
