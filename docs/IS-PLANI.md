@@ -341,7 +341,15 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 - [ ] **P4-02** `4p` — S3 uyumlu nesne deposu (MinIO/R2) + retention politikaları
 - [ ] **P4-03** `3p` — Redis: dağıtık rate-limit + circuit breaker durumu
 - [ ] **P4-04** `4p` — Çoklu GCP projesi / kota havuzu yönetimi
-- [ ] **P4-05** `4p` — Docker + Linux dağıtımı, sağlık kontrolleri, otomatik yeniden başlatma
+- [x] **P4-05** `4p` — Docker + Linux dağıtımı, sağlık kontrolleri, otomatik yeniden başlatma
+  - *Bitti:* ✔ 28 Ağu 2026 — API ve Worker Linux kabında; ikisi de `healthy`, **iki video kap içinde insan müdahalesi olmadan üretildi** (47,9 sn dikey ve 603,4 sn yatay, QC 0,97, sıfır retry). Ayrıntı: [DAGITIM.md](DAGITIM.md)
+  - *Kabı çalıştırmak DÖRT gerçek hata buldu* — hepsi yerelde geçen, imajı derlenen ve **sağlıklı başlayan** bir sistemde vardı:
+    1. `.editorconfig` derleme bağlamında yoktu: analiz kuralları orada bastırılıyor ve uyarılar hata sayıldığı için kap içindeki derleme, yerelde geçen kodu reddetti. **Gürültülü** hata, hemen görüldü
+    2. **İstem dosyaları imaja hiç girmedi — sessiz.** `Contracts` istemleri `../../prompts/**` globuyla gömüyor, Dockerfile yalnızca `src/` kopyalıyordu. Glob hiçbir dosya bulmadı, **MSBuild tek bir uyarı bile vermedi**, imaj derlendi, kap sağlıklı başladı ve hiçbir video üretemedi: her run `prompts.empty` ile düştü. İki düzeltme birden yapıldı — dizin kopyalanıyor **ve boş glob artık derlemeyi düşürüyor**, çünkü tek başına birincisi tekrarı engellemiyor
+    3. **`aspnet` imajında ne curl ne wget var.** API'nin sağlık kontrolü `wget` ile yazılmıştı, her seferinde "not found" ile düştü, kap `unhealthy` oldu ve yeniden başlatıldı — API'nin kendisi gayet sağlıklıyken. Sağlık kontrolü, kontrol ettiği şeyden kırılgan olmamalı
+    4. **Sağlık kontrolü yazmak "otomatik yeniden başlatma" demek değil.** Docker'ın `restart` politikası yalnızca ÇIKAN kabı yeniden başlatıyor; `unhealthy` ama çalışan bir kaba Compose dokunmuyor. Autoheal deseni kullanılmadı: o kap Docker soketine erişmek zorunda ve **o soket makinede kök yetkisine denk**. Onun yerine süreç kalıcı sağlıksızlıkta kendini kapatıyor
+  - *Sağlık sinyali süreç canlılığını değil, ARALIKSIZ HATAYI ölçüyor* — çünkü bu depoda yaşanan arıza tam olarak şuydu: süreç ayakta, bütün kuyruk döngüleri her turda istisna atıyor, hiçbir video üretilmiyor, kap sağlıklı görünüyor. Kuyruğu boş bir worker hiç iş yapmıyor ve tamamen sağlıklı; ayıran şey aralıksız hata. **60 sn** → `unhealthy`, **5 dk** → süreç kendini kapatıyor. Sıra kasıtlı: önce bildir, sonra harekete geç — eşit olsalardı geçici bir aksaklıkta devam eden bir render çöpe giderdi
+  - *Yazı tipleri sessiz bir tuzak:* altyazı SkiaSharp ile çiziliyor ve boş bir Linux imajında hiç yazı tipi yok — video **üretilir**, sadece yazısı olmaz ve QC bunu yakalamaz (süre, çözünürlük ve ses doğru). Kap içinde ölçüldü: altyazı bandında parlaklık 5–198 aralığında, yazı gerçekten çiziliyor. 8 test
 - [ ] **P4-06** `3p` — DB partition (`node_executions`, `run_events`) + okuma replikası
 - [ ] **P4-07** `3p` — NVENC değerlendirmesi (kalite ölçümüyle)
 - [ ] **P4-08** `3p` — Temporal spike + `IWorkflowEngine` arkasında karar

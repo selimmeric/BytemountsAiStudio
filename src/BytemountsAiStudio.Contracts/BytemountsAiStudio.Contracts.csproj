@@ -19,4 +19,21 @@
     <EmbeddedResource Include="..\..\prompts\**\v*.md" LinkBase="Embedded" />
   </ItemGroup>
 
+  <!--
+    BOS GLOB DERLEMEYI DUSURUYOR (P4-05).
+
+    Yasandi: Docker imaji `prompts/` dizinini derleme baglamina hic
+    kopyalamiyordu. Glob hicbir dosya bulamadi, MSBuild TEK BIR UYARI
+    BILE vermedi, imaj basariyla derlendi ve saglikli basladi; ama
+    hicbir video uretemedi. Hata ancak ilk run'da, `prompts.empty`
+    olarak, uretim ortaminda gorundu.
+
+    Bos bir glob "istem yok" demek degil, "bir sey yanlis" demek:
+    bu depoda istemsiz bir derlemenin gecerli bir kullanimi yok.
+  -->
+  <Target Name="IstemlerGomuluMu" AfterTargets="AssignTargetPaths">
+    <Error Condition="'@(EmbeddedResource)' == ''"
+           Text="Hic istem dosyasi gomulmedi. `prompts/` dizini derleme baglaminda mi? (Docker: `COPY prompts/`)" />
+  </Target>
+
 </Project>

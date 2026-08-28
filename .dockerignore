@@ -1,0 +1,28 @@
+# Derleme bağlamını küçük tutuyor.
+#
+# `bin` ve `obj` KAPSAM DIŞI olmak zorunda: Windows'ta derlenmiş
+# çıktıları Linux imajına kopyalamak, `dotnet publish`'in üzerine
+# yanlış mimarideki dosyaları bindirmek demek — ve hata ancak kap
+# çalışırken görünürdü.
+**/bin/
+**/obj/
+
+.git/
+.github/
+.vs/
+.idea/
+
+# Üretilmiş videolar ve varlıklar: gigabaytlarca dosya, imajda hiçbir
+# işe yaramıyor.
+output/
+storage/
+src/*/output/
+src/*/storage/
+
+docs/
+documents/
+tools/
+node_modules/
+
+*.user
+*.log

@@ -22,6 +22,7 @@ namespace BytemountsAiStudio.Worker;
 public sealed partial class QueueWorker(
     IServiceScopeFactory scopeFactory,
     WorkerHostOptions options,
+    WorkerHealth health,
     ILogger<QueueWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -67,6 +68,11 @@ public sealed partial class QueueWorker(
                 await engine.ExecuteNextAsync(options.WorkerId, queue, cancellationToken)
                     .ConfigureAwait(false);
 
+                // TUR SORUNSUZ BİTTİ (P4-05). "İş buldu" demek değil:
+                // boş kuyrukta da başarı, ölçülen şey döngünün
+                // çalışabiliyor olması.
+                health.RecordSuccess(queue);
+
                 // İş yoksa hemen dönmüş demektir; veritabanını yormamak için bekle.
                 if (DateTimeOffset.UtcNow - before < TimeSpan.FromMilliseconds(50))
                 {
@@ -83,6 +89,16 @@ public sealed partial class QueueWorker(
             {
                 // Döngü ölürse o kuyruk sessizce durur ve kimse fark etmez.
                 LogLoopError(logger, queue.ToString(), ex);
+
+                // VE DIŞARIDAN GÖRÜLEBİLİR OLUYOR (P4-05).
+                //
+                // Hatayı yutmak doğru — tek bir işin hatası kuyruğu
+                // durdurmamalı. Ama bugün olan şu oldu: bütün döngüler
+                // HER turda düştü, süreç ayakta kaldı, saniyede bir
+                // hata satırı bastı ve hiçbir video üretilmedi. Kap
+                // sağlıklı görünüyordu. Artık ardışık hata sağlık
+                // durumuna yansıyor.
+                health.RecordFailure(queue);
                 await Task.Delay(options.IdleDelay, cancellationToken).ConfigureAwait(false);
             }
         }

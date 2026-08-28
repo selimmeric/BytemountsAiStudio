@@ -1,0 +1,97 @@
+# Uygulama servisleri: API ve Worker kap içinde (P4-05).
+#
+# ALTYAPIDAN AYRI DOSYA. `docker-compose.yml` geliştirme altyapısını
+# (Postgres, Seq, SearXNG) ayağa kaldırıyor ve çoğu gün tek gereken o.
+# Uygulamayı da oraya koymak, kod her değiştiğinde imaj yeniden
+# derlemek demekti — geliştirirken `dotnet run` yeterli.
+#
+# İkisi birlikte:
+#   docker compose -f docker-compose.yml -f docker-compose.uygulama.yml up -d
+#
+# Not: bu dosya `docker-compose.yml` ile aynı proje adını kullanıyor,
+# yani aynı ağa ve `postgres` servisine bağlanıyor.
+
+name: bytemounts-ai-studio
+
+services:
+  api:
+    build:
+      context: .
+      args:
+        PROJECT: BytemountsAiStudio.Api
+    container_name: bmai-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # SAĞLIKLI OLANA KADAR BEKLİYOR, "başladı"ya kadar değil:
+        # Postgres kabı ayağa kalkmakla sorgu kabul etmek arasında
+        # saniyeler geçiriyor ve ilk migration o aralıkta rastgele
+        # düşerdi.
+        condition: service_healthy
+    environment:
+      # Kap içinden veritabanına SERVİS ADIYLA ulaşılıyor; `localhost`
+      # kabın kendisi olurdu ve orada Postgres yok.
+      BMAI_CONNECTION: "Host=postgres;Port=5432;Database=bmai;Username=bmai;Password=bmai_dev"
+      BMAI_SEQ: "http://seq:5341"
+      ASPNETCORE_URLS: "http://+:8080"
+      # İstem fixture'ları imajda yok (`.dockerignore`); değerlendirme
+      # ekranı bunu "koşmadı" diye bildiriyor, sessizce boş
+      # göstermiyor.
+      BMAI_PROMPTS: "/veri/istemler"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - fabrika-storage:/veri/storage
+      - fabrika-output:/veri/output
+    healthcheck:
+      # API'nin zaten HTTP sağlık ucu var; ayrı bir mekanizma
+      # uydurmanın anlamı yok.
+      #
+      # `curl`, `wget` DEĞİL: `aspnet` imajında ikisi de yoktu ve
+      # `wget` yazan ilk sürüm her kontrolde "not found" ile
+      # düşüyordu — kap sağlıklı olmasına rağmen sonsuza kadar
+      # yeniden başlardı. Kabı çalıştırınca görüldü; artık curl
+      # imaja kuruluyor.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    build:
+      context: .
+      args:
+        PROJECT: BytemountsAiStudio.Worker
+    container_name: bmai-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      BMAI_CONNECTION: "Host=postgres;Port=5432;Database=bmai;Username=bmai;Password=bmai_dev"
+      BMAI_SEQ: "http://seq:5341"
+      BMAI_HEARTBEAT: "/veri/durum/worker.json"
+      # ZAMANLAYICI VARSAYILAN KAPALI: kap ayağa kalkar kalkmaz üretim
+      # başlatmamalı, çünkü bu döngü gerçek para harcayabiliyor.
+      # Açmak bilinçli bir hareket: `BMAI_ORCHESTRATOR=on`.
+      BMAI_ORCHESTRATOR: "${BMAI_ORCHESTRATOR:-off}"
+    volumes:
+      - fabrika-storage:/veri/storage
+      - fabrika-output:/veri/output
+      - fabrika-durum:/veri/durum
+      - ./docker/saglik-kontrolu.sh:/saglik-kontrolu.sh:ro
+    healthcheck:
+      # SÜREÇ CANLILIĞI YETMİYOR: bugün süreç ayaktayken bütün kuyruk
+      # döngüleri her turda düştü ve hiçbir video üretilmedi. Kontrol
+      # hem kalp atışının TAZELİĞİNE hem `healthy` alanına bakıyor.
+      test: ["CMD-SHELL", "sh /saglik-kontrolu.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  fabrika-storage:
+  fabrika-output:
+  fabrika-durum:

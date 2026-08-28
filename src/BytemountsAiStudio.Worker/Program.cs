@@ -64,6 +64,25 @@ builder.Services.AddScoped(sp =>
 
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddSingleton(new WorkerHostOptions());
+builder.Services.AddSingleton(TimeProvider.System);
+
+// SAGLIK SINYALI (P4-05).
+//
+// `restart: unless-stopped` yalnizca COKEN kabi yeniden baslatiyor.
+// Bugun yasanan ariza ise suydu: surec ayaktaydi, butun kuyruk
+// donguleri her turda istisna atiyordu ve hicbir video
+// uretilmiyordu. Kap saglikli gorunuyordu.
+builder.Services.AddSingleton<WorkerHealth>();
+builder.Services.AddHostedService<HeartbeatWriter>();
+
+// KALICI OLARAK SAGLIKSIZ WORKER KENDINI KAPATIYOR.
+//
+// Docker'in `restart: unless-stopped` politikasi yalnizca CIKAN kabi
+// yeniden baslatiyor; `unhealthy` isaretlenmis ama calismaya devam
+// eden bir kabi Compose kendi basina yeniden baslatmiyor. Yani saglik
+// kontrolu tek basina "otomatik yeniden baslatma" demek degildi.
+builder.Services.AddHostedService<SelfRestartService>();
+
 builder.Services.AddHostedService<QueueWorker>();
 
 // ---- ZAMANLAYICI (P2-01/02/12) ----
