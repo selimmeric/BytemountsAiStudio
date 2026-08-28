@@ -23,7 +23,7 @@ public sealed record PendingApproval(
 /// Motordan AYRI, çünkü tetikleyicisi farklı: motoru worker döngüsü
 /// çağırıyor, burayı bir insan. İkisini aynı sınıfa koymak, worker
 /// döngüsüne hiç kullanmayacağı bir bağımlılık taşıtırdı.
-public sealed class ApprovalService(StudioDbContext db, WorkflowEngine engine, TimeProvider? timeProvider = null)
+public sealed class ApprovalService(StudioDbContext db, IWorkflowEngine engine, TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 

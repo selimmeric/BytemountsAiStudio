@@ -22,7 +22,7 @@ namespace BytemountsAiStudio.Workflow.Engine;
 /// şeyi çöpe at" olurdu — oysa çoğu takılma tek bir isteğe bağlı
 /// adımda oluyor (kapak görseli, müzik) ve o adım olmadan da yayına
 /// girebilecek bir video elde kalıyor.
-public sealed class DeadLetterTriage(StudioDbContext db, WorkflowEngine engine, TimeProvider? timeProvider = null)
+public sealed class DeadLetterTriage(StudioDbContext db, IWorkflowEngine engine, TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 

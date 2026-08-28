@@ -28,6 +28,25 @@ public interface IWorkflowEngine
         CancellationToken cancellationToken, string? initialContext = null);
 
     Task<Result> ExecuteNextAsync(string workerId, QueueClass queue, CancellationToken cancellationToken);
+
+    /// Bir node'dan SONRAKİ node'ları kuyruğa atar.
+    ///
+    /// ARAYÜZE SONRADAN EKLENDİ ve sebebi ADR-004'ün kendi iddiasını
+    /// ölçmekti: "IWorkflowEngine arayüzü arkasında saklanır ki
+    /// Temporal'a geçiş bir implementasyon değişimi olsun."
+    ///
+    /// İddia doğru DEĞİLDİ. `ApprovalService` ve `DeadLetterTriage`
+    /// somut `WorkflowEngine` sınıfına bağlıydı, çünkü bu metot
+    /// arayüzde yoktu. Motoru değiştirmek o iki servisi de yeniden
+    /// yazmak demekti — yani "implementasyon değişimi" değil.
+    ///
+    /// AMA GEÇİŞİ KOLAYLAŞTIRMIYOR ve bunu yazmak dürüstlük gereği:
+    /// imza `Run` ve `WorkflowGraph` taşıyor, ikisi de bizim
+    /// modelimiz. Temporal'da "şu node'dan sonrasını kuyruğa at" diye
+    /// bir kavram yok; devam kararı workflow fonksiyonunun içinde
+    /// veriliyor. Arayüz artık gerçek yüzeyi GÖSTERİYOR, küçültmüyor.
+    Task<int> EnqueueAfterAsync(
+        Run run, WorkflowGraph graph, string nodeId, CancellationToken cancellationToken);
 }
 
 /// DAG yorumlayıcısı (mimari §6.4).
@@ -549,7 +568,7 @@ public sealed class WorkflowEngine(
     /// ve elle yazılmış ikinci bir eşleme er geç ayrışırdı — o gün
     /// onaydan sonra devam eden iş yanlış kuyruğa düşer ve orada
     /// kalırdı, çünkü o kuyruğun worker'ları o tipi hiç beklemiyor.
-    internal async Task<int> EnqueueAfterAsync(
+    public async Task<int> EnqueueAfterAsync(
         Run run, WorkflowGraph graph, string nodeId, CancellationToken cancellationToken)
     {
         var next = graph.OutgoingEdges(nodeId).Select(e => e.To).Distinct().ToList();

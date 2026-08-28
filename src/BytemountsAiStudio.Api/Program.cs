@@ -57,7 +57,9 @@ builder.Services.AddScoped<NodeRegistry>(services =>
         new ChannelPolicy(db));
 });
 
-builder.Services.AddScoped<WorkflowEngine>();
+// Somut sinif DEGIL arayuz: ADR-004'un "motor arayuz arkasinda"
+// iddiasi ancak butun cagiranlar arayuze baglandiginda dogru.
+builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<DeadLetterTriage>();
 builder.Services.AddScoped<SystemControl>();
