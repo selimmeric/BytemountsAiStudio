@@ -1063,6 +1063,21 @@ public sealed class MediaRenderHandler(
                 return Result.Failure<JsonElement>(segmentProbe.Error);
             }
 
+            // SES ÖLÇÜMÜ BURADA DA ŞART.
+            //
+            // İlk yazımda yalnızca tek geçişli yola eklemiştim ve
+            // segmentli yol sessizce ölçümsüz kaldı: QC "ölçülmedi"
+            // deyip skoru sıfırladı, retry devreye girdi ve DÖRT TUR
+            // boyunca aynı dokuz dakikalık videoyu yeniden birleştirdi.
+            // Ölçüm eksikliğinin bedeli, ölçümün kendisinden pahalı.
+            //
+            // İki yolun aynı alanları üretmesi bir tercih değil bir
+            // zorunluluk: QC hangi yolun koştuğunu bilmiyor ve
+            // bilmemeli.
+            var segmentLoudness = await new LoudnessMeter(ffmpegPath)
+                .MeasureAsync(segmented.Value.OutputPath, segmentProbe.Value.DurationSeconds, cancellationToken)
+                .ConfigureAwait(false);
+
             return Result.Success(NodeJson.From(new
             {
                 output_path = segmented.Value.OutputPath,
@@ -1073,6 +1088,11 @@ public sealed class MediaRenderHandler(
                 video_codec = segmentProbe.Value.VideoCodec,
                 audio_codec = segmentProbe.Value.AudioCodec,
                 render_ms = (int)segmented.Value.Duration.TotalMilliseconds,
+                loudness_lufs = segmentLoudness.IsSuccess ? segmentLoudness.Value.IntegratedLufs : (double?)null,
+                true_peak_db = segmentLoudness.IsSuccess ? segmentLoudness.Value.TruePeakDb : (double?)null,
+                loudness_range = segmentLoudness.IsSuccess ? segmentLoudness.Value.LoudnessRange : (double?)null,
+                speech_ratio = segmentLoudness.IsSuccess ? segmentLoudness.Value.SpeechRatio : null,
+                loudness_error = segmentLoudness.IsFailure ? segmentLoudness.Error.Message : null,
                 // KAZANÇ SAYI OLARAK: "önbellek işe yarıyor" iddiası,
                 // kaçının yeniden koştuğu görülmediği sürece iddia.
                 segments_rendered = segmented.Value.Rendered,

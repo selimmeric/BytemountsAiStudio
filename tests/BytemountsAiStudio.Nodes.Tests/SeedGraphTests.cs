@@ -119,6 +119,62 @@ public sealed class SeedGraphTests
     public void TuketicilerinOkudugu_NodeKimlikleriGraftaVar(string contextKey)
         => Assert.Contains(Seed().Nodes, n => n.Id == contextKey);
 
+    /// HER İKİ RENDER YOLU DA AYNI ALANLARI ÜRETİYOR.
+    ///
+    /// QC hangi yolun koştuğunu bilmiyor ve bilmemeli: tek geçişli mi
+    /// segmentli mi, çıktı sözleşmesi aynı olmalı.
+    ///
+    /// Bu testin sebebi somut: ses ölçümünü ilk yazımda yalnızca tek
+    /// geçişli yola eklemiştim ve segmentli yol sessizce ölçümsüz
+    /// kaldı. QC "ölçülmedi" deyip skoru sıfırladı, retry devreye
+    /// girdi ve DÖRT TUR boyunca aynı dokuz dakikalık videoyu yeniden
+    /// birleştirdi — ölçüm eksikliğinin bedeli ölçümün kendisinden
+    /// pahalıya geldi.
+    ///
+    /// Kaynak metni okuyor: iki dönüş bloğunun aynı anahtarları
+    /// taşıdığını başka türlü sınamak, gerçek bir render koşturmak
+    /// olurdu (dakikalar).
+    [Theory]
+    [InlineData("loudness_lufs")]
+    [InlineData("true_peak_db")]
+    [InlineData("loudness_range")]
+    [InlineData("speech_ratio")]
+    [InlineData("duration_seconds")]
+    [InlineData("width")]
+    [InlineData("height")]
+    public void HerIkiRenderYolu_AyniAlanlariUretiyor(string field)
+    {
+        var source = RenderHandlerSource();
+
+        // Alan İKİ KEZ geçiyor: bir kez segmentli, bir kez tek
+        // geçişli dönüşte.
+        var occurrences = source.Split(field + " =").Length - 1;
+
+        Assert.True(occurrences >= 2,
+            $"'{field}' render çıktısında {occurrences} kez geçiyor; iki yolda da olmalı.");
+    }
+
+    private static string RenderHandlerSource()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(
+                directory.FullName, "src", "BytemountsAiStudio.Nodes", "FakeNodeHandlers.cs");
+
+            if (File.Exists(candidate))
+            {
+                return File.ReadAllText(candidate);
+            }
+
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("FakeNodeHandlers.cs bulunamadi");
+        return string.Empty;
+    }
+
     /* ---- Uzun video grafı (P3-02) ---- */
 
     private static WorkflowGraph LongSeed()
