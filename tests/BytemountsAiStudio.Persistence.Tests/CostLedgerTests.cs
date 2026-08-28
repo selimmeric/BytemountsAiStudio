@@ -102,13 +102,104 @@ public sealed class CostLedgerTests(DatabaseFixture fixture) : IAsyncLifetime
 
         await ledger.RecordAsync(Record(0.09m), CancellationToken.None);
 
-        var allowed = await gate.AuthorizeAsync(channel.Id, 0.005m, CancellationToken.None);
+        // YARIM KALMIŞ RUN GÜNLÜK BÜTÇEYİ AŞABİLİYOR (P2-03).
+        //
+        // Bu kapı bir node çalışırken soruluyor; yani her çağrı
+        // tanımı gereği "yarım kalmış". Durdurmak, o ana kadar
+        // harcanan her kuruşu çöpe atmak ve ertesi gün aynı adımları
+        // İKİNCİ KEZ ödemek olurdu. Yeni run'ları durdurma kararı
+        // zamanlayıcıda (`RunPlanner`) veriliyor.
+        Assert.True((await gate.AuthorizeAsync(channel.Id, 0.005m, CancellationToken.None)).IsSuccess);
+        Assert.True((await gate.AuthorizeAsync(channel.Id, 0.05m, CancellationToken.None)).IsSuccess);
+
+        // ...AMA `StopEverything` seçilmişse aşamıyor: bütçeyi kesin
+        // sınır olarak isteyenin de bir yolu olmalı.
+        channel.SettingsJson = """{"action_on_exceed":"stop"}""";
+        await db.SaveChangesAsync(CancellationToken.None);
+
         var denied = await gate.AuthorizeAsync(channel.Id, 0.05m, CancellationToken.None);
 
-        Assert.True(allowed.IsSuccess);
         Assert.True(denied.IsFailure);
         Assert.Equal(ErrorKind.Resource, denied.Error.Kind);
-        Assert.Equal("budget.daily_exceeded", denied.Error.Code);
+        Assert.Equal("budget.exceeded", denied.Error.Code);
+        Assert.Contains("günlük", denied.Error.Message, StringComparison.Ordinal);
+    }
+
+    /// VİDEO BAŞINA TAVAN AŞILAMIYOR.
+    ///
+    /// "Yarım kalanı bitir" kuralının olmazsa olmaz karşılığı bu:
+    /// tavan olmasaydı bir kez başlamış bir run günlük bütçeyi
+    /// sınırsız aşabilirdi — sürekli çağrı yapan bir node, "zaten
+    /// başlamıştı" gerekçesiyle ayın tamamını harcayabilirdi.
+    [Fact]
+    public async Task VideoTavani_YarimRunuDaDurduruyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var channel = new Channel
+        {
+            Name = "Tavan " + Guid.NewGuid().ToString("N")[..6],
+            Language = "tr-TR",
+            DailyBudget = 100m,
+            MaxCostPerVideo = 0.10m,
+        };
+
+        db.Channels.Add(channel);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var run = await CreateRunAsync(db, channel.Id);
+        var ledger = new CostLedger(db) { RunId = run };
+        var gate = new BudgetGate(db, ledger);
+
+        await ledger.RecordAsync(Record(0.09m), CancellationToken.None);
+
+        Assert.True((await gate.AuthorizeAsync(channel.Id, 0.005m, CancellationToken.None)).IsSuccess);
+
+        var denied = await gate.AuthorizeAsync(channel.Id, 0.05m, CancellationToken.None);
+
+        Assert.True(denied.IsFailure);
+        Assert.Equal("budget.video_cap", denied.Error.Code);
+
+        // KAYNAK hatası: insan tavanı büyütüp devam ettirebilsin.
+        // Kalıcı olsaydı yarım video doğrudan çöpe giderdi.
+        Assert.Equal(ErrorKind.Resource, denied.Error.Kind);
+    }
+
+    /// GLOBAL AYLIK LİMİT eskiden hiç bakılmıyordu: kanal
+    /// limitlerinin toplamı aylık limiti aşabiliyor ve aşınca kimse
+    /// durdurmuyordu.
+    [Fact]
+    public async Task AylikLimit_StopIleDurduruyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var channel = new Channel
+        {
+            Name = "Aylik " + Guid.NewGuid().ToString("N")[..6],
+            Language = "tr-TR",
+            SettingsJson = """{"action_on_exceed":"stop"}""",
+        };
+
+        db.Channels.Add(channel);
+        db.Settings.RemoveRange(db.Settings.Where(s => s.Key == RunPlanner.MonthlyBudgetKey));
+        db.Settings.Add(new Setting { Key = RunPlanner.MonthlyBudgetKey, Value = "0.05" });
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var run = await CreateRunAsync(db, channel.Id);
+        var ledger = new CostLedger(db) { RunId = run };
+        var gate = new BudgetGate(db, ledger);
+
+        await ledger.RecordAsync(Record(0.04m), CancellationToken.None);
+
+        var denied = await gate.AuthorizeAsync(channel.Id, 0.05m, CancellationToken.None);
+
+        Assert.True(denied.IsFailure);
+        Assert.Contains("aylık", denied.Error.Message, StringComparison.Ordinal);
+
+        db.Settings.RemoveRange(db.Settings.Where(s => s.Key == RunPlanner.MonthlyBudgetKey));
+        await db.SaveChangesAsync(CancellationToken.None);
     }
 
     [Fact]

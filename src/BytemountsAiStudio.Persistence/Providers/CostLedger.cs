@@ -64,6 +64,17 @@ public sealed class CostLedger(StudioDbContext db, TimeProvider? timeProvider = 
         return await query.SumAsync(c => c.Cost, cancellationToken).ConfigureAwait(false);
     }
 
+    /// TEK BİR RUN'a harcanan.
+    ///
+    /// Video başına tavan (`max_cost_per_video`) buna bakıyor.
+    /// Günlük bütçeden ayrı bir kavram: günlük bütçe gün sonunda
+    /// sıfırlanan bir HIZ sınırı, video tavanı ise tek bir eserin
+    /// ne kadara mal olabileceğine dair MUTLAK bir sınır.
+    public Task<decimal> SpentOnRunAsync(Guid runId, CancellationToken cancellationToken)
+        => db.ProviderCalls.AsNoTracking()
+            .Where(c => c.RunId == runId)
+            .SumAsync(c => c.Cost, cancellationToken);
+
     /// Bu AY harcanan (P2-03 global aylık pencere).
     ///
     /// Kanal filtresi YOK ve olmamalı: aylık limit sistemin tamamına
@@ -134,26 +145,97 @@ public sealed class BudgetGate(StudioDbContext db, ICostLedger ledger, SystemCon
                 TimeSpan.FromHours(1));
         }
 
-        if (channel.DailyBudget is not { } dailyBudget)
+        // ---- BÜTÇE KARARI TEK YERDE (P2-03) ----
+        //
+        // Buradaki kural elle yazılmıştı ve üç şeyi kaçırıyordu:
+        // global aylık limit hiç bakılmıyordu, `action_on_exceed`
+        // yok sayılıyordu ve en önemlisi YARIM KALMIŞ run ile YENİ
+        // run aynı muameleyi görüyordu.
+        //
+        // Sonuncusu gerçek bir kusurdu: bütçe dolduğu anda üretilmekte
+        // olan video ortasından kesiliyordu — senaryo yazılmış, ses
+        // üretilmiş, görseller indirilmiş ve hiçbiri kullanılmayacak;
+        // üstelik ertesi gün devam edilse o adımlar İKİNCİ KEZ para
+        // harcayacaktı.
+        //
+        // BURASI HER ZAMAN "YARIM KALMIŞ": bu kapı bir node çalışırken,
+        // sağlayıcı çağrısının hemen öncesinde soruluyor. Yeni run
+        // kararı zamanlayıcıda (`RunPlanner`) veriliyor ve orası
+        // `runAlreadyStarted: false` diyor. İkisi böyle tamamlanıyor:
+        // bütçe dolunca yeni video BAŞLAMIYOR, başlamış olan BİTİYOR.
+        //
+        // Aşımın sınırı bu yüzden ölçülü: kanal başına aynı anda tek
+        // run olduğu için (`RunPlanner.MaxConcurrentRunsPerChannel`)
+        // en fazla bir videonun kalan maliyeti kadar aşılabiliyor.
+        // ---- VİDEO BAŞINA TAVAN: AŞILAMAZ ----
+        //
+        // "Yarım kalanı bitir" kuralının olmazsa olmaz karşılığı bu.
+        // Tavan olmasaydı, bir kez başlamış bir run günlük bütçeyi
+        // sınırsız aşabilirdi: bir retry döngüsü ya da sürekli çağrı
+        // yapan bir node, "zaten başlamıştı" gerekçesiyle ayın
+        // tamamını harcayabilirdi.
+        //
+        // Günlük bütçeden FARKLI bir kavram: günlük bütçe gün sonunda
+        // sıfırlanan bir hız sınırı, video tavanı tek bir eserin
+        // maliyetine dair mutlak bir sınır. Bu yüzden
+        // `action_on_exceed`'e de tabi değil.
+        if (channel.MaxCostPerVideo is { } videoCap
+            && ledger is CostLedger { RunId: { } runId } runLedger)
         {
-            return Core.Result.Success();
+            var spentOnRun = await runLedger.SpentOnRunAsync(runId, cancellationToken).ConfigureAwait(false);
+
+            if (spentOnRun + estimatedCost > videoCap)
+            {
+                // KALICI DEĞİL, KAYNAK: run insana gidiyor ve o
+                // isterse tavanı büyütüp devam ettiriyor. Kalıcı
+                // saysaydık yarım video doğrudan çöpe giderdi.
+                return Core.Errors.Error.Resource(
+                    "budget.video_cap",
+                    $"Video başına tavan aşılacaktı: {spentOnRun:0.####} + {estimatedCost:0.####} > {videoCap:0.####}",
+                    TimeSpan.FromHours(1));
+            }
         }
 
-        var spent = await ledger.SpentTodayAsync(id, cancellationToken).ConfigureAwait(false);
+        var settings = Core.Execution.ChannelSettings.Parse(channel.SettingsJson);
+        var windows = new List<Core.Execution.BudgetWindow>();
 
-        if (spent + estimatedCost <= dailyBudget)
+        var now = DateTimeOffset.UtcNow;
+
+        if (channel.DailyBudget is { } dailyBudget)
         {
-            return Core.Result.Success();
+            var spent = await ledger.SpentTodayAsync(id, cancellationToken).ConfigureAwait(false);
+
+            windows.Add(new Core.Execution.BudgetWindow(
+                $"'{channel.Name}' günlük", spent, dailyBudget,
+                Core.Execution.BudgetPolicy.UntilTomorrow(now)));
         }
 
-        // Ertesi günün başına kadar ertele: bütçe gün başında sıfırlanıyor.
-        var untilMidnight = TimeSpan.FromHours(24) - DateTimeOffset.UtcNow.TimeOfDay;
+        // GLOBAL AYLIK LİMİT önceden hiç bakılmıyordu: kanal
+        // limitlerinin toplamı aylık limiti aşabiliyordu ve aşınca
+        // kimse durdurmuyordu.
+        var monthly = await db.Settings.AsNoTracking()
+            .Where(s => s.Key == RunPlanner.MonthlyBudgetKey)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        return Core.Errors.Error.Resource(
-            "budget.daily_exceeded",
-            $"'{channel.Name}' kanalının günlük bütçesi aşılacaktı: " +
-            $"{spent:0.####} + {estimatedCost:0.####} > {dailyBudget:0.####}",
-            untilMidnight);
+        if (decimal.TryParse(monthly, System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out var monthlyLimit)
+            && ledger is CostLedger costLedger)
+        {
+            var spentMonth = await costLedger.SpentThisMonthAsync(cancellationToken).ConfigureAwait(false);
+
+            windows.Add(new Core.Execution.BudgetWindow(
+                "global aylık", spentMonth, monthlyLimit,
+                Core.Execution.BudgetPolicy.UntilNextMonth(now)));
+        }
+
+        var verdict = Core.Execution.BudgetPolicy.Decide(
+            windows, estimatedCost, runAlreadyStarted: true, settings.BudgetAction);
+
+        return verdict.Allowed
+            ? Core.Result.Success()
+            : Core.Errors.Error.Resource("budget.exceeded", verdict.Reason, verdict.RetryAfter);
     }
 }
 
