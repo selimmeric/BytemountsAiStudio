@@ -201,17 +201,25 @@ public sealed class FairLeaseTests(DatabaseFixture fixture) : IAsyncLifetime
         await EnqueueAsync(queue, ac.Id, 1);
 
         // "Doymuş" kanal az önce beş iş bitirdi.
+        //
+        // Geçmiş DOĞRUDAN yazılıyor, kiralama döngüsüyle üretilmiyor:
+        // ilk yazımda öyleydi ve test kırıldı, çünkü döngü içindeki
+        // kiralama her zaman az önce eklenen işi almıyor — adalet
+        // bazen diğer kanalı seçiyor ve o kanalın tek işi kiralanmış
+        // hâlde kalıyordu. Kurulum, sınanan şeyin kendisine bağlı
+        // olmamalı.
         for (var i = 0; i < 5; i++)
         {
-            var id = await queue.EnqueueAsync(new EnqueueRequest
+            db.Jobs.Add(new Job
             {
                 Queue = QueueClass.Llm,
                 ChannelId = doymus.Id,
-            }, CancellationToken.None);
-
-            await queue.LeaseAsync(QueueClass.Llm, "w", TimeSpan.FromMinutes(5), CancellationToken.None);
-            await queue.CompleteAsync(id, CancellationToken.None);
+                State = JobState.Succeeded,
+                CompletedAt = Now.AddMinutes(-1),
+            });
         }
+
+        await db.SaveChangesAsync(CancellationToken.None);
 
         // Kuyrukta ikisinin de birer işi var; sıra aç olanın.
         var job = await queue.LeaseAsync(QueueClass.Llm, "w", TimeSpan.FromMinutes(5));
