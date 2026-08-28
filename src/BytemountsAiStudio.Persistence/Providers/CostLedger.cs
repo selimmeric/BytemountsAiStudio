@@ -63,6 +63,22 @@ public sealed class CostLedger(StudioDbContext db, TimeProvider? timeProvider = 
 
         return await query.SumAsync(c => c.Cost, cancellationToken).ConfigureAwait(false);
     }
+
+    /// Bu AY harcanan (P2-03 global aylık pencere).
+    ///
+    /// Kanal filtresi YOK ve olmamalı: aylık limit sistemin tamamına
+    /// ait. Kanal başına aylık limit tanımlamak, üç kanalın hepsinin
+    /// kendi limitinde kalıp toplamda üç katını harcaması demekti.
+    public async Task<decimal> SpentThisMonthAsync(CancellationToken cancellationToken)
+    {
+        var now = _time.GetUtcNow();
+        var since = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+
+        return await db.ProviderCalls.AsNoTracking()
+            .Where(c => c.CreatedAt >= since)
+            .SumAsync(c => c.Cost, cancellationToken)
+            .ConfigureAwait(false);
+    }
 }
 
 /// Bütçe kapısı: kanal günlük ve global aylık limitler + kill-switch.

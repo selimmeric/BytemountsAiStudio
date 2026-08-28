@@ -1,6 +1,9 @@
+using Microsoft.Extensions.DependencyInjection;
 using BytemountsAiStudio.Contracts.Providers;
 using BytemountsAiStudio.Nodes;
 using BytemountsAiStudio.Persistence;
+using BytemountsAiStudio.Providers.Llm;
+using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Persistence.Storage;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Worker;
@@ -50,6 +53,56 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddSingleton(new WorkerHostOptions());
 builder.Services.AddHostedService<QueueWorker>();
+
+// ---- ZAMANLAYICI (P2-01/02/12) ----
+//
+// VARSAYILAN KAPALI: `dotnet run` yapan biri farkinda olmadan uretim
+// baslatmamali. Acmak bilincli bir hareket olmali cunku bu dongu
+// gercek para harcayabiliyor.
+builder.Services.AddScoped<SystemControl>();
+builder.Services.AddScoped<CostLedger>();
+builder.Services.AddScoped<TopicPool>();
+builder.Services.AddScoped<RunPlanner>();
+
+builder.Services.AddSingleton(new OrchestratorOptions
+{
+    Enabled = string.Equals(
+        Environment.GetEnvironmentVariable("BMAI_ORCHESTRATOR"), "on", StringComparison.OrdinalIgnoreCase),
+    Interval = TimeSpan.FromSeconds(
+        int.TryParse(Environment.GetEnvironmentVariable("BMAI_ORCHESTRATOR_INTERVAL"),
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var seconds) && seconds > 0
+            ? seconds
+            : 60),
+});
+
+// KONU URETICISI YALNIZCA MODEL VARSA: Ollama yoksa kaydetmemek,
+// "uretici kayitli degil" diye acikca loglanmasini sagliyor. Kayitli
+// olup her turda baglanti hatasi vermek, ayni bilgiyi gurultuyle
+// vermekti.
+if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BMAI_OLLAMA")))
+{
+    // Ayni desen `BuildOpenRegistry` ile: yerel LLM TEK YERDE
+    // kuruluyor ve ortam degiskenini okuyan tek satir bu.
+    builder.Services.AddSingleton<ILlmProvider>(
+        new OllamaLlmProvider(new HttpClient(), OllamaOptions.FromEnvironment()));
+
+    builder.Services.AddScoped<TopicGenerator>();
+}
+
+builder.Services.AddHostedService<OrchestratorService>();
+
+// DI GRAFI ACILISTA DOGRULANIYOR.
+//
+// Dogrulanmasaydi, cozulemeyen bir bagimlilik ancak o servis ilk kez
+// istendiginde patlardi — ve zamanlayicida bu, dakikada bir "kanal
+// degerlendirilirken hata" satiri demek: dongu donuyor, hicbir sey
+// uretilmiyor ve sebep bir istisna yiginin icinde kaliyor.
+builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
+{
+    ValidateOnBuild = true,
+    ValidateScopes = true,
+}));
 
 var host = builder.Build();
 

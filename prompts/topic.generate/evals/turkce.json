@@ -1,0 +1,18 @@
+{
+  "prompt_key": "topic.generate",
+  "values": {
+    "channel": "Tarih Kısa",
+    "count": "5",
+    "language": "tr-TR",
+    "avoid": "Kaçınılacak konular: Göbeklitepe, Truva"
+  },
+  "expect": {
+    "contains": [
+      "Tarih Kısa", "5", "tr-TR", "Göbeklitepe",
+      "BİRBİRİNDEN FARKLI", "DOĞRULANABİLİR", "sourceability", "risk"
+    ],
+    "not_contains": ["{{"],
+    "max_chars": 3000,
+    "min_chars": 400
+  }
+}
