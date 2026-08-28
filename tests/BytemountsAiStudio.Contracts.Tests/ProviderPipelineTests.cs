@@ -252,46 +252,46 @@ public sealed class RateLimiterTests
 public sealed class CircuitBreakerTests
 {
     [Fact]
-    public void EsikAsilinca_DevreAcilir()
+    public async Task EsikAsilinca_DevreAcilir()
     {
         var breaker = new CircuitBreaker(failureThreshold: 3);
 
         for (var i = 0; i < 3; i++)
         {
-            breaker.RecordFailure("p");
+            await breaker.RecordFailureAsync("p", CancellationToken.None);
         }
 
         Assert.True(breaker.IsOpen("p"));
-        Assert.True(breaker.Check("p").IsFailure);
+        Assert.True((await breaker.CheckAsync("p", CancellationToken.None)).IsFailure);
     }
 
     [Fact]
-    public void Basari_SayaciSifirlar()
+    public async Task Basari_SayaciSifirlar()
     {
         var breaker = new CircuitBreaker(failureThreshold: 3);
 
-        breaker.RecordFailure("p");
-        breaker.RecordFailure("p");
-        breaker.RecordSuccess("p");
-        breaker.RecordFailure("p");
+        await breaker.RecordFailureAsync("p", CancellationToken.None);
+        await breaker.RecordFailureAsync("p", CancellationToken.None);
+        await breaker.RecordSuccessAsync("p", CancellationToken.None);
+        await breaker.RecordFailureAsync("p", CancellationToken.None);
 
         Assert.False(breaker.IsOpen("p"));
     }
 
     [Fact]
-    public void SureDolunca_YariAcikDenemeyeIzinVerir()
+    public async Task SureDolunca_YariAcikDenemeyeIzinVerir()
     {
         var time = new FakeTimeProvider();
         var breaker = new CircuitBreaker(2, TimeSpan.FromMinutes(5), time);
 
-        breaker.RecordFailure("p");
-        breaker.RecordFailure("p");
+        await breaker.RecordFailureAsync("p", CancellationToken.None);
+        await breaker.RecordFailureAsync("p", CancellationToken.None);
 
-        Assert.True(breaker.Check("p").IsFailure);
+        Assert.True((await breaker.CheckAsync("p", CancellationToken.None)).IsFailure);
 
         time.Advance(TimeSpan.FromMinutes(6));
 
-        Assert.True(breaker.Check("p").IsSuccess);
+        Assert.True((await breaker.CheckAsync("p", CancellationToken.None)).IsSuccess);
     }
 
     [Fact]

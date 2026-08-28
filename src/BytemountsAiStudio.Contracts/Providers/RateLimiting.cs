@@ -92,18 +92,20 @@ public sealed class CircuitBreaker(
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
     private readonly TimeSpan _openDuration = openDuration ?? TimeSpan.FromMinutes(5);
 
-    public Result Check(string providerKey)
+    public Task<Result> CheckAsync(string providerKey, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (!_states.TryGetValue(providerKey, out var state))
         {
-            return Result.Success();
+            return Task.FromResult(Result.Success());
         }
 
         lock (state)
         {
             if (!state.IsOpen)
             {
-                return Result.Success();
+                return Task.FromResult(Result.Success());
             }
 
             var elapsed = _time.GetUtcNow() - state.OpenedAt;
@@ -114,17 +116,17 @@ public sealed class CircuitBreaker(
                 // kapanır, başarısızsa yeniden açılır.
                 state.IsOpen = false;
                 state.Failures = failureThreshold - 1;
-                return Result.Success();
+                return Task.FromResult(Result.Success());
             }
 
-            return Error.Resource(
+            return Task.FromResult(Result.Failure(Error.Resource(
                 "circuit.open",
                 $"'{providerKey}' devresi açık; art arda {failureThreshold} geçici hata alındı.",
-                _openDuration - elapsed);
+                _openDuration - elapsed)));
         }
     }
 
-    public void RecordSuccess(string providerKey)
+    public Task RecordSuccessAsync(string providerKey, CancellationToken cancellationToken)
     {
         if (_states.TryGetValue(providerKey, out var state))
         {
@@ -134,9 +136,11 @@ public sealed class CircuitBreaker(
                 state.IsOpen = false;
             }
         }
+
+        return Task.CompletedTask;
     }
 
-    public void RecordFailure(string providerKey)
+    public Task RecordFailureAsync(string providerKey, CancellationToken cancellationToken)
     {
         var state = _states.GetOrAdd(providerKey, _ => new State());
 
@@ -150,6 +154,8 @@ public sealed class CircuitBreaker(
                 state.OpenedAt = _time.GetUtcNow();
             }
         }
+
+        return Task.CompletedTask;
     }
 
     public bool IsOpen(string providerKey)

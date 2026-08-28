@@ -119,7 +119,8 @@ public sealed class CircuitBreakerMiddleware(ICircuitBreaker breaker) : IProvide
         ArgumentNullException.ThrowIfNull(invocation);
         ArgumentNullException.ThrowIfNull(next);
 
-        var state = breaker.Check(invocation.ProviderKey);
+        var state = await breaker.CheckAsync(invocation.ProviderKey, cancellationToken)
+            .ConfigureAwait(false);
         if (state.IsFailure)
         {
             return Result.Failure<ProviderResponse<T>>(state.Error);
@@ -131,11 +132,13 @@ public sealed class CircuitBreakerMiddleware(ICircuitBreaker breaker) : IProvide
         // sağlıksız olduğu anlamına gelmez — bizim isteğimiz bozuktur.
         if (result.IsSuccess)
         {
-            breaker.RecordSuccess(invocation.ProviderKey);
+            await breaker.RecordSuccessAsync(invocation.ProviderKey, cancellationToken)
+                .ConfigureAwait(false);
         }
         else if (result.Error.Kind == ErrorKind.Transient)
         {
-            breaker.RecordFailure(invocation.ProviderKey);
+            await breaker.RecordFailureAsync(invocation.ProviderKey, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return result;

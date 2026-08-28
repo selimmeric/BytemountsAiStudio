@@ -138,6 +138,35 @@ services:
       retries: 20
       start_period: 10s
 
+  # Dagitik hiz siniri ve devre kesici durumu (P4-03).
+  #
+  # NEDEN GEREKLI OLDU: P4-01 ile birden fazla worker gercekten kosuyor.
+  # Surec ici bir hiz siniri, iki worker'da iki kat istek demek --
+  # saglayici bizi keser ve sebep hicbir logda gorunmez.
+  #
+  # `scale` profilinde: tek makineli gelistirmede surec ici sinir
+  # yeterli ve dogru.
+  redis:
+    image: redis:7-alpine
+    container_name: bmai-redis
+    profiles: ["scale"]
+    restart: unless-stopped
+    # KALICILIK KAPALI: burada tutulan sey ANLIK durum (kac istek
+    # atildi, devre acik mi). Yeniden baslayinca sifirlanmasi dogru --
+    # dunku hiz siniri sayaci bugun anlamsiz.
+    command: redis-server --save "" --appendonly no
+    ports:
+      # 6380, 6379 DEGIL: gelistirme makinesinde zaten baska bir Redis
+      # kosuyor olabiliyor (bu depoda oldu) ve varsayilan portu almak,
+      # ya kabin hic baslamamasi ya da baskasinin verisine yazmak
+      # demekti. Ikincisi daha sinsi.
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   piper-voices:
   postgres-data:

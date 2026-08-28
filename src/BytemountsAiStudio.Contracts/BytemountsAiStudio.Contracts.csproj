@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- Dagitik hiz siniri ve devre kesici (P4-03). -->
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BytemountsAiStudio.Core\BytemountsAiStudio.Core.csproj" />
   </ItemGroup>
 

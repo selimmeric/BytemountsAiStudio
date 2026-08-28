@@ -34,6 +34,8 @@
          davranış, açığı sessizce içeri almaktansa derlemeyi
          durdurmak. Geçişli sürüme güvenmek, S3 paketi her
          güncellendiğinde aynı kumarı oynamak demekti. -->
+    <!-- Dagitik hiz siniri ve devre kesici (P4-03). -->
+    <PackageVersion Include="StackExchange.Redis" Version="2.9.32" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.102.4" />
     <PackageVersion Include="AWSSDK.Core" Version="4.0.102.1" />
     <PackageVersion Include="SkiaSharp" Version="4.151.1" />

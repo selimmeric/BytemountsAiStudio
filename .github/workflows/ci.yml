@@ -52,6 +52,23 @@ jobs:
           --health-timeout 3s
           --health-retries 20
 
+      # Dagitik hiz siniri ve devre kesici testleri de GERCEK Redis'e
+      # kosuyor (P4-03). Ayni gerekce: surec ici bir sayacla gecen test,
+      # dagitikligi hic sinamaz -- ve "sinir worker basina degil hesap
+      # basina" iddiasi tam olarak orada kirilirdi.
+      #
+      # Port 6380: gelistirme makinesinde 6379'da baska bir Redis
+      # kosabiliyor ve testler ayni adresi kullaniyor.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
     env:
       BMAI_TEST_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=bmai;Password=bmai_dev"
 

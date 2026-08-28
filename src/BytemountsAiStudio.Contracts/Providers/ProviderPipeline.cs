@@ -154,11 +154,21 @@ public interface IRateLimiter
 }
 
 /// Sağlıksız sağlayıcıya gitmeyi erken keser.
+///
+/// ARAYÜZ ASENKRON ve bu, dağıtık uygulamanın (P4-03) zorunlu kıldığı
+/// bir değişiklik. Süreç içi uygulama yazılırken senkron olması
+/// doğaldı: bir sözlüğe bakmak zaman almıyor.
+///
+/// Redis'te durum ağın ötesinde. Senkron bir arayüzü orada
+/// karşılamanın tek yolu `.Result` beklemek olurdu — worker iş
+/// parçacığını bloke eden ve klasik kilitlenme üreten desen. Bir
+/// worker'ın bütün render döngüsünü bir Redis çağrısı için durdurmak,
+/// devre kesicinin engellemeye çalıştığı israftan daha pahalı.
 public interface ICircuitBreaker
 {
-    Result Check(string providerKey);
+    Task<Result> CheckAsync(string providerKey, CancellationToken cancellationToken);
 
-    void RecordSuccess(string providerKey);
+    Task RecordSuccessAsync(string providerKey, CancellationToken cancellationToken);
 
-    void RecordFailure(string providerKey);
+    Task RecordFailureAsync(string providerKey, CancellationToken cancellationToken);
 }
