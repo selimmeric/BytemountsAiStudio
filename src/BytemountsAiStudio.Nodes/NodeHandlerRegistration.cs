@@ -83,6 +83,13 @@ public static class NodeHandlerRegistration
             .Register(new ScriptGenerateHandler(llm))
             .Register(new TtsSynthesizeHandler(new FakeTtsProvider(), storage, ffprobePath))
             .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
+            // MUZIK TIMELINE'DAN ONCE: derleme adimi bagladan muzigi
+            // okuyor ve o sirada indirilmis olmasi gerekiyor.
+            // Sonrasinda kosulsaydi her videonun ilk turu muziksiz
+            // cikardi ve bunu kimse fark etmezdi - muziksiz video da
+            // gecerli goründuğu icin.
+            .Register(new MusicSelectHandler(
+                new FakeMusicProvider(), storage, FakeMusicDownloader()))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             // Cikarim ve dogrulama AYNI sahte modelden; gercek hatta
@@ -173,6 +180,13 @@ public static class NodeHandlerRegistration
                     new PollinationsImageProvider(http),
                     StockFirstImageProvider.HttpDownloader(http)),
                 storage))
+            // MUZIK TIMELINE'DAN ONCE: derleme adimi baglamdan muzigi
+            // okuyor ve o sirada indirilmis olmasi gerekiyor.
+            // Sonrasinda kosulsaydi HER videonun ilk turu muziksiz
+            // cikardi ve bunu kimse fark etmezdi - muziksiz video da
+            // gecerli gorundugu icin.
+            .Register(new MusicSelectHandler(
+                new OpenverseMusicProvider(http), storage, MusicSelectHandler.HttpDownloader(http)))
             .Register(new TimelineCompileHandler(storage))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new ClaimCheckHandler(llm))
@@ -200,7 +214,18 @@ public static class NodeHandlerRegistration
         "media.render",
         "seo.generate",
         "claim.check",
+        "music.select",
         "qc.mechanical",
         "human.approval",
     };
+
+    /// Sahte hattın müzik indiricisi.
+    ///
+    /// Gerçek bir WAV üretiyor, boş bayt dizisi değil: sahte parça
+    /// indirilemezse müzik yolu (timeline'a bağlanma, ducking, render)
+    /// sahte hatta HİÇ koşmaz ve Faz 0 kabulü müziksiz geçerdi.
+    private static Func<Uri, CancellationToken, Task<Core.Result<DownloadedAudio>>> FakeMusicDownloader()
+        => (_, _) => Task.FromResult(Core.Result.Success(
+            new DownloadedAudio(
+                Providers.Fake.Media.WavWriter.Silence(new Core.Time.Ms(90_000)), "audio/wav")));
 }

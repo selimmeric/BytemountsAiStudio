@@ -10,7 +10,11 @@ namespace BytemountsAiStudio.Providers.Fake.Media;
 /// ses birleştirme ve timeline derlemesi bu dosya üzerinden sınanacak. Boş bayt
 /// dizisi döndürseydik Faz 0'ın kabul kriteri sahte veriyle geçerdi ama gerçek
 /// veriyle patlardı — sınamanın anlamı kalmazdı.
-internal static class WavWriter
+///
+/// PUBLIC: sahte müzik indiricisi de gerçek bir dosya üretmek zorunda.
+/// Bir `.invalid` adresine gidip boş dönseydi sahte hat müziksiz
+/// koşar ve müzik → timeline → render yolu hiç sınanmazdı.
+public static class WavWriter
 {
     public const int SampleRate = 48_000;
     private const short Channels = 1;

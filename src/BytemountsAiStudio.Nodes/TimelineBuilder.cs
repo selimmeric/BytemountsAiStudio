@@ -131,7 +131,7 @@ public static class TimelineBuilder
             RightToLeft = language.IsRightToLeft,
             Duration = total,
             FontStack = ["Inter", "Noto Sans", "Segoe UI", "Arial"],
-            Audio = new AudioTrack { VoiceSegments = segments },
+            Audio = new AudioTrack { VoiceSegments = segments, Music = MusicFrom(runContext) },
             Scenes = scenes,
             Captions = cues.Count > 0
                 ? new CaptionTrack { StyleRef = "caption", Cues = cues }
@@ -211,5 +211,76 @@ public static class TimelineBuilder
 
         return Result.Success<(Ms, Ms, IReadOnlyList<string>, AssetRef)>(
             (start, duration, ids, AssetRef.Create(assetText)));
+    }
+
+    /// Müzik yatağını run bağlamından okur (P2-09).
+    ///
+    /// MÜZİK YOKSA `null` VE BU NORMAL: müziksiz video tamamen
+    /// geçerli. Boş bir `MusicBed` uydurmak, render'ı olmayan bir
+    /// dosyayı aramaya göndermek olurdu.
+    ///
+    /// LİSANS KANITI TAŞINMAZSA MÜZİK DE TAŞINMIYOR. Kanıtsız bir
+    /// parçayı timeline'a koyup QC'nin yakalamasını beklemek, çalışan
+    /// bir kontrol varken riski üretim hattının içine sokmak olurdu —
+    /// ve bir Content ID talebi kanalın o videodan gelen gelirinin
+    /// tamamını götürüyor.
+    internal static MusicBed? MusicFrom(JsonElement runContext)
+    {
+        if (!runContext.TryGetProperty("music", out var music)
+            || music.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var asset = NodeJson.Text(music, "asset");
+
+        if (string.IsNullOrWhiteSpace(asset))
+        {
+            return null;
+        }
+
+        if (!music.TryGetProperty("license", out var licenseJson)
+            || licenseJson.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var license = new MusicLicense
+        {
+            Name = NodeJson.Text(licenseJson, "name") ?? string.Empty,
+            Author = NodeJson.Text(licenseJson, "author"),
+            Url = Uri.TryCreate(NodeJson.Text(licenseJson, "url"), UriKind.Absolute, out var url) ? url : null,
+            RequiresAttribution = licenseJson.TryGetProperty("requires_attribution", out var requires)
+                                  && requires.ValueKind == JsonValueKind.True,
+            CapturedAt = licenseJson.TryGetProperty("captured_at", out var captured)
+                         && captured.TryGetDateTimeOffset(out var at)
+                ? at
+                : DateTimeOffset.UtcNow,
+        };
+
+        if (!license.IsComplete)
+        {
+            return null;
+        }
+
+        var reference = AssetRef.TryCreate(asset);
+
+        if (reference.IsFailure)
+        {
+            return null;
+        }
+
+        return new MusicBed
+        {
+            Asset = reference.Value,
+            License = license,
+            // DUCKING VARSAYILAN OLARAK AÇIK.
+            //
+            // Kapalı olsaydı müzik konuşmanın üstüne biner ve bunu
+            // ancak videoyu dinleyen biri fark ederdi — mekanik QC
+            // ses seviyesine bakıyor ama "hangi ses" sorusuna cevap
+            // veremiyor.
+            Ducking = new DuckingSpec(),
+        };
     }
 }
