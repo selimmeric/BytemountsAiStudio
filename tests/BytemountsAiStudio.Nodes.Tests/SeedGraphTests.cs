@@ -90,6 +90,35 @@ public sealed class SeedGraphTests
         Assert.Contains("media.render", typesBefore);
     }
 
+    /// NODE KİMLİKLERİ BİR ARAYÜZ.
+    ///
+    /// Run bağlamı node KİMLİĞİNE göre anahtarlanıyor ve tüketiciler
+    /// sabit anahtarlar okuyor: `TimelineBuilder` → `music`,
+    /// `QualityCheckHandler` → `thumbnail`/`render`/`seo`,
+    /// `MediaRenderHandler` → `timeline`.
+    ///
+    /// GERÇEKTEN OLDU: node'lar `muzik` ve `kapak` adlandırılmıştı.
+    /// İkisi de doğru çalışıp doğru çıktı üretti ve hiçbiri okunmadı —
+    /// müzik hiçbir videoya girmedi (QC de sessiz kaldı, çünkü
+    /// "müziksiz video geçerli") ve kapak bloklayıcı bir kontrolü
+    /// "ölçülmedi" diye düşürdü. Yani iki node aylarca çalışıyor
+    /// görünüp hiçbir işe yaramayabilirdi.
+    [Theory]
+    [InlineData("topic")]
+    [InlineData("research")]
+    [InlineData("script")]
+    [InlineData("claims")]
+    [InlineData("tts")]
+    [InlineData("visuals")]
+    [InlineData("music")]
+    [InlineData("timeline")]
+    [InlineData("render")]
+    [InlineData("seo")]
+    [InlineData("thumbnail")]
+    [InlineData("qc")]
+    public void TuketicilerinOkudugu_NodeKimlikleriGraftaVar(string contextKey)
+        => Assert.Contains(Seed().Nodes, n => n.Id == contextKey);
+
     /// RETRY HEDEFLERİ GRAFA DENK GELİYOR.
     ///
     /// Planlayıcı boru hattı aşamalarını adlandırıyor

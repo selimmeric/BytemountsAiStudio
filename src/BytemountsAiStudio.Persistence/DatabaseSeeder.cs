@@ -21,6 +21,20 @@ public static class DatabaseSeeder
     /// veritabanı gerektirmeden sınanabilsin. Kayıtlı olmayan bir tip
     /// run'ı çalışma ortasında düşürürdü (§6.2) ve bunu yakalamak için
     /// Postgres ayağa kaldırmak gereksiz.
+    /// NODE KİMLİKLERİ BİR ARAYÜZ, keyfi ad değil.
+    ///
+    /// Run bağlamı node KİMLİĞİNE göre anahtarlanıyor
+    /// (`context["render"]`) ve tüketiciler sabit anahtarlar okuyor:
+    /// timeline `music`, QC `thumbnail`, render `timeline` arıyor.
+    /// Kimliği değiştirmek, o çıktıyı GÖRÜNMEZ kılıyor.
+    ///
+    /// Bu gerçekten oldu: node'lar `muzik` ve `kapak` adlandırılmıştı.
+    /// İkisi de doğru çalışıp doğru çıktı üretti ve HİÇBİRİ
+    /// okunmadı — müzik hiçbir videoya girmedi (üstelik "müziksiz
+    /// video geçerli" olduğu için QC de sessiz kaldı) ve kapak
+    /// "ölçülmedi" diye bloklayıcı bir kontrolü düşürdü.
+    ///
+    /// `SeedGraphTests` bu sözleşmeyi sınıyor.
     public const string FakeGraphJson = """
         {
           "schema_version": 1,
@@ -34,11 +48,11 @@ public static class DatabaseSeeder
             { "id": "tts",      "type": "tts.synthesize",   "config": { "voice_id": "fake-tr-f1" } },
             { "id": "timeline", "type": "timeline.compile", "config": { "aspect": "9:16" } },
             { "id": "visuals",  "type": "visual.resolve",   "config": { "order": ["fake-stock", "fake-imagegen"] } },
-            { "id": "muzik",    "type": "music.select",     "config": { "mood": "ambient" } },
+            { "id": "music",    "type": "music.select",     "config": { "mood": "ambient" } },
             { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
             { "id": "claims",   "type": "claim.check",      "config": {} },
             { "id": "seo",      "type": "seo.generate",     "config": {} },
-            { "id": "kapak",    "type": "thumbnail.render", "config": {} },
+            { "id": "thumbnail",    "type": "thumbnail.render", "config": {} },
             { "id": "qc",       "type": "qc.mechanical",    "config": {} },
             { "id": "qcs",      "type": "qc.semantic",      "config": {} },
             { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
@@ -49,13 +63,13 @@ public static class DatabaseSeeder
             { "from": "script",   "to": "claims" },
             { "from": "claims",   "to": "tts" },
             { "from": "tts",      "to": "visuals" },
-            { "from": "tts",      "to": "muzik" },
+            { "from": "tts",      "to": "music" },
             { "from": "visuals",  "to": "timeline" },
-            { "from": "muzik",    "to": "timeline" },
+            { "from": "music",    "to": "timeline" },
             { "from": "timeline", "to": "render" },
             { "from": "render",   "to": "seo" },
-            { "from": "seo",      "to": "kapak" },
-            { "from": "kapak",    "to": "qc" },
+            { "from": "seo",      "to": "thumbnail" },
+            { "from": "thumbnail",    "to": "qc" },
             { "from": "qc",       "to": "qcs" },
             { "from": "qcs",      "to": "onay" }
           ]

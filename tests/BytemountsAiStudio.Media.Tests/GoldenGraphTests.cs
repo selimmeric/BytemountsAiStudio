@@ -80,7 +80,8 @@ public sealed class GoldenGraphTests
             voice_s2:a -> adelay -> a_s2:a
             a_s1:a,a_s2:a -> amix -> amixed:a
             amixed:a -> apad -> apadded:a
-            apadded:a -> atrim -> aout:a
+            apadded:a -> atrim -> atrim:a
+            atrim:a -> loudnorm -> aout:a
             video_out vout:v
             audio_out aout:a
 
@@ -104,6 +105,14 @@ public sealed class GoldenGraphTests
         Assert.Contains("[3:a]adelay=delays=5000:all=1[a_s2]", text, StringComparison.Ordinal);
         Assert.Contains("amix=inputs=2:normalize=0:dropout_transition=0", text, StringComparison.Ordinal);
         Assert.Contains("[vcat]format=yuv420p[vout]", text, StringComparison.Ordinal);
+
+        // SES SEVİYESİ YAYIN STANDARDINA ÇEKİLİYOR (−16 LUFS).
+        //
+        // `ALoudNorm` düğümü ve `AudioTrack.TargetLufs` vardı ama
+        // planlayıcı ikisini hiç kullanmıyordu: timeline bir hedef
+        // vaat ediyor, render onu yok sayıyordu. İlk gerçek ölçüm
+        // −24,8 LUFS gösterdi.
+        Assert.Contains("loudnorm=I=-16:TP=-1.5:LRA=11", text, StringComparison.Ordinal);
     }
 
     [Fact]

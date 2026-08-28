@@ -357,8 +357,25 @@ public static class RenderPlanner
         var padded = new StreamRef("apadded", MediaKind.Audio);
         nodes.Add(FilterNode.APadTrim(withMusic, padded, seconds));
 
+        var trimmed = new StreamRef("atrim", MediaKind.Audio);
+        nodes.Add(FilterNode.ATrim(padded, trimmed, seconds));
+
+        // ---- SES SEVİYESİ YAYIN STANDARDINA ÇEKİLİYOR ----
+        //
+        // `ALoudNorm` düğümü ve `AudioTrack.TargetLufs` (−16) VARDI ama
+        // planlayıcı ikisini hiç kullanmıyordu: timeline bir hedef
+        // vaat ediyor, render onu yok sayıyordu.
+        //
+        // Bunu ancak ses ÖLÇÜLMEYE başlayınca gördük: ilk gerçek koşu
+        // −24,8 LUFS çıktı, hedef −16. Sekiz desibel fark, izleyicinin
+        // sesi açmak zorunda kalması demek — ve platform kendi
+        // normalizasyonunu uygularken dinamikleri bozuyor.
+        //
+        // NORMALİZASYON EN SONDA: konuşma, müzik ve ducking
+        // karıştıktan sonra. Önce uygulansaydı müzik eklenince seviye
+        // yeniden kayardı.
         var audioOut = new StreamRef("aout", MediaKind.Audio);
-        nodes.Add(FilterNode.ATrim(padded, audioOut, seconds));
+        nodes.Add(FilterNode.ALoudNorm(trimmed, audioOut, timeline.Audio.TargetLufs));
 
         return audioOut;
     }

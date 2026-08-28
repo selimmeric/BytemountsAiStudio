@@ -44,7 +44,7 @@ public sealed class QualityCheckHandler(IStorageProvider storage) : INodeHandler
         var report = MechanicalQc.Run(new QcInput
         {
             Timeline = timeline.Value,
-            Media = MediaFrom(context.RunContext),
+            Media = MediaFrom(context.RunContext, SpeechRatioOf(timeline.Value)),
             Metadata = MetadataFrom(context.RunContext),
             Claims = ClaimsFrom(context.RunContext),
             Uniqueness = UniquenessFrom(context.RunContext),
@@ -145,6 +145,9 @@ public sealed class QualityCheckHandler(IStorageProvider storage) : INodeHandler
     /// hiç render edilmemiş bir videoyu tam puanla geçirmek olurdu
     /// (P1-21).
     internal static MediaMeasurements? MediaFrom(JsonElement runContext)
+        => MediaFrom(runContext, null);
+
+    internal static MediaMeasurements? MediaFrom(JsonElement runContext, double? speechRatio)
     {
         if (!runContext.TryGetProperty("render", out var render)
             || render.ValueKind != JsonValueKind.Object)
@@ -162,7 +165,17 @@ public sealed class QualityCheckHandler(IStorageProvider storage) : INodeHandler
                        && !string.IsNullOrWhiteSpace(codec.GetString()),
             LoudnessLufs = Number(render, "loudness_lufs"),
             TruePeakDb = Number(render, "true_peak_db"),
-            SpeechRatio = Number(render, "speech_ratio"),
+            // KONUŞMA ORANI TIMELINE'DAN, sesten değil.
+            //
+            // Render çıktısındaki oran sessizlik ölçülerek bulunuyor ve
+            // ARKA PLAN MÜZİĞİ VARSA sessizlik hiç olmuyor: ölçüm her
+            // videoda %100 diyor. Doğru bir ölçüm, yanlış bir soruya.
+            //
+            // Timeline'da ise konuşma süreleri ZATEN BİLİNİYOR (her
+            // seslendirme parçası ölçülmüş süresiyle duruyor, ADR-006).
+            // Çıkarım yapmak yerine bilineni kullanmak hem kesin hem
+            // müzikten bağımsız.
+            SpeechRatio = speechRatio,
             SizeBytes = (long)(Number(render, "size_bytes") ?? 0),
         };
     }
@@ -255,4 +268,27 @@ public sealed class QualityCheckHandler(IStorageProvider storage) : INodeHandler
            && value.TryGetDouble(out var parsed)
             ? parsed
             : null;
+
+    /// Konuşma oranı: seslendirme sürelerinin toplamı / video süresi.
+    ///
+    /// TIMELINE'DAN OKUNUYOR çünkü orada KESİN: her parçanın süresi
+    /// ölçülmüş (ADR-006). Render çıktısından sessizlik ölçerek
+    /// çıkarmak, arka plan müziği varsa hep %100 veriyordu — doğru bir
+    /// ölçüm ama yanlış bir soruya cevap.
+    ///
+    /// Parçalar üst üste binebiliyor (çapraz geçiş); toplam süreyi
+    /// aşarsa 1'e kırpılıyor.
+    internal static double? SpeechRatioOf(TimelineDocument timeline)
+    {
+        var total = timeline.Duration.Value;
+
+        if (total <= 0)
+        {
+            return null;
+        }
+
+        var speech = timeline.Audio.VoiceSegments.Sum(v => (long)v.Duration.Value);
+
+        return Math.Clamp(speech / (double)total, 0, 1);
+    }
 }
