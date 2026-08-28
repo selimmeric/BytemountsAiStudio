@@ -33,8 +33,37 @@ public sealed record WorkflowGraph
         WriteIndented = true,
     };
 
+    /// Graf JSON'unu okur; okunamıyorsa `null`.
+    ///
+    /// BOZUK JSON İSTİSNA ATMIYOR ve bu, imzanın zaten verdiği sözdü.
+    /// `Deserialize` yalnızca metin literal `null` olduğunda `null`
+    /// döndürüyor, bozuk metinde `JsonException` ATIYOR — yani bu
+    /// metodun `WorkflowGraph?` dönüş tipi yanlış bir söz veriyordu.
+    ///
+    /// Bütün çağıranlar (`WorkflowEngine`, `ApprovalService`,
+    /// `DeadLetterTriage`, panel sorguları) `is null` diye
+    /// bakıyordu: o kontrollerin hiçbiri bozuk bir kayıtta
+    /// çalışmıyordu. Depoda bozuk tek bir graf satırı, "graf
+    /// okunamadı" yerine motorda işlenmemiş bir istisna demekti —
+    /// ve editörde HTTP cevabına düşmüş bir yığın izi olarak
+    /// görüldü.
     public static WorkflowGraph? Parse(string json)
-        => JsonSerializer.Deserialize<WorkflowGraph>(json, JsonOptions);
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<WorkflowGraph>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (ArgumentNullException)
+        {
+            // `Deserialize(null)` da istisna atıyor; çağıran için
+            // "okunamadı" ile aynı şey.
+            return null;
+        }
+    }
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
 

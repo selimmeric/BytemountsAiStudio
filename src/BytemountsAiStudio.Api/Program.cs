@@ -374,6 +374,49 @@ app.MapGet("/istemler", () =>
 // koşturmak makul.
 app.MapGet("/istemler/degerlendirme", () => Results.Ok(PromptEvalQueries.Build()));
 
+// ---- İŞ AKIŞI EDİTÖRÜ (P3-05) ----
+//
+// EDİTÖRÜN KENDİ DOĞRULAMA KURALLARI YOK: bu uçlar motorun kullandığı
+// `WorkflowValidator` ve `NodeRegistry`'yi çağırıyor. Kuralları
+// tarayıcıda tekrar yazmak, iki kural setinin zamanla ayrışması
+// demekti — editör "geçerli" der, motor reddeder.
+
+// Node paleti: kayıtlı tiplerden geliyor, elle yazılmış listeden
+// değil. Liste olsaydı yeni bir handler eklendiğinde palete eklemeyi
+// unutmak mümkün olurdu.
+app.MapGet("/isakislari/palet", (NodeRegistry registry)
+    => Results.Ok(WorkflowEditor.Palette(registry)));
+
+app.MapPost("/isakislari/dogrula", async (HttpRequest request, NodeRegistry registry) =>
+{
+    using var reader = new StreamReader(request.Body);
+    var json = await reader.ReadToEndAsync().ConfigureAwait(false);
+
+    return Results.Ok(WorkflowEditor.Validate(json, registry));
+});
+
+// KAYDETMEK HER ZAMAN YENİ SÜRÜM ÜRETİYOR, mevcut sürümü
+// değiştirmiyor: koşan run'lar başladıkları grafa bağlı ve yerinde
+// düzenleme, yarısı eski yarısı yeni kurallarla üretilmiş bir video
+// demekti.
+app.MapPost("/isakislari/{key}/surumler", async (
+    string key, HttpRequest request, StudioDbContext db, NodeRegistry registry, CancellationToken token) =>
+{
+    using var reader = new StreamReader(request.Body);
+    var json = await reader.ReadToEndAsync(token).ConfigureAwait(false);
+
+    var result = await WorkflowEditor.SaveAsync(db, registry, key, json, token).ConfigureAwait(false);
+
+    // GEÇERSİZ GRAF 400, BİLİNMEYEN İŞ AKIŞI 404: hepsini 400 yapmak,
+    // istemcinin grafı mı yoksa adresi mi düzelteceğini bilememesi
+    // demekti.
+    return result.Saved
+        ? Results.Ok(result)
+        : result.Issues.Any(i => i.Code == "workflow.unknown")
+            ? Results.NotFound(result)
+            : Results.BadRequest(result);
+});
+
 app.Run();
 
 /// Karar sonucunu HTTP'ye çevirir.
