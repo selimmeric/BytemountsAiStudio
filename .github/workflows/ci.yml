@@ -29,6 +29,29 @@ jobs:
           --health-timeout 3s
           --health-retries 20
 
+      # Nesne deposu testleri de GERCEK MinIO'ya kosuyor (P4-02).
+      #
+      # Ayni gerekce: sahte bir S3 istemcisi imzalari dogrular ama asil
+      # sorular onda hic sorulmaz -- nesne anahtari kabul ediliyor mu,
+      # olmayan nesne 404 mu donuyor, yukleme imzasi geciyor mu.
+      #
+      # ATLAMAK SECENEK DEGILDI: "S3 destegi var" iddiasi sinanmadan
+      # yesil gorunmemeli. MinIO yoksa testler aciktan dusuyor ve bu
+      # dogru davranis -- o yuzden CI'a MinIO konuldu, teste `Skip`
+      # degil.
+      minio:
+        image: minio/minio:edge-cicd
+        env:
+          MINIO_ROOT_USER: bmai
+          MINIO_ROOT_PASSWORD: bmai_dev_secret
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
     env:
       BMAI_TEST_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=bmai;Password=bmai_dev"
 
