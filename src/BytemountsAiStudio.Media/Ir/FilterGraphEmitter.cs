@@ -102,6 +102,16 @@ public static class FilterGraphEmitter
                 args.Add(duration.ToString("0.###", CultureInfo.InvariantCulture));
             }
 
+            // `-itsoffset` GIRDIDEN ONCE ve `-t`'den SONRA: `-t` girdiden
+            // okunacak sureyi, `-itsoffset` o surenin zaman ekseninde
+            // nereye oturacagini belirliyor. Sirasi degisirse katman
+            // yanlis anda gorunur.
+            if (input.OffsetSeconds is { } offset && offset > 0)
+            {
+                args.Add("-itsoffset");
+                args.Add(offset.ToString("0.###", CultureInfo.InvariantCulture));
+            }
+
             args.Add("-i");
             args.Add(input.Path);
         }

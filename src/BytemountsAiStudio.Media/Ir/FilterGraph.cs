@@ -43,6 +43,24 @@ public sealed record InputDecl
     public double? DurationSeconds { get; init; }
 
     public double? FrameRate { get; init; }
+
+    /// Girdinin zaman ekseninde kaydırılacağı saniye (`-itsoffset`).
+    ///
+    /// NEDEN VAR (P4-09): altyazı katmanları eskiden VİDEONUN TAMAMI
+    /// boyunca döngüye alınıyor ve ne zaman görüneceğini yalnızca
+    /// `enable` belirliyordu. Sonuç: 48 saniyelik bir videoda 97
+    /// altyazı için 97 × 1.440 = 140.000 kare üretiliyordu — her biri
+    /// bir saniyeden kısa görünen katmanlar için.
+    ///
+    /// Ölçüldü: tek render 31,5 GB bellek ve 280 saniye. Üç render
+    /// aynı makinede koşunca 64 GB RAM tükendi ve sistem takasa
+    /// girdi.
+    ///
+    /// Kaydırma ile her katman YALNIZCA kendi penceresi kadar
+    /// üretiliyor ve doğru ana yerleşiyor. Eski yorum "girdiyi kendi
+    /// aralığına kırpmak overlay'in zaman eksenini kaydırırdı"
+    /// diyordu — doğruydu, eksik olan şey kaydırmanın kendisiydi.
+    public double? OffsetSeconds { get; init; }
 }
 
 /// Bir filtre argümanı. İsimli ya da konumsal olabilir.

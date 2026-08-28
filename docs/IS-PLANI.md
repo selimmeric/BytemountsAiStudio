@@ -387,7 +387,20 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Kalan:* Okuma replikası
 - [ ] **P4-07** `3p` — NVENC değerlendirmesi (kalite ölçümüyle)
 - [ ] **P4-08** `3p` — Temporal spike + `IWorkflowEngine` arkasında karar
-- [ ] **P4-09** `2p` — 🏁 **Faz 4 kabul:** 100 video/gün yük testi geçildi
+- [x] **P4-09** `2p` — 🏁 **Faz 4 kabul:** 100 video/gün yük testi geçildi
+  - *Bitti:* ✔ 29 Ağu 2026 — **10 video, 0 düşen, 532 saniye → 1.625 video/gün**, ortalama retry turu 0,00. Bir hafif + bir render worker, 10 kanal, 100 konu. Gereken 100/gün; ölçülen **16 katı**.
+  - *Dürüst kayıt:* sağlayıcılar sahte, yani model ve API gecikmesi yok. Ama **render gerçek** (ffmpeg) ve bağlayıcı kısıt orası: video başına 45,6 sn, render eşzamanlılığı 1. Hafif adımlar (senaryo, arama, görsel) zaten 8'e kadar paralel koşuyor; gerçek sağlayıcılarda oradaki ağ beklemesi render'ı beklemeyi değiştirmez.
+  - ***Yük testi hattaki en büyük performans kusurunu buldu.*** İlk koşuda 3 render worker aynı makinede çalıştırıldı ve **23 dakikada tek bir video bitmedi**. Sebep CPU değil bellek: ffmpeg süreçleri 8,9 / 8,6 / **25,6 GB** kullanıyordu, 64 GB RAM tükendi ve makine takasa girdi.
+    Tek render izole ölçüldü: **280 saniye, 31,5 GB**. Oysa aynı sahne zinciri tek başına ffmpeg'de 1,11 GB kullanıyordu — fark altyazılardan geliyordu. **Her altyazı ipucu ayrı bir ffmpeg girdisiydi ve videonun TAMAMI boyunca döngüdeydi**: 48 saniyelik bir videoda 97 altyazı için 97 × 1.440 = **140.000 kare** üretiliyordu, her biri bir saniyeden kısa görünen katmanlar için.
+    Eski yorum *"girdiyi kendi aralığına kırpmak overlay'in zaman eksenini kaydırırdı"* diyordu ve **doğruydu** — eksik olan şey `-itsoffset` idi. Katman artık yalnızca kendi penceresi kadar üretilip doğru ana kaydırılıyor:
+
+    | | önce | sonra |
+    |---|---|---|
+    | render süresi | **280 sn** | **44 sn** |
+    | ffmpeg zirve belleği | 31,5 GB | 23,6 GB |
+
+    Altyazıların kaybolmadığı videoda ölçüldü: 3/10/20/30/40. saniyelerde altyazı bandında parlaklık 0–246 aralığında. 7 test.
+  - *İkinci bulgu:* worker öldürüldüğünde **ffmpeg yetim kalıyor** — 20 GB'lık bir süreç makinede kalmaya devam ediyor. Bugün eklenen kendini yeniden başlatma özelliğiyle (P4-05) birlikte bu, her yeniden başlatmada bir ffmpeg biriktirmek demek. *(Düzeltilmedi; ayrı bir madde.)*
 
 ---
 

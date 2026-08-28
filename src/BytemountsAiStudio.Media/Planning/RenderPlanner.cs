@@ -198,16 +198,31 @@ public static class RenderPlanner
                 var layer = overlays[i];
                 var inputId = $"ovl{i}";
 
+                // KATMAN YALNIZCA KENDI PENCERESI KADAR URETILIYOR.
+                //
+                // Eskiden her katman VIDEONUN TAMAMI boyunca donguye
+                // aliniyor ve ne zaman gorunecegini yalnizca `enable`
+                // belirliyordu. 48 saniyelik bir videoda 97 altyazi
+                // icin 97 x 1.440 = 140.000 kare uretiliyordu -- her
+                // biri bir saniyeden kisa gorunen katmanlar icin.
+                //
+                // Olculdu: tek render 31,5 GB bellek ve 280 saniye.
+                // Uc render ayni makinede kosunca 64 GB RAM tukendi.
+                //
+                // Eski yorum "girdiyi kendi araligina kirpmak
+                // overlay'in zaman eksenini kaydirirdi" diyordu ve
+                // DOGRUYDU; eksik olan sey `-itsoffset` idi.
+                var windowSeconds = Math.Max(
+                    1.0 / fps, layer.Range.Duration.TotalSeconds);
+
                 inputs.Add(new InputDecl
                 {
                     Id = inputId,
                     Path = layer.Path,
                     Kind = InputKind.Image,
                     Loop = true,
-                    // Katman tum video boyunca girdi olarak duruyor; ne zaman
-                    // GORUNECEGINI `enable` belirliyor. Girdiyi kendi araligina
-                    // kirpmak, overlay'in zaman eksenini kaydirirdi.
-                    DurationSeconds = totalSeconds,
+                    DurationSeconds = windowSeconds,
+                    OffsetSeconds = layer.Range.Start.TotalSeconds,
                     FrameRate = fps,
                 });
 
