@@ -234,9 +234,18 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     // Ikisi de AYNI graf ve AYNI engine uzerinden geciyor; degisen tek sey
     // node kaydi. Provider soyutlamasinin kanti bu.
     using var http = new HttpClient();
+
+    // TEKILLIK KONTROLU veritabanina bagli oldugu icin burada
+    // kuruluyor. Verilmezse QC "olculmedi" diyor ve video insana
+    // gidiyor - `is_unique: true` uydurmak, ayni videoyu ikinci kez
+    // yayinlamanin en sessiz yolu olurdu.
+    var uniqueness = new TitleUniqueness(db);
+
     var registry = open
-        ? NodeHandlerRegistration.BuildOpenRegistry(storage, http, outputDirectory)
-        : NodeHandlerRegistration.BuildFakeRegistry(storage, outputDirectory);
+        ? NodeHandlerRegistration.BuildOpenRegistry(
+            storage, http, outputDirectory, uniqueness: uniqueness)
+        : NodeHandlerRegistration.BuildFakeRegistry(
+            storage, outputDirectory, uniqueness: uniqueness);
 
     var queue = new JobQueue(db);
     var engine = new WorkflowEngine(db, queue, registry);

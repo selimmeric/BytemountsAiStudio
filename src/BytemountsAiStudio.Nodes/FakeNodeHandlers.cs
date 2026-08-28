@@ -81,13 +81,13 @@ internal static class NodeJson
 
 /// Konu seçimi. Gerçek hatta Topic Pool'dan en yüksek skorlu konuyu alacak;
 /// burada run'ı başlatan komutun verdiği konuyu geçiriyor.
-public sealed class TopicSelectHandler : INodeHandler
+public sealed class TopicSelectHandler(ITopicUniqueness? uniqueness = null) : INodeHandler
 {
     public string NodeType => "topic.select";
 
     public QueueClass Queue => QueueClass.Llm;
 
-    public Task<Result<JsonElement>> ExecuteAsync(NodeContext context, CancellationToken cancellationToken)
+    public async Task<Result<JsonElement>> ExecuteAsync(NodeContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -102,7 +102,46 @@ public sealed class TopicSelectHandler : INodeHandler
                        ?? NodeJson.Text(context.Config, "language")
                        ?? "tr-TR";
 
-        return Task.FromResult(Result.Success(NodeJson.From(new { topic, language })));
+        // ---- TEKİLLİK (ADR-003) ----
+        //
+        // Sağlayıcı yoksa alan HİÇ YAZILMIYOR ve QC bunu "ölçülmedi"
+        // diye işaretliyor. `is_unique: true` yazmak, kontrolü hiç
+        // koşturmadan geçmiş göstermek olurdu — aynı videoyu ikinci
+        // kez yayınlamanın en sessiz yolu.
+        if (uniqueness is null)
+        {
+            return Result.Success(NodeJson.From(new { topic, language }));
+        }
+
+        var verdict = await uniqueness
+            .CheckAsync(null, language, topic, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (verdict.IsFailure)
+        {
+            // KONTROL DÜŞTÜYSE NODE DÜŞMÜYOR ama alan da yazılmıyor:
+            // sonuç yine "ölçülmedi" ve video insana gidiyor. Uydurma
+            // bir değerle devam etmek, kontrolü sessizce kapatmaktı.
+            return Result.Success(NodeJson.From(new
+            {
+                topic,
+                language,
+                uniqueness_error = verdict.Error.Message,
+            }));
+        }
+
+        return Result.Success(NodeJson.From(new
+        {
+            topic,
+            language,
+            is_unique = verdict.Value.IsUnique,
+            similarity = verdict.Value.Similarity,
+            conflicting_title = verdict.Value.ConflictingTitle,
+            // YÖNTEM KAYITLI: başlık karşılaştırmasıyla anlam
+            // karşılaştırması aynı güvence değil ve "tekil"
+            // damgasının ne kadar güçlü olduğu buna bağlı.
+            uniqueness_method = verdict.Value.Method,
+        }));
     }
 }
 

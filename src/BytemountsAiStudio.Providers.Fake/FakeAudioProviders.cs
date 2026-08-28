@@ -45,7 +45,13 @@ public sealed class FakeTtsProvider : ITtsProvider
         }
 
         var duration = DurationFor(request.SpeechText, request.Speed);
-        var audio = WavWriter.Silence(duration);
+        // SESSİZLİK DEĞİL, KONUŞMA BENZERİ SES.
+        //
+        // Sessizlik ürettiğinde sahte hat kabul kriterini hiçbir zaman
+        // sağlayamıyordu: render −70 LUFS çıkıyor ve QC haklı olarak
+        // düşürüyordu. Sahte bir sağlayıcı temsil ettiği şeyi temsil
+        // etmeli — gerçek bir TTS konuşma döndürüyor.
+        var audio = WavWriter.Speech(duration);
         var timings = DistributeWords(request.SpeechText, duration);
 
         var response = new TtsResponse

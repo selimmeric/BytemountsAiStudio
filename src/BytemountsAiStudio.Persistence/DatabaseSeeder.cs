@@ -38,6 +38,7 @@ public static class DatabaseSeeder
             { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
             { "id": "claims",   "type": "claim.check",      "config": {} },
             { "id": "seo",      "type": "seo.generate",     "config": {} },
+            { "id": "kapak",    "type": "thumbnail.render", "config": {} },
             { "id": "qc",       "type": "qc.mechanical",    "config": {} },
             { "id": "qcs",      "type": "qc.semantic",      "config": {} },
             { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
@@ -53,7 +54,8 @@ public static class DatabaseSeeder
             { "from": "muzik",    "to": "timeline" },
             { "from": "timeline", "to": "render" },
             { "from": "render",   "to": "seo" },
-            { "from": "seo",      "to": "qc" },
+            { "from": "seo",      "to": "kapak" },
+            { "from": "kapak",    "to": "qc" },
             { "from": "qc",       "to": "qcs" },
             { "from": "qcs",      "to": "onay" }
           ]

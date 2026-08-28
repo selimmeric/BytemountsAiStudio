@@ -23,7 +23,8 @@ public static class NodeHandlerRegistration
         IStorageProvider storage,
         string outputDirectory,
         string ffmpegPath = "ffmpeg",
-        string ffprobePath = "ffprobe")
+        string ffprobePath = "ffprobe",
+        ITopicUniqueness? uniqueness = null)
     {
         var llm = new FakeLlmProvider
         {
@@ -78,7 +79,7 @@ public static class NodeHandlerRegistration
         };
 
         return new NodeRegistry()
-            .Register(new TopicSelectHandler())
+            .Register(new TopicSelectHandler(uniqueness))
             .Register(new ResearchHandler())
             .Register(new ScriptGenerateHandler(llm))
             .Register(new TtsSynthesizeHandler(new FakeTtsProvider(), storage, ffprobePath))
@@ -96,6 +97,16 @@ public static class NodeHandlerRegistration
             // da su an oyle. Ayrimin gerekcesi ClaimCheckHandler'da.
             .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm))
+            // KAPAK SEO'DAN SONRA: kapak metni başlıktan geliyor.
+            // Önce koşsaydı kapakta konu adı yazardı ve izleyicinin
+            // tıkladığı başlıkla gördüğü kapak ayrışırdı.
+            //
+            // Bu node uzun süre YOKTU: `ThumbnailRenderer` yazılmış ve
+            // testliydi ama kimse çağırmıyordu. Sonuç `qc.thumbnail`
+            // kontrolünün her koşuda "ölçülmedi" diye düşmesiydi — ve o
+            // BLOKLAYICI bir kontrol, yani hiçbir video otomatik
+            // geçemiyordu.
+            .Register(new ThumbnailRenderHandler(storage))
             .Register(new QualityCheckHandler(storage))
             // SEMANTİK QC GÖRME MODELİ OLMADAN KAYITLI.
             //
@@ -123,7 +134,8 @@ public static class NodeHandlerRegistration
         HttpClient http,
         string outputDirectory,
         string ffmpegPath = "ffmpeg",
-        string ffprobePath = "ffprobe")
+        string ffprobePath = "ffprobe",
+        ITopicUniqueness? uniqueness = null)
     {
         // Yerel LLM TEK YERDE kuruluyor.
         //
@@ -141,7 +153,7 @@ public static class NodeHandlerRegistration
         var sidecar = new ToolsSidecar(http, ToolsSidecarOptions.FromEnvironment());
 
         return new NodeRegistry()
-            .Register(new TopicSelectHandler())
+            .Register(new TopicSelectHandler(uniqueness))
             // Wikipedia METIN, Wikidata OLGU veriyor. Ikisi birlikte:
             // metinden cikarilan bir tarih yanlis olabilir, alandan
             // okunan tarihte cikarim adimi hic yok (P1-05).
@@ -198,6 +210,16 @@ public static class NodeHandlerRegistration
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm))
+            // KAPAK SEO'DAN SONRA: kapak metni başlıktan geliyor.
+            // Önce koşsaydı kapakta konu adı yazardı ve izleyicinin
+            // tıkladığı başlıkla gördüğü kapak ayrışırdı.
+            //
+            // Bu node uzun süre YOKTU: `ThumbnailRenderer` yazılmış ve
+            // testliydi ama kimse çağırmıyordu. Sonuç `qc.thumbnail`
+            // kontrolünün her koşuda "ölçülmedi" diye düşmesiydi — ve o
+            // BLOKLAYICI bir kontrol, yani hiçbir video otomatik
+            // geçemiyordu.
+            .Register(new ThumbnailRenderHandler(storage))
             // QC HER İKİ hatta da: skoru üreten tek yer burası ve
             // olmadan onay kapısı hep "skor yok" görüyor, yani
             // seçici onay hiç devreye giremiyor (P2-08).
@@ -227,6 +249,7 @@ public static class NodeHandlerRegistration
         "timeline.compile",
         "media.render",
         "seo.generate",
+        "thumbnail.render",
         "claim.check",
         "music.select",
         "qc.mechanical",
