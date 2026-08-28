@@ -2,6 +2,7 @@ using System.Text.Json;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
+using BytemountsAiStudio.Core.Execution;
 using BytemountsAiStudio.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
@@ -99,7 +100,15 @@ public sealed class TopicPool(StudioDbContext db)
             }
         }
 
-        var decision = TopicPolicy.Decide(score, similarity);
+        // AĞIRLIKLAR KANALDAN, ÇAĞIRANDAN DEĞİL (P5-04).
+        //
+        // Parametre olsaydı, geçirmeyi unutan her çağrı sessizce
+        // varsayılan ağırlıkları kullanırdı ve kanalın ayarı hiçbir
+        // yerde işe yaramazdı. Bu depoda aynı hata ses ve yazı tipi
+        // ayarlarında bir kez yapıldı (P3-01).
+        var weights = await WeightsAsync(channelId, cancellationToken).ConfigureAwait(false);
+
+        var decision = TopicPolicy.Decide(score, similarity, weights);
 
         db.Topics.Add(new Topic
         {
@@ -119,14 +128,14 @@ public sealed class TopicPool(StudioDbContext db)
                 // reddedildiğinde "neye benzedi" sorusu sorulacak.
                 similarity,
             }),
-            OverallScore = score.Overall,
+            OverallScore = score.Weighted(weights),
             State = decision switch
             {
                 TopicDecision.Accept => TopicState.Queued,
                 TopicDecision.Reject => TopicState.Rejected,
                 _ => TopicState.New,
             },
-            RejectedReason = decision == TopicDecision.Reject ? RejectReason(score, similarity) : null,
+            RejectedReason = decision == TopicDecision.Reject ? RejectReason(score, similarity, weights) : null,
             Embedding = embedding is { Count: > 0 }
                 ? new Vector(embedding.ToArray().AsMemory())
                 : null,
@@ -209,11 +218,32 @@ public sealed class TopicPool(StudioDbContext db)
         return new PoolStatus(ready, producing, dailyTarget);
     }
 
+    /// Kanalın skorlama ağırlıkları.
+    ///
+    /// Kanal yoksa varsayılan: kanalsız konular (genel havuz) da
+    /// skorlanıyor ve onlar için tek makul taban bugünkü ağırlıklar.
+    private async Task<ScoreWeights> WeightsAsync(Guid? channelId, CancellationToken cancellationToken)
+    {
+        if (channelId is null)
+        {
+            return ScoreWeights.Default;
+        }
+
+        var settingsJson = await db.Channels.AsNoTracking()
+            .Where(c => c.Id == channelId)
+            .Select(c => c.SettingsJson)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return ChannelSettings.Parse(settingsJson).ScoreWeights;
+    }
+
     /// Reddin GEREKÇESİ — hangi kural devreye girdi.
     ///
     /// "Skor düşük" yetmez: risk vetosu mu, tekrar mı, yoksa gerçekten
     /// düşük skor mu? Üçü farklı düzeltme gerektiriyor.
-    internal static string RejectReason(TopicScore score, double? similarity)
+    internal static string RejectReason(
+        TopicScore score, double? similarity, ScoreWeights? weights = null)
     {
         if (!score.IsValid)
         {
@@ -230,6 +260,7 @@ public sealed class TopicPool(StudioDbContext db)
             return $"Daha önce yayınlanan bir konuya çok benziyor (benzerlik {similarity:0.###}).";
         }
 
-        return $"Toplam skor {score.Overall:0.#}, red eşiği {TopicPolicy.RejectThreshold}.";
+        return $"Toplam skor {score.Weighted(weights ?? ScoreWeights.Default):0.#}, "
+            + $"red eşiği {TopicPolicy.RejectThreshold}.";
     }
 }

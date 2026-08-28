@@ -47,24 +47,31 @@ public sealed record TopicScore
     /// noktası orası: kaynağı olmayan konu senaryo aşamasında değil
     /// iddia doğrulama aşamasında düşüyor ve o noktaya kadar harcanan
     /// her şey boşa gidiyor.
-    public double Overall
-    {
-        get
-        {
-            var positive =
-                (Demand * 0.20)
-                + (Fit * 0.15)
-                + (Sourceability * 0.30)
-                + (Visualizability * 0.20)
-                + (Freshness * 0.15);
+    public double Overall => Weighted(ScoreWeights.Default);
 
-            // Risk CEZA olarak uygulanıyor, boyut olarak değil.
-            //
-            // Ağırlıklı ortalamaya katsaydık, yüksek riskli bir konu
-            // diğer boyutlardan telafi edebilirdi. Oysa politika
-            // ihlali riski telafi edilebilir bir şey değil.
-            return Math.Clamp(positive - (Risk * 0.5), 0, 100);
-        }
+    /// Verilen ağırlıklarla toplam (P5-04).
+    ///
+    /// Ağırlıklar kanal ayarından geliyor: aynı konu, farklı
+    /// önceliklere sahip iki kanalda farklı puan almalı. Sabit
+    /// katsayılarla bu imkânsızdı ve ağırlıkların doğru olup olmadığı
+    /// da hiç ölçülemezdi.
+    public double Weighted(ScoreWeights weights)
+    {
+        ArgumentNullException.ThrowIfNull(weights);
+
+        var positive =
+            (Demand * weights.Demand)
+            + (Fit * weights.Fit)
+            + (Sourceability * weights.Sourceability)
+            + (Visualizability * weights.Visualizability)
+            + (Freshness * weights.Freshness);
+
+        // Risk CEZA olarak uygulanıyor, boyut olarak değil.
+        //
+        // Ağırlıklı ortalamaya katsaydık, yüksek riskli bir konu
+        // diğer boyutlardan telafi edebilirdi. Oysa politika
+        // ihlali riski telafi edilebilir bir şey değil.
+        return Math.Clamp(positive - (Risk * weights.RiskPenalty), 0, 100);
     }
 
     /// Boyutların hepsi geçerli aralıkta mı.
@@ -124,9 +131,12 @@ public static class TopicPolicy
     /// konu, ne kadar iyi olursa olsun üretilmemeli.
     public const int RiskVeto = 70;
 
-    public static TopicDecision Decide(TopicScore score, double? highestSimilarity = null)
+    public static TopicDecision Decide(
+        TopicScore score, double? highestSimilarity = null, ScoreWeights? weights = null)
     {
         ArgumentNullException.ThrowIfNull(score);
+
+        weights ??= ScoreWeights.Default;
 
         if (!score.IsValid)
         {
@@ -145,9 +155,11 @@ public static class TopicPolicy
             return TopicDecision.Reject;
         }
 
-        return score.Overall >= AcceptThreshold
+        var overall = score.Weighted(weights);
+
+        return overall >= AcceptThreshold
             ? TopicDecision.Accept
-            : score.Overall >= RejectThreshold
+            : overall >= RejectThreshold
                 ? TopicDecision.Hold
                 : TopicDecision.Reject;
     }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using BytemountsAiStudio.Core.Content;
 
 namespace BytemountsAiStudio.Core.Execution;
 
@@ -45,6 +46,15 @@ public sealed record ChannelSettings
 
     /// Onay rejimi (P2-08).
     public ChannelMode? Mode { get; init; }
+
+    /// Konu skorlama ağırlıkları (P5-04).
+    ///
+    /// KODDAN AYARA TAŞINDI. Sabit katsayılar, iki kanalın aynı konuya
+    /// aynı puanı vermesi demekti — oysa bir kanal için "kaynak
+    /// bulunabilirliği" belirleyiciyken diğeri için tazelik olabilir.
+    /// Daha önemlisi: koda gömülü bir katsayı ölçülemez, çünkü
+    /// değiştirilemez.
+    public ScoreWeights ScoreWeights { get; init; } = ScoreWeights.Default;
 
     /// AYARDA ANLAŞILMAYAN NE VARSA BURADA.
     ///
@@ -99,6 +109,7 @@ public sealed record ChannelSettings
             WorkflowKey = Text(root, "workflow_key"),
             VoiceId = ReadVoiceId(root),
             FontStack = ReadFontStack(root, warnings),
+            ScoreWeights = ScoreWeights.Read(root, warnings),
             Warnings = warnings,
         };
     }
