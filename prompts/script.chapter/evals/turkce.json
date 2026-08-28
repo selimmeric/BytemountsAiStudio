@@ -1,0 +1,21 @@
+{
+  "prompt_key": "script.chapter",
+  "values": {
+    "topic": "Göbeklitepe",
+    "chapter_title": "Keşif",
+    "chapter_question": "Kim buldu ve neden yıllarca önemsenmedi",
+    "previous": "Önceki bölüm: Giriş — neden bu tepe önemli.",
+    "language": "tr-TR",
+    "sentence_count": "12",
+    "sources": "- Klaus Schmidt kazıları (1995)"
+  },
+  "expect": {
+    "contains": [
+      "Göbeklitepe", "Keşif", "Kim buldu", "tr-TR", "12", "Klaus Schmidt",
+      "ÖNCEKİ BÖLÜMÜ TEKRAR ETME", "KAYNAK DIŞINA ÇIKMA"
+    ],
+    "not_contains": ["{{"],
+    "max_chars": 3000,
+    "min_chars": 500
+  }
+}

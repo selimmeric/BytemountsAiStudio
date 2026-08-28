@@ -1,0 +1,18 @@
+{
+  "prompt_key": "chapter.plan",
+  "values": {
+    "topic": "Göbeklitepe",
+    "minutes": "12",
+    "language": "tr-TR",
+    "sources": "- Klaus Schmidt kazıları (1995)\n- Radyokarbon tarihlemesi MÖ 9600"
+  },
+  "expect": {
+    "contains": [
+      "Göbeklitepe", "12", "tr-TR", "Klaus Schmidt",
+      "BİR SORUYA", "BİRBİRİNİ İZLESİN", "KAYNAKLARDA OLMAYAN"
+    ],
+    "not_contains": ["{{"],
+    "max_chars": 3000,
+    "min_chars": 500
+  }
+}

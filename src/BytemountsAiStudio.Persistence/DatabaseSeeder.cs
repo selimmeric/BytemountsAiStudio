@@ -21,6 +21,7 @@ public static class DatabaseSeeder
     /// veritabanı gerektirmeden sınanabilsin. Kayıtlı olmayan bir tip
     /// run'ı çalışma ortasında düşürürdü (§6.2) ve bunu yakalamak için
     /// Postgres ayağa kaldırmak gereksiz.
+    ///
     /// NODE KİMLİKLERİ BİR ARAYÜZ, keyfi ad değil.
     ///
     /// Run bağlamı node KİMLİĞİNE göre anahtarlanıyor
@@ -52,7 +53,7 @@ public static class DatabaseSeeder
             { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
             { "id": "claims",   "type": "claim.check",      "config": {} },
             { "id": "seo",      "type": "seo.generate",     "config": {} },
-            { "id": "thumbnail",    "type": "thumbnail.render", "config": {} },
+            { "id": "thumbnail","type": "thumbnail.render", "config": {} },
             { "id": "qc",       "type": "qc.mechanical",    "config": {} },
             { "id": "qcs",      "type": "qc.semantic",      "config": {} },
             { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
@@ -69,9 +70,63 @@ public static class DatabaseSeeder
             { "from": "timeline", "to": "render" },
             { "from": "render",   "to": "seo" },
             { "from": "seo",      "to": "thumbnail" },
-            { "from": "thumbnail",    "to": "qc" },
+            { "from": "thumbnail","to": "qc" },
             { "from": "qc",       "to": "qcs" },
             { "from": "qcs",      "to": "onay" }
+          ]
+        }
+        """;
+
+    public const string LongWorkflowKey = "video-uzun";
+
+    /// Uzun video iş akışı (P3-02).
+    ///
+    /// KISA VİDEODAN FARKI İKİ NODE: `script.generate` yerine
+    /// `chapter.plan` + `script.long`. Gerisi aynı — seslendirme,
+    /// görsel, müzik, timeline, render, QC, onay hepsi ortak.
+    ///
+    /// Bu, sağlayıcı ve node soyutlamasının asıl sınavı: yeni bir
+    /// içerik türü yeni bir boru hattı değil, farklı bir GRAF
+    /// olmalıydı (§34). Öyle çıktı.
+    public const string LongGraphJson = """
+        {
+          "schema_version": 1,
+          "key": "video-uzun",
+          "name": "Uzun video (8-15 dk)",
+          "content_kind": "Video",
+          "nodes": [
+            { "id": "topic",     "type": "topic.select",     "config": { "min_score": 0 } },
+            { "id": "research",  "type": "research.deep",    "config": { "max_sources": 8 } },
+            { "id": "chapters",  "type": "chapter.plan",     "config": { "target_minutes": 10 } },
+            { "id": "script",    "type": "script.long",      "config": {} },
+            { "id": "claims",    "type": "claim.check",      "config": {} },
+            { "id": "tts",       "type": "tts.synthesize",   "config": {} },
+            { "id": "visuals",   "type": "visual.resolve",   "config": {} },
+            { "id": "music",     "type": "music.select",     "config": { "mood": "documentary" } },
+            { "id": "timeline",  "type": "timeline.compile", "config": { "aspect": "16:9" } },
+            { "id": "render",    "type": "media.render",     "config": { "preset": "video-1920x1080", "segmented": true } },
+            { "id": "seo",       "type": "seo.generate",     "config": {} },
+            { "id": "thumbnail", "type": "thumbnail.render", "config": {} },
+            { "id": "qc",        "type": "qc.mechanical",    "config": {} },
+            { "id": "qcs",       "type": "qc.semantic",      "config": {} },
+            { "id": "onay",      "type": "human.approval",   "config": { "min_score": 0.8 } }
+          ],
+          "edges": [
+            { "from": "topic",     "to": "research" },
+            { "from": "research",  "to": "chapters" },
+            { "from": "chapters",  "to": "script" },
+            { "from": "script",    "to": "claims" },
+            { "from": "claims",    "to": "tts" },
+            { "from": "tts",       "to": "visuals" },
+            { "from": "tts",       "to": "music" },
+            { "from": "visuals",   "to": "timeline" },
+            { "from": "music",     "to": "timeline" },
+            { "from": "timeline",  "to": "render" },
+            { "from": "render",    "to": "seo" },
+            { "from": "seo",       "to": "thumbnail" },
+            { "from": "thumbnail", "to": "qc" },
+            { "from": "qc",        "to": "qcs" },
+            { "from": "qcs",       "to": "onay" }
           ]
         }
         """;
@@ -85,6 +140,9 @@ public static class DatabaseSeeder
         added += await EnsureChannelAsync(db, "Sahte Kanal (TR)", "tr-TR", cancellationToken).ConfigureAwait(false);
         added += await EnsureChannelAsync(db, "Fake Channel (EN)", "en-US", cancellationToken).ConfigureAwait(false);
         added += await EnsureFakeWorkflowAsync(db, cancellationToken).ConfigureAwait(false);
+        added += await EnsureWorkflowAsync(
+            db, LongWorkflowKey, "Uzun video (8-15 dk)", ContentKind.Video, LongGraphJson,
+            cancellationToken).ConfigureAwait(false);
 
         if (added > 0)
         {
@@ -132,24 +190,35 @@ public static class DatabaseSeeder
     /// Artık graf değiştiğinde YENİ BİR SÜRÜM ekleniyor. Eski sürüm
     /// SİLİNMİYOR: hâlihazırda koşan run'lar ona bağlı ve "bu video hangi
     /// grafla üretildi" sorusunun cevabı o kayıt (§6.2).
-    private static async Task<int> EnsureFakeWorkflowAsync(StudioDbContext db, CancellationToken cancellationToken)
+    private static Task<int> EnsureFakeWorkflowAsync(StudioDbContext db, CancellationToken cancellationToken)
+        => EnsureWorkflowAsync(
+            db, FakeWorkflowKey, "Sahte Shorts (Faz 0 iskeleti)", ContentKind.Short,
+            FakeGraphJson, cancellationToken);
+
+    private static async Task<int> EnsureWorkflowAsync(
+        StudioDbContext db,
+        string key,
+        string name,
+        ContentKind kind,
+        string graphJson,
+        CancellationToken cancellationToken)
     {
         var workflow = await db.Workflows
             .Include(w => w.Versions)
-            .FirstOrDefaultAsync(w => w.Key == FakeWorkflowKey, cancellationToken)
+            .FirstOrDefaultAsync(w => w.Key == key, cancellationToken)
             .ConfigureAwait(false);
 
         if (workflow is null)
         {
             var created = new Workflow
             {
-                Key = FakeWorkflowKey,
-                Name = "Sahte Shorts (Faz 0 iskeleti)",
-                ContentKind = ContentKind.Short,
+                Key = key,
+                Name = name,
+                ContentKind = kind,
                 CurrentVersion = 1,
             };
 
-            created.Versions.Add(new WorkflowVersion { Version = 1, GraphJson = FakeGraphJson });
+            created.Versions.Add(new WorkflowVersion { Version = 1, GraphJson = graphJson });
             db.Workflows.Add(created);
 
             return 1;
@@ -157,14 +226,14 @@ public static class DatabaseSeeder
 
         var current = workflow.Versions.MaxBy(v => v.Version);
 
-        if (!NeedsNewVersion(current?.GraphJson, FakeGraphJson))
+        if (!NeedsNewVersion(current?.GraphJson, graphJson))
         {
             return 0;
         }
 
         var next = (current?.Version ?? 0) + 1;
 
-        workflow.Versions.Add(new WorkflowVersion { Version = next, GraphJson = FakeGraphJson });
+        workflow.Versions.Add(new WorkflowVersion { Version = next, GraphJson = graphJson });
         workflow.CurrentVersion = next;
 
         return 1;

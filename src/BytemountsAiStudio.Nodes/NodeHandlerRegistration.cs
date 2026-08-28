@@ -83,6 +83,14 @@ public static class NodeHandlerRegistration
             .Register(new TopicSelectHandler(uniqueness))
             .Register(new ResearchHandler())
             .Register(new ScriptGenerateHandler(llm))
+            // UZUN VIDEO: bolum plani + bolum bolum senaryo (P3-02).
+            //
+            // Ayni kayitta duruyorlar ama ayni GRAFTA degil: kisa
+            // video grafi `script.generate`, uzun video grafi
+            // `chapter.plan` + `script.long` kullaniyor. Kayit ortak,
+            // secim graftan.
+            .Register(new ChapterPlanHandler(llm))
+            .Register(new LongScriptHandler(llm))
             .Register(new TtsSynthesizeHandler(
                 new FakeTtsProvider(), storage, ffprobePath, channels: channels))
             .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
@@ -174,6 +182,14 @@ public static class NodeHandlerRegistration
             // senaryo isteği Cheap'e düşüyor ve bu çıktıya yazılıyor —
             // "senaryo yerel modelle üretildi" bilgisi kayda geçsin.
             .Register(new ScriptGenerateHandler(llm))
+            // UZUN VIDEO: bolum plani + bolum bolum senaryo (P3-02).
+            //
+            // Ayni kayitta duruyorlar ama ayni GRAFTA degil: kisa
+            // video grafi `script.generate`, uzun video grafi
+            // `chapter.plan` + `script.long` kullaniyor. Kayit ortak,
+            // secim graftan.
+            .Register(new ChapterPlanHandler(llm))
+            .Register(new LongScriptHandler(llm))
             // ONCE WINDOWS, OLMAZSA PIPER (P1-26).
             //
             // Windows'un yerel sesi bedava, hizli ve bu makinede Turkce
@@ -248,6 +264,8 @@ public static class NodeHandlerRegistration
         "topic.select",
         "research.deep",
         "script.generate",
+        "chapter.plan",
+        "script.long",
         "tts.synthesize",
         "visual.resolve",
         "timeline.compile",

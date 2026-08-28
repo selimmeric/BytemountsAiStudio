@@ -119,6 +119,68 @@ public sealed class SeedGraphTests
     public void TuketicilerinOkudugu_NodeKimlikleriGraftaVar(string contextKey)
         => Assert.Contains(Seed().Nodes, n => n.Id == contextKey);
 
+    /* ---- Uzun video grafı (P3-02) ---- */
+
+    private static WorkflowGraph LongSeed()
+    {
+        var graph = WorkflowGraph.Parse(DatabaseSeeder.LongGraphJson);
+
+        Assert.NotNull(graph);
+
+        return graph;
+    }
+
+    [Fact]
+    public void UzunVideoGrafi_DogrulamadanGeciyor()
+        => Assert.Empty(WorkflowValidator.Validate(LongSeed(), NodeHandlerRegistration.KnownNodeTypes));
+
+    /// KISA VİDEODAN FARKI İKİ NODE.
+    ///
+    /// Yeni bir içerik türü yeni bir boru hattı değil, farklı bir GRAF
+    /// olmalıydı (§34). Bu test o iddiayı sayıya çeviriyor: uzun video
+    /// grafı kısa video grafından yalnızca senaryo adımında ayrılıyor,
+    /// gerisi ortak.
+    [Fact]
+    public void UzunVideoGrafi_YalnizcaSenaryoAdimindaAyriliyor()
+    {
+        var shortTypes = Seed().Nodes.Select(n => n.Type).ToHashSet(StringComparer.Ordinal);
+        var longTypes = LongSeed().Nodes.Select(n => n.Type).ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(["chapter.plan", "script.long"], longTypes.Except(shortTypes).Order().ToArray());
+        Assert.Equal(["script.generate"], shortTypes.Except(longTypes).ToArray());
+    }
+
+    /// UZUN VİDEODA DA node kimlikleri tüketicilerin okuduğu
+    /// anahtarlar: aynı tüketiciler, aynı sözleşme.
+    [Theory]
+    [InlineData("topic")]
+    [InlineData("research")]
+    [InlineData("script")]
+    [InlineData("tts")]
+    [InlineData("visuals")]
+    [InlineData("music")]
+    [InlineData("timeline")]
+    [InlineData("render")]
+    [InlineData("seo")]
+    [InlineData("thumbnail")]
+    [InlineData("qc")]
+    [InlineData("chapters")]
+    public void UzunVideoGrafi_TuketiciAnahtarlariniKullaniyor(string contextKey)
+        => Assert.Contains(LongSeed().Nodes, n => n.Id == contextKey);
+
+    /// SENARYO BÖLÜM PLANINDAN SONRA: `script.long` plan olmadan
+    /// düşüyor ve sıra yanlışsa bunu her koşuda yapardı.
+    [Fact]
+    public void UzunVideoGrafi_PlanSenaryodanOnce()
+    {
+        var graph = LongSeed();
+        var script = graph.Nodes.Single(n => n.Type == "script.long");
+
+        Assert.Contains(
+            graph.Predecessors(script.Id),
+            id => graph.Node(id)!.Type == "chapter.plan");
+    }
+
     /// RETRY HEDEFLERİ GRAFA DENK GELİYOR.
     ///
     /// Planlayıcı boru hattı aşamalarını adlandırıyor
