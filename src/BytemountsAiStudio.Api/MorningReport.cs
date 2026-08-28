@@ -104,23 +104,37 @@ public static class MorningReport
     /// Ayrı bir kolon açmamak bilinçli: skor QC node'unun çıktısı ve
     /// çıktı zaten saklanıyor. Kolon açmak, aynı sayının iki yerde
     /// yaşaması ve birinin diğerinden habersiz değişmesi demekti.
+    ///
+    /// RUN BAŞINA **SON** SKOR SAYILIYOR, hepsi değil.
+    ///
+    /// Hedefli retry (P2-07) bir videoyu birden çok tura sokabiliyor ve
+    /// her turda QC yeniden koşuyor. Hepsini ortalamaya katmak, düzelme
+    /// ÖNCESİ skorları da gecenin kalitesine yazmak olurdu: retry ne
+    /// kadar iyi çalışırsa ortalama o kadar düşerdi — yani sistemin
+    /// kendini düzeltmesi rapora bir kusur gibi yansırdı. Gecenin
+    /// kalitesi, teslim edilen videonun kalitesi.
     private static async Task<List<double>> QualityScoresAsync(
         StudioDbContext db, DateTimeOffset since, CancellationToken cancellationToken)
     {
-        var outputs = await db.NodeExecutions.AsNoTracking()
+        var executions = await db.NodeExecutions.AsNoTracking()
             .Where(n => n.CreatedAt >= since
                         && n.State == NodeState.Succeeded
                         && n.NodeType == "qc.mechanical"
                         && n.OutputJson != null)
-            .Select(n => n.OutputJson!)
+            .Select(n => new { n.RunId, n.Loop, n.Attempt, n.OutputJson })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var scores = new List<double>();
 
-        foreach (var json in outputs)
+        foreach (var group in executions.GroupBy(n => n.RunId))
         {
-            if (ScoreOf(json) is { } score)
+            var last = group
+                .OrderByDescending(n => n.Loop)
+                .ThenByDescending(n => n.Attempt)
+                .First();
+
+            if (ScoreOf(last.OutputJson) is { } score)
             {
                 scores.Add(score);
             }

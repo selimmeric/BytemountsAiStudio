@@ -72,6 +72,25 @@ public sealed class MorningReportTests(DatabaseFixture fixture) : IAsyncLifetime
         return run.Id;
     }
 
+    private static async Task ScoreAsync(StudioDbContext db, Guid runId, double score, int loop = 0)
+    {
+        db.NodeExecutions.Add(new NodeExecution
+        {
+            RunId = runId,
+            NodeId = "qc",
+            NodeType = "qc.mechanical",
+            State = NodeState.Succeeded,
+            Loop = loop,
+            Attempt = 1,
+            IdempotencyKey = Guid.NewGuid().ToString("N"),
+            OutputJson = "{\"score\":"
+                         + score.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-20),
+        });
+
+        await db.SaveChangesAsync(CancellationToken.None);
+    }
+
     /// KABUL KRİTERİ: üç insan müdahalesiz video yeterli.
     [Fact]
     public async Task UcTamamlanmisVideo_KriterSaglandi()
@@ -222,30 +241,46 @@ public sealed class MorningReportTests(DatabaseFixture fixture) : IAsyncLifetime
         RequireDatabase();
         await using var db = fixture.CreateContext();
 
-        var runId = await RunAsync(db, RunState.Completed);
-
-        foreach (var score in new[] { 0.8, 0.6 })
-        {
-            db.NodeExecutions.Add(new NodeExecution
-            {
-                RunId = runId,
-                NodeId = "qc",
-                NodeType = "qc.mechanical",
-                State = NodeState.Succeeded,
-                Attempt = 1,
-                IdempotencyKey = Guid.NewGuid().ToString("N"),
-                OutputJson = $$"""{"score":{{score.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}""",
-                CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-20),
-            });
-        }
-
-        await db.SaveChangesAsync(CancellationToken.None);
+        await ScoreAsync(db, await RunAsync(db, RunState.Completed), 0.8);
+        await ScoreAsync(db, await RunAsync(db, RunState.Completed), 0.6);
 
         var report = await MorningReport.BuildAsync(
             db, MorningReport.DefaultWindow, CancellationToken.None);
 
         Assert.Equal(2, report.ScoredRuns);
         Assert.Equal(0.7, report.AverageScore);
+    }
+
+    /// RUN BAŞINA **SON** SKOR SAYILIYOR, hepsi değil.
+    ///
+    /// Hedefli retry bir videoyu birden çok tura sokuyor ve her turda
+    /// QC yeniden koşuyor. Hepsini ortalamaya katmak, düzelme ÖNCESİ
+    /// skorları da gecenin kalitesine yazmak olurdu: retry ne kadar iyi
+    /// çalışırsa ortalama o kadar düşerdi — sistemin kendini
+    /// düzeltmesi rapora bir kusur gibi yansırdı.
+    ///
+    /// Bu testi yazarken eşsizlik kısıtı (P2-07) beni yakaladı: aynı
+    /// run'a iki QC kaydı yazmak tur numarası olmadan mümkün değil ve
+    /// o kısıt, doğru soruyu sordurdu.
+    [Fact]
+    public async Task RetryTuru_YalnizcaSonSkorSayiliyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var runId = await RunAsync(db, RunState.Completed, retryLoop: 1);
+
+        // İlk tur düştü (0,40), ikinci tur geçti (0,90).
+        await ScoreAsync(db, runId, 0.40, loop: 0);
+        await ScoreAsync(db, runId, 0.90, loop: 1);
+
+        var report = await MorningReport.BuildAsync(
+            db, MorningReport.DefaultWindow, CancellationToken.None);
+
+        // Ortalama 0,65 DEĞİL: teslim edilen video 0,90.
+        Assert.Equal(1, report.ScoredRuns);
+        Assert.Equal(0.9, report.AverageScore);
+        Assert.Equal(1, report.RetryLoops);
     }
 
     /// DÜŞME SEBEPLERİ GRUPLANIYOR: "3 koşu düştü" tek başına neyi
