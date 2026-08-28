@@ -89,6 +89,7 @@ public static class NodeHandlerRegistration
             // da su an oyle. Ayrimin gerekcesi ClaimCheckHandler'da.
             .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm))
+            .Register(new QualityCheckHandler(storage))
             .Register(new ApprovalGateHandler());
     }
 
@@ -176,6 +177,10 @@ public static class NodeHandlerRegistration
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm))
+            // QC HER İKİ hatta da: skoru üreten tek yer burası ve
+            // olmadan onay kapısı hep "skor yok" görüyor, yani
+            // seçici onay hiç devreye giremiyor (P2-08).
+            .Register(new QualityCheckHandler(storage))
             // Onay kapısı HER İKİ hatta da kayıtlı: sahte hatta
             // kayıtlı olmasaydı onay içeren bir graf sahte koşuda
             // "bilinmeyen node tipi" diye reddedilirdi.
@@ -195,6 +200,7 @@ public static class NodeHandlerRegistration
         "media.render",
         "seo.generate",
         "claim.check",
+        "qc.mechanical",
         "human.approval",
     };
 }
