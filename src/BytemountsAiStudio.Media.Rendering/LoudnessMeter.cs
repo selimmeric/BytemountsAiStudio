@@ -116,7 +116,15 @@ public sealed class LoudnessMeter(string ffmpegPath = "ffmpeg")
         // üretmiyor.
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
 
         var stderr = await stderrTask.ConfigureAwait(false);
 
@@ -215,5 +223,37 @@ public sealed class LoudnessMeter(string ffmpegPath = "ffmpeg")
         }
 
         return Math.Clamp((durationSeconds - silence) / durationSeconds, 0, 1);
+    }
+
+    /// İptal edildiğinde SÜRECİ ÖLDÜRÜR.
+    ///
+    /// GERÇEK BİR SIZINTI: `WaitForExitAsync(cancellationToken)` iptal
+    /// olduğunda istisna atıyor ama SÜRECİ ÖLDÜRMÜYOR. `using var
+    /// process` yalnızca .NET tarafındaki tanıtıcıyı serbest
+    /// bırakıyor; işletim sistemindeki süreç koşmaya devam ediyor.
+    ///
+    /// `FfmpegExecutor` bunu doğru yapıyordu (`Kill(entireProcessTree:
+    /// true)`); burası ve `MediaProbe` yapmıyordu. Render'ın yanında
+    /// küçük görünüyorlar ama on dakikalık bir videoda `ebur128`
+    /// taraması bütün dosyayı okuyor — yani iptal edilen her ölçüm
+    /// arkada bir ffmpeg bırakıyordu.
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Süreç zaten bitmişse sorun değil.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Öldürme yetkisi yoksa yapılacak bir şey yok; sessizce
+            // geçmek, sızıntıyı büyütmekten iyi.
+        }
     }
 }

@@ -71,9 +71,20 @@ public sealed record MediaProbe
                 $"ffprobe çalıştırılamadı ('{ffprobePath}'). PATH üzerinde mi? {ex.Message}");
         }
 
-        var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        string stdout;
+        string stderr;
+
+        try
+        {
+            stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            stderr = await process.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
 
         if (process.ExitCode != 0)
         {
@@ -147,5 +158,37 @@ public sealed record MediaProbe
         }
 
         return probe;
+    }
+
+    /// İptal edildiğinde SÜRECİ ÖLDÜRÜR.
+    ///
+    /// GERÇEK BİR SIZINTI: `WaitForExitAsync(cancellationToken)` iptal
+    /// olduğunda istisna atıyor ama SÜRECİ ÖLDÜRMÜYOR. `using var
+    /// process` yalnızca .NET tarafındaki tanıtıcıyı serbest
+    /// bırakıyor; işletim sistemindeki süreç koşmaya devam ediyor.
+    ///
+    /// `FfmpegExecutor` bunu doğru yapıyordu (`Kill(entireProcessTree:
+    /// true)`); burası ve `LoudnessMeter` yapmıyordu. Render'ın yanında
+    /// küçük görünüyorlar ama on dakikalık bir videoda `ffprobe` çağrısı
+    /// dosyayı açıyor — yani iptal edilen her ölçüm
+    /// arkada bir ffmpeg bırakıyordu.
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Süreç zaten bitmişse sorun değil.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Öldürme yetkisi yoksa yapılacak bir şey yok; sessizce
+            // geçmek, sızıntıyı büyütmekten iyi.
+        }
     }
 }

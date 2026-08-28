@@ -405,7 +405,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     | ffmpeg zirve belleği | 31,5 GB | 23,6 GB |
 
     Altyazıların kaybolmadığı videoda ölçüldü: 3/10/20/30/40. saniyelerde altyazı bandında parlaklık 0–246 aralığında. 7 test.
-  - *İkinci bulgu:* worker öldürüldüğünde **ffmpeg yetim kalıyor** — 20 GB'lık bir süreç makinede kalmaya devam ediyor. Bugün eklenen kendini yeniden başlatma özelliğiyle (P4-05) birlikte bu, her yeniden başlatmada bir ffmpeg biriktirmek demek. *(Düzeltilmedi; ayrı bir madde.)*
+  - *İkinci bulgu — ve ilk yazdığım hâli fazla genişti.* Testte 20 GB'lık bir ffmpeg'in worker öldükten sonra ayakta kaldığını gördüm ve "her yeniden başlatmada bir ffmpeg birikir" diye yazmıştım. **Kodu okuyunca yanlış çıktı:** render yolu (`FfmpegExecutor`) iptali baştan doğru ele alıyor — `Kill(entireProcessTree: true)`. Gördüğüm yetim, `taskkill /F` ile ani sonlandırmadan geliyordu; bu, ne `docker stop`'un ne de kendini yeniden başlatmanın yolu.
+    **Ama gerçek bir sızıntı vardı, başka yerde:** `LoudnessMeter` ve `MediaProbe` iptalde süreci öldürmüyordu. `WaitForExitAsync(cancellationToken)` istisna atıyor, `using var process` yalnızca .NET tanıtıcısını bırakıyor ve işletim sistemindeki süreç koşmaya devam ediyor. Render'ın yanında küçük görünüyorlar ama on dakikalık bir videoda `ebur128` taraması bütün dosyayı okuyor. **Düzeltildi**; bir test her `WaitForExitAsync` çağrısının öldürme yolu taşımasını sınıyor — yeni bir yerde unutmak sessiz bir sızıntı üretir, gürültülü bir hata değil. 9 test
 
 ---
 
