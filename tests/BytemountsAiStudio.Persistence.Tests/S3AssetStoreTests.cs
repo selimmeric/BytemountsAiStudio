@@ -1,4 +1,5 @@
 using System.Text;
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using BytemountsAiStudio.Contracts.Providers;
@@ -47,6 +48,14 @@ public sealed class S3AssetStoreTests(DatabaseFixture fixture) : IAsyncLifetime,
             // istekler bağlantı hatasıyla düşerdi.
             ForcePathStyle = true,
             AuthenticationRegion = "us-east-1",
+
+            // Uretimdeki istemciyle AYNI ayar (`StorageSelection`):
+            // SDK v4'un varsayilan saglama toplami, S3 uyumlu
+            // depolarin bir kisminda istekleri reddettiriyor.
+            // Testin uretimden farkli kurulmasi, tam da bu depoda
+            // tekrar eden hata sinifi.
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
         });
 
         try

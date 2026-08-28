@@ -1,3 +1,4 @@
+using Amazon.Runtime;
 using Amazon.S3;
 using BytemountsAiStudio.Contracts.Providers;
 
@@ -81,6 +82,26 @@ public static class StorageSelection
             // hesabında kullanılıyor; boş bırakmak imzayı geçersiz
             // kılıyor.
             AuthenticationRegion = Environment.GetEnvironmentVariable("BMAI_S3_REGION") ?? "us-east-1",
+
+            // SAGLAMA TOPLAMI YALNIZCA GEREKTIGINDE.
+            //
+            // AWS SDK v4 varsayilan olarak her istege ek bir saglama
+            // toplami ekliyor ve S3 UYUMLU depolarin bir kismi bunu
+            // anlamiyor: MinIO'nun CI surumu istekleri
+            // "the provided 'x-amz-content-sha256' header does not
+            // match what was computed" ile reddediyordu. Yerel MinIO
+            // surumu kabul ediyordu -- yani hata yalnizca bir surumde
+            // gorunuyordu.
+            //
+            // BUTUNLUK KAYBI DEGIL: yuklenen icerik zaten sha256 ile
+            // adreslenmis ve indirdikten sonra ayni ozetle
+            // dogrulanabiliyor. Kaldirilan sey ikinci, tasima
+            // seviyesindeki bir kontrol.
+            //
+            // Bu ayni zamanda tasinabilirlik: R2 ve diger S3 uyumlu
+            // depolar da yeni varsayilanla sorun cikariyor.
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
         };
 
         var accessKey = Environment.GetEnvironmentVariable("BMAI_S3_ACCESS_KEY");
