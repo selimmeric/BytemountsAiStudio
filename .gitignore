@@ -39,10 +39,26 @@ venv/
 # dosyayi birden yuttu (`S3AssetStore`, `StorageSelection`,
 # `RetentionPolicy`) ve `git add -A` tek kelime etmedi -- yok sayilan
 # dosyalar sessizce atlaniyor. Ikisini de CI yakaladi.
+# URETILEN KLASORLER ADIYLA YAZILIYOR, desenle degil.
+#
+# Ankrajsiz `storage/` kaynak klasorunu yutuyordu; ankrajli
+# `/storage/` ise host'larin KENDI calisma dizinlerine yazdigi
+# `src/<proje>/storage/` klasorlerini kacirdi ve uretilen medya
+# dosyalari commit'e girdi. Iki ucu da olcup gorduk.
+#
+# `src/*/storage/` gibi bir desen ikisini de cozmuyor: Windows'ta
+# eslesme buyuk/kucuk harf duyarsiz oldugu icin `Persistence/Storage/`
+# yine yutulurdu. Adiyla yazmak uzun ama BELIRSIZ DEGIL.
 /data/
 /storage/
 /assets-store/
 /output/
+/src/BytemountsAiStudio.Worker/storage/
+/src/BytemountsAiStudio.Worker/output/
+/src/BytemountsAiStudio.Api/storage/
+/src/BytemountsAiStudio.Api/output/
+/src/BytemountsAiStudio.Cli/storage/
+/src/BytemountsAiStudio.Cli/output/
 *.mp4
 *.wav
 *.mp3
