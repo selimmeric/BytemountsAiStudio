@@ -182,6 +182,33 @@ public sealed class TopicPool(StudioDbContext db)
             t => t.State == TopicState.Queued && t.Language == language && t.ChannelId == channelId,
             cancellationToken);
 
+    /// Havuzun doldurma kararı için gereken durumu (P2-01).
+    ///
+    /// TEK SORGUDA iki sayı: `Queued` hazır konular, `New` ise
+    /// üretilmiş ama henüz skorlanmamış olanlar. İkisini ayrı
+    /// sorgularla almak, arada değişen bir havuzda tutarsız bir
+    /// resim verirdi.
+    ///
+    /// `New` "üretiliyor" sayılıyor: konu üretildi ama havuza
+    /// alınmadı. Onu saymamak, üretim sürerken ikinci bir doldurma
+    /// turunun tetiklenmesi demekti.
+    public async Task<PoolStatus> StatusAsync(
+        Guid? channelId, string language, int dailyTarget, CancellationToken cancellationToken)
+    {
+        var counts = await db.Topics.AsNoTracking()
+            .Where(t => t.Language == language && t.ChannelId == channelId)
+            .Where(t => t.State == TopicState.Queued || t.State == TopicState.New)
+            .GroupBy(t => t.State)
+            .Select(g => new { State = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var ready = counts.FirstOrDefault(c => c.State == TopicState.Queued)?.Count ?? 0;
+        var producing = counts.FirstOrDefault(c => c.State == TopicState.New)?.Count ?? 0;
+
+        return new PoolStatus(ready, producing, dailyTarget);
+    }
+
     /// Reddin GEREKÇESİ — hangi kural devreye girdi.
     ///
     /// "Skor düşük" yetmez: risk vetosu mu, tekrar mı, yoksa gerçekten

@@ -348,3 +348,117 @@ public sealed class TopicPoolTests(DatabaseFixture fixture) : IAsyncLifetime
         Assert.Equal(1, await new TopicPool(fresh).QueuedCountAsync(null, "en-US", CancellationToken.None));
     }
 }
+
+/// Havuz durumu sorgusunun testleri (P2-01).
+///
+/// Kabul kriteri: **havuz hiç boşalmıyor.** Bunun için doldurma
+/// kararının doğru sayılara bakması gerekiyor — özellikle
+/// "üretilmekte olan" konuların da sayılması.
+[Collection(DatabaseCollection.Name)]
+public sealed class TopicPoolStatusTests(DatabaseFixture fixture) : IAsyncLifetime
+{
+    public async Task InitializeAsync()
+    {
+        if (!fixture.Available)
+        {
+            return;
+        }
+
+        await using var db = fixture.CreateContext();
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM topics");
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private void RequireDatabase()
+        => Assert.True(fixture.Available, $"PostgreSQL erişilemiyor ({fixture.UnavailableReason}).");
+
+    private static void Add(StudioDbContext db, string title, TopicState state, string language = "tr-TR")
+        => db.Topics.Add(new Topic
+        {
+            Title = title,
+            Language = language,
+            State = state,
+            OverallScore = 80,
+        });
+
+    [Fact]
+    public async Task Durum_HazirVeUretilmekteOlanlariAyiriyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        Add(db, "hazir-1", TopicState.Queued);
+        Add(db, "hazir-2", TopicState.Queued);
+        Add(db, "uretiliyor", TopicState.New);
+
+        // Bunlar SAYILMAMALI: biri koşuyor, biri yayınlanmış, biri
+        // reddedilmiş — üçü de havuzda bekleyen konu değil.
+        Add(db, "kosuyor", TopicState.InProgress);
+        Add(db, "yayinda", TopicState.Published);
+        Add(db, "reddedildi", TopicState.Rejected);
+
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var status = await new TopicPool(db).StatusAsync(null, "tr-TR", 3, CancellationToken.None);
+
+        Assert.Equal(2, status.Ready);
+        Assert.Equal(1, status.Producing);
+    }
+
+    /// Havuz DİL BAŞINA: Türkçe konular İngilizce kanalın havuzunu
+    /// doldurmuyor (§20.5).
+    [Fact]
+    public async Task Durum_DileGoreAyriliyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        Add(db, "tr-1", TopicState.Queued, "tr-TR");
+        Add(db, "tr-2", TopicState.Queued, "tr-TR");
+        Add(db, "en-1", TopicState.Queued, "en-US");
+
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var pool = new TopicPool(db);
+
+        Assert.Equal(2, (await pool.StatusAsync(null, "tr-TR", 3, CancellationToken.None)).Ready);
+        Assert.Equal(1, (await pool.StatusAsync(null, "en-US", 3, CancellationToken.None)).Ready);
+    }
+
+    /// Boş havuz doldurma tetikliyor ve AÇLIK olarak da işaretleniyor:
+    /// eşiğin altına düşmek normal işleyiş, tamamen boşalmak arıza.
+    [Fact]
+    public async Task BosHavuz_DoldurmaVeAclik()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var status = await new TopicPool(db).StatusAsync(null, "tr-TR", 3, CancellationToken.None);
+
+        Assert.True(TopicPoolPolicy.Decide(status).ShouldRefill);
+        Assert.True(TopicPoolPolicy.IsStarved(status));
+    }
+
+    /// Üretim sürerken ikinci doldurma turu tetiklenmiyor.
+    [Fact]
+    public async Task UretimSuruyor_IkinciTurTetiklenmiyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        for (var i = 0; i < 15; i++)
+        {
+            Add(db, $"uretiliyor-{i}", TopicState.New);
+        }
+
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var status = await new TopicPool(db).StatusAsync(null, "tr-TR", 3, CancellationToken.None);
+
+        Assert.False(TopicPoolPolicy.Decide(status).ShouldRefill);
+
+        // Ama HÂLÂ aç: hazır konu yok ve bir sonraki koşu bekleyecek.
+        Assert.True(TopicPoolPolicy.IsStarved(status));
+    }
+}
