@@ -601,9 +601,15 @@ public sealed class TtsSynthesizeHandler(
             segments,
             cues,
             total_ms = cursor.Value,
-            // true = kelime zamanlari OLCULMEDI, dagitildi (P1-15 ara
-            // cozum). Gercek hizalama TTS'in kendi zamanlamasindan ya da
-            // ASR yan servisinden gelir.
+            // HANGİ SES İSTENDİ VE HANGİSİ KULLANILDI.
+            //
+            // İkisi FARKLI olabiliyor: bir dil paketi kurulu değilse
+            // sağlayıcı başka bir sese düşüyor. Fark kayıtlı olmasa
+            // yanlış seslendirilmiş bir video teşhis edilemezdi — ve
+            // "kanal ayarındaki ses gerçekten kullanıldı mı" sorusu
+            // da cevapsız kalırdı.
+            voice_id = voiceId,
+            voice_source = channelSettings?.VoiceId is not null ? "kanal" : "node",
             timings_estimated = estimated,
         }));
     }
@@ -898,6 +904,15 @@ public sealed class TimelineCompileHandler(
                 duration_ms = timeline.Duration.Value,
                 scene_count = timeline.Scenes.Count,
                 caption_count = timeline.Captions?.Cues.Count ?? 0,
+                // HANGİ YAZI TİPİ ZİNCİRİ KULLANILDI ve nereden geldi.
+                //
+                // "Kanal ayarındaki yazı tipi gerçekten uygulandı mı"
+                // sorusunun cevabı ancak yazılıysa var. Yazılmasaydı
+                // ayar sessizce yok sayılsa bile kimse fark etmezdi —
+                // bu depoda tam olarak öyle olmuştu.
+                font_stack = timeline.FontStack,
+                font_source = fonts is not null ? "kanal" : "varsayilan",
+                music = timeline.Audio.Music is not null,
             }));
     }
 }

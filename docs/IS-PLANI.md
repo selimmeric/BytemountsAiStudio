@@ -257,7 +257,12 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ## Faz 3 — Çoklu kanal, uzun video, workflow editörü
 
-- [ ] **P3-01** `4p` — Çoklu kanal: kimlik, ayar, stil, ses, dil, takvim ayrımı
+- [x] **P3-01** `4p` — Çoklu kanal: kimlik, ayar, stil, ses, dil, takvim ayrımı
+  - *Bitti:* ✔ 28 Ağu 2026 — **Aynı graf, iki gerçekten farklı kanal.** Uçtan uca doğrulandı: TR kanalı `kanal-tr-ozel` sesi + `["Georgia","Arial"]` yazı tipi + Selective onay → kendiliğinden `Completed`; EN kanalı `kanal-en-ozel` + `["Verdana","Arial"]` + Approval → `WaitingApproval`. Tek graf, tek motor, iki kimlik.
+    **Kusur yine aynı sınıftandı: ayar kaydediliyordu, hiçbir şey okumuyordu.** `voice.voice_id` her tohumlanan kanalda vardı ve TTS yalnızca node ayarından ses alıyordu — kanalı değiştirmek sesi değiştirmiyordu, yani çoklu kanalın en temel vaadi çalışmıyordu. `font_stack` da öyle: kanal ayarında duruyor, timeline sabit bir liste kullanıyordu; bir kanalın altyazı karakterini değiştirmek imkânsızdı ve dile göre farklı yazı tipi gerekebiliyor (Arapça, Japonca).
+    Sıra her yerde aynı: **kanal → node ayarı → varsayılan.** Kanal ayarı node ayarını eziyor çünkü kanal kimliği graftan daha özel. `IChannelPolicy.SettingsAsync` tek çağrıda hepsini veriyor; mod ise **kolondan** okunuyor (panelden tek tıkla değişiyor ve iki yerde tutulan bir değer er geç ayrışır).
+    **Kullanılan ses ve yazı tipi artık çıktıya yazılıyor** (`voice_source`, `font_source`): "kanal ayarı gerçekten uygulandı mı" sorusunun cevabı ancak yazılıysa var — yazılmasaydı ayar sessizce yok sayılsa bile kimse fark etmezdi, ki bu depoda tam olarak öyle olmuştu. 10 saf test + iki kanallı gerçek koşu
+  - *Kalan:* Takvim ayrımı zamanlayıcıda hazır (P2-02); kanal CRUD ekranı Faz 3'ün editör işiyle birlikte
 - [ ] **P3-02** `5p` — Uzun video formatı: derin araştırma, bölüm planı, 8–15 dk senaryo
 - [ ] **P3-03** `4p` — Uzun video render: segment paralel render + concat + anahtar kare hizası
 - [ ] **P3-04** `3p` — Intro/outro, bölüm geçişleri, chapter işaretleri
