@@ -166,6 +166,25 @@ public sealed partial class OrchestratorService(
         IServiceProvider services, Channel channel, StartVerdict verdict,
         CancellationToken cancellationToken)
     {
+        // İŞ AKIŞI KONUDAN ÖNCE ÇÖZÜLÜYOR ve sıra tesadüf değil.
+        //
+        // Önce konu alınıyordu: `TakeNextAsync` konuyu `InProgress`
+        // yapıp kaydediyor, yani ALIYOR. İş akışı sonra çözülemezse
+        // metot geri dönüyordu ve konu kimsenin üretmediği bir durumda
+        // asılı kalıyordu. Zamanlayıcı dakikada bir dönüyor: yanlış
+        // yazılmış tek bir `workflow_key`, havuzu günde bin dört yüz
+        // konu boşaltırdı ve hiçbir video üretilmezdi.
+        //
+        // Çözülemeyen iş akışı bir YAPILANDIRMA hatası; bedelini
+        // konu havuzu ödememeli.
+        var choice = await ResolveWorkflowAsync(services, channel, cancellationToken).ConfigureAwait(false);
+
+        if (choice.VersionId is null)
+        {
+            LogNoWorkflow(logger, channel.Name, choice.Problem ?? "iş akışı bulunamadı");
+            return;
+        }
+
         var pool = services.GetRequiredService<TopicPool>();
 
         var topic = await pool.TakeNextAsync(channel.Id, channel.Language, cancellationToken)
@@ -177,14 +196,6 @@ public sealed partial class OrchestratorService(
             // worker aynı konuyu almış olabilir. Hata değil, bir
             // sonraki turda tekrar denenecek.
             LogSkipped(logger, channel.Name, topic.Error.Message);
-            return;
-        }
-
-        var version = await ResolveWorkflowAsync(services, channel, cancellationToken).ConfigureAwait(false);
-
-        if (version is null)
-        {
-            LogNoWorkflow(logger, channel.Name);
             return;
         }
 
@@ -206,7 +217,7 @@ public sealed partial class OrchestratorService(
         });
 
         var run = await engine.StartRunAsync(
-            version.Value, channel.Id, topic.Value.Id, cancellationToken, context).ConfigureAwait(false);
+            choice.VersionId.Value, channel.Id, topic.Value.Id, cancellationToken, context).ConfigureAwait(false);
 
         if (run.IsFailure)
         {
@@ -217,34 +228,91 @@ public sealed partial class OrchestratorService(
         LogStarted(logger, channel.Name, topic.Value.Title, run.Value);
     }
 
-    private static async Task<Guid?> ResolveWorkflowAsync(
+    /// Bir kanalın hangi iş akışıyla üreteceği (P3-10).
+    ///
+    /// `Problem` dolu olduğunda `VersionId` boş: sebep kaybolmuyor,
+    /// çünkü "run başlamadı" tek başına ne yapılacağını söylemiyor.
+    internal readonly record struct WorkflowChoice(Guid? VersionId, string? Key, string? Problem);
+
+    /// Kanalın iş akışını seçer.
+    ///
+    /// SEÇİM AYARDAN GELİYOR, KOMUT SATIRINDAN DEĞİL: Faz 3'ün iddiası
+    /// "iki kanal farklı iş akışlarıyla üretir" ve iş akışını her
+    /// çağrıda elle veren biri varsa bu iddia kanala değil operatöre
+    /// ait olurdu.
+    internal static async Task<WorkflowChoice> ResolveWorkflowAsync(
         IServiceProvider services, Channel channel, CancellationToken cancellationToken)
     {
         var db = services.GetRequiredService<StudioDbContext>();
         var key = Core.Execution.ChannelSettings.Parse(channel.SettingsJson).WorkflowKey;
 
-        // KANALA ÖZEL İŞ AKIŞI ÖNCE, sonra kanalın kendi tanımladığı,
-        // sonra genel varsayılan. Sıra önemli: aynı anahtarla hem
-        // kanala özel hem genel bir kayıt varsa kastedilen özel olan.
-        var query = db.Workflows.AsNoTracking()
+        var candidates = await db.Workflows.AsNoTracking()
             .Where(w => key == null || w.Key == key)
-            .OrderByDescending(w => w.ChannelId == channel.Id)
-            .ThenByDescending(w => w.ChannelId == null);
+            .Where(w => w.ChannelId == null || w.ChannelId == channel.Id)
+            .Select(w => new { w.Id, w.Key, w.ChannelId, w.CurrentVersion })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var workflow = await query.FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-
-        if (workflow is null)
+        if (candidates.Count == 0)
         {
-            return null;
+            return new WorkflowChoice(null, key, key is null
+                ? "sistemde hiç iş akışı tanımlı değil"
+                : $"'{key}' adında bir iş akışı yok");
         }
 
+        // BAŞKA KANALIN ÖZEL İŞ AKIŞI YUKARIDAKİ FİLTREDE ELENDİ:
+        // kanal A'nın kendisi için tanımladığı graf, kanal B'nin
+        // videosunu üretmemeli.
+        //
+        // "Aynı anahtarla hem kanala özel hem genel kayıt olursa özel
+        // olan kazanır" diye bir öncelik kuralı YAZMIYORUZ, çünkü
+        // `ix_workflows_key` anahtarı GENEL OLARAK tekil tutuyor: o
+        // çakışma veritabanına hiç giremiyor. Eski kod bu kuralı
+        // uyguluyordu ve yorumu da onu anlatıyordu — ikisi de var
+        // olmayan bir durumu tarif ediyordu.
+        var pool = candidates;
+
+        // ANAHTAR YOKSA VE SEÇENEK BİRDEN FAZLAYSA TAHMİN EDİLMİYOR.
+        //
+        // Eski hâli ilk satırı alıyordu ve iki genel iş akışı da
+        // eşit sıralandığı için "ilk" tamamen veritabanının döndürme
+        // sırasıydı. Bugün `shorts-fake` geliyor, bir tablo yeniden
+        // yazıldığında `video-uzun` gelebilirdi: her dikey kanal
+        // sessizce dokuz dakikalık yatay video üretmeye başlardı ve
+        // bunu söyleyen hiçbir kayıt olmazdı.
+        //
+        // Belirsizlik çözülmüyor, BİLDİRİLİYOR — tek seçenek varsa
+        // belirsizlik de yok, o zaman seçiliyor.
+        if (pool.Count > 1)
+        {
+            var names = string.Join(", ", pool.Select(w => w.Key).Order(StringComparer.Ordinal));
+
+            return new WorkflowChoice(null, key,
+                $"kanal hangi iş akışını kullanacağını söylemiyor ve seçenek birden fazla ({names}); "
+                + "ayarlara 'workflow_key' ekleyin");
+        }
+
+        var workflow = pool[0];
+
+        // SIRALAMA `ix_workflow_versions_workflow_id_version` sayesinde
+        // zaten tek satır getiriyor; yine de yazılı, çünkü sırasız bir
+        // `FirstOrDefault` her turda bir EF uyarısı basıyordu ve
+        // dakikada bir tekrarlanan bir uyarı, gerçek uyarıları
+        // görünmez yapıyor.
         var version = await db.WorkflowVersions.AsNoTracking()
             .Where(v => v.WorkflowId == workflow.Id && v.Version == workflow.CurrentVersion)
+            .OrderBy(v => v.Id)
             .Select(v => (Guid?)v.Id)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return version;
+        return version is null
+            // İş akışı var ama güncel sürümü yok: kayıt tutarsız ve
+            // bunu "iş akışı bulunamadı" diye göstermek yanlış yere
+            // baktırırdı.
+            ? new WorkflowChoice(null, workflow.Key,
+                $"'{workflow.Key}' iş akışının v{workflow.CurrentVersion} sürümü kayıtlı değil")
+            : new WorkflowChoice(version, workflow.Key, null);
     }
 
     [LoggerMessage(EventId = 1100, Level = LogLevel.Information,
@@ -277,8 +345,8 @@ public sealed partial class OrchestratorService(
     private static partial void LogNoGenerator(ILogger logger, string channel);
 
     [LoggerMessage(EventId = 1107, Level = LogLevel.Error,
-        Message = "{Channel}: iş akışı bulunamadı; run başlatılamıyor.")]
-    private static partial void LogNoWorkflow(ILogger logger, string channel);
+        Message = "{Channel}: iş akışı seçilemedi, run başlatılmadı — {Problem}")]
+    private static partial void LogNoWorkflow(ILogger logger, string channel, string problem);
 
     [LoggerMessage(EventId = 1108, Level = LogLevel.Error,
         Message = "{Channel}: run başlatılamadı — {Error}")]

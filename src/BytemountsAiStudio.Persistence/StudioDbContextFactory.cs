@@ -29,16 +29,33 @@ public sealed class StudioDbContextFactory : IDesignTimeDbContextFactory<StudioD
     {
         var builder = new DbContextOptionsBuilder<StudioDbContext>();
 
-        builder.UseNpgsql(connectionString, npgsql =>
-        {
-            npgsql.UseVector();
-            npgsql.MigrationsAssembly(typeof(StudioDbContextFactory).Assembly.FullName);
-        });
+        builder.UseNpgsql(connectionString, ConfigureNpgsql);
 
         // Kolon ve tablo adları snake_case: psql'den bakan insan tırnak
         // işareti kullanmak zorunda kalmasın.
         builder.UseSnakeCaseNamingConvention();
 
         return builder;
+    }
+
+    /// Npgsql tarafının kurulumu — DI kaydı (`AddStudioPersistence`) de
+    /// bunu çağırıyor, böylece testlerin kurulumu üretimin kurulumu.
+    ///
+    /// YENİDEN DENEYEN YÜRÜTME STRATEJİSİ YOK ve bu bir eksiklik
+    /// değil, bir karar. `EnableRetryOnFailure` bir süre yalnızca DI
+    /// tarafında açıktı ve EF, yeniden deneyen bir strateji altında
+    /// kullanıcının açtığı transaction'a izin vermiyor:
+    /// `WorkflowEngine` başarı yolunda tam olarak onu açıyor. Worker'da
+    /// her node çalıştırması istisna atıyordu.
+    ///
+    /// Geçici veritabanı hatası KAYBOLMUYOR, sadece başka bir katmanda
+    /// karşılanıyor: iş düşüyor, kuyruk `Transient` sınıflandırmasıyla
+    /// onu geri alıp yeniden deniyor (ADR-011). Orada deneme sayısı,
+    /// bekleme ve ölü mektup kutusu zaten var — bağlantı seviyesindeki
+    /// sessiz tekrar bunların hiçbirini görmüyordu.
+    public static void ConfigureNpgsql(Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder npgsql)
+    {
+        npgsql.UseVector();
+        npgsql.MigrationsAssembly(typeof(StudioDbContextFactory).Assembly.FullName);
     }
 }

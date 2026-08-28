@@ -22,6 +22,10 @@ ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "IS-PLANI.md"
 OUT = ROOT / "docs" / "plan-dashboard.html"
 
+# Panonun yayimlanmis kopyasi. Depodaki dosya ile ayni icerik ama ayri
+# bir yerde duruyor; birini guncellemek digerini guncellemiyor.
+ARTIFACT_URL = "https://claude.ai/code/artifact/d8782ccd-ad1e-450d-8b16-bbbe726dc647"
+
 MVP_PHASES = {0, 1, 2}
 
 PHASE_RE = re.compile(r"^##\s+Faz\s+(\d+)\s+[—-]\s+(.+?)\s*$")
@@ -357,7 +361,12 @@ def main() -> int:
 
     if not args.check:
         OUT.write_text(render_html(phases), encoding="utf-8")
-        print(f"  Pano guncellendi: {OUT.relative_to(ROOT)}\n")
+        print(f"  Pano guncellendi: {OUT.relative_to(ROOT)}")
+        # YAYIMLANMIS KOPYA AYRI BIR SEY: bu dosyayi yazmak, tarayicidan
+        # bakilan panoyu guncellemiyor. Ikisi bir gun ayristi ve pano
+        # gunlerce eski sayilari gosterdi -- kimse fark etmedi, cunku
+        # yanlis oldugunu soyleyen hicbir sey yoktu.
+        print(f"  Yayimlanmis panoyu da guncelle: {ARTIFACT_URL}\n")
     return 0
 
 
