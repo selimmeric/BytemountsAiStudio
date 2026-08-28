@@ -251,7 +251,7 @@ public sealed class WorkflowEngine(
         await RecordExecutionAsync(run, node, handlerLease.Attempt, NodeState.Succeeded,
             outcome.Value, null, elapsed, idempotencyKey, cancellationToken).ConfigureAwait(false);
 
-        run.ContextJson = MergeContext(run.ContextJson, node.Id, outcome.Value);
+        await MergeContextAsync(run, node.Id, outcome.Value, cancellationToken).ConfigureAwait(false);
         run.State = RunState.Running;
 
         // ---- ONAY KAPISI: RUN PARK EDİLİYOR (P1-27) ----
@@ -667,6 +667,77 @@ public sealed class WorkflowEngine(
         var node = JsonNode.Parse(contextJson)?.AsObject() ?? [];
         node[nodeId] = JsonNode.Parse(output.GetRawText());
         return node.ToJsonString();
+    }
+
+    /// Node çıktısını run bağlamına VERİTABANINDA birleştirir.
+    ///
+    /// GERÇEK BİR KAYIP BURADAN ÇIKTI. Eski hâli bellekte
+    /// birleştiriyordu: `run.ContextJson` bu çalıştırma başlarken
+    /// okunmuş bir kopyaydı, üzerine kendi çıktısı yazılıyor ve
+    /// KOLONUN TAMAMI geri yazılıyordu. Arada başka bir node
+    /// commit ettiyse onun çıktısı siliniyordu.
+    ///
+    /// Ölçülen koşu: `music` düğümü 14:06:06.097–.119 arasında koştu,
+    /// `visuals` 14:06:06.117'de — yani müziğin commit'inden **2 ms
+    /// önce** — başladı ve 3 saniye sonra kendi bağlamını yazdı.
+    /// Müzik çıktısı yok oldu. `music.select` başarıyla bitmiş,
+    /// lisanslı bir parça seçmiş, `node_executions` içinde duruyordu;
+    /// `runs.context_json` içinde yoktu. Timeline sessizce müziksiz
+    /// derlendi ve video müziksiz çıktı.
+    ///
+    /// Kaybın sessizliği asıl mesele: müzik görülebilir bir alan
+    /// olduğu için fark edildi, ama AYNI YARIŞ her paralel dalın
+    /// çıktısını kaybedebilirdi ve hiçbiri iz bırakmazdı.
+    ///
+    /// CLI'da hiç görülmedi çünkü orada node'lar tek döngüde SIRAYLA
+    /// koşuyor. Worker sekiz kuyruk sınıfını paralel dinliyor.
+    ///
+    /// Çözüm: `jsonb ||` ile TEK ifadede birleştirmek. Postgres satırı
+    /// kilitliyor, yani ikinci node bu transaction commit edene kadar
+    /// bekliyor ve sonra KENDİ yamasını güncel değere uyguluyor.
+    /// İkisi de kalıyor.
+    private async Task MergeContextAsync(
+        Run run, string nodeId, JsonElement output, CancellationToken cancellationToken)
+    {
+        var patch = new JsonObject { [nodeId] = JsonNode.Parse(output.GetRawText()) }.ToJsonString();
+
+        // `ToListAsync`, `SingleAsync` DEĞİL: ikincisi ifadenin
+        // üzerine `LIMIT` ekliyor ve `UPDATE ... RETURNING` üzerine
+        // sorgu bindirilemiyor. Tek satır zaten birincil anahtarla
+        // güvence altında.
+        var rows = await db.Database
+            .SqlQuery<string>($"""
+                UPDATE runs
+                SET context_json = context_json || {patch}::jsonb
+                WHERE id = {run.Id}
+                RETURNING context_json AS "Value"
+                """)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var merged = rows[0];
+
+        // BELLEKTEKİ KOPYA TAZELENİYOR ve EF BU KOLONU BİR DAHA
+        // YAZMIYOR.
+        //
+        // İkisi birden gerekiyor: sonraki node'lar bağlamı bu
+        // nesneden okuyor, ama kolonun sahibi artık yukarıdaki tek
+        // ifade — değişiklik izleyicisinin de yazmasına izin vermek,
+        // düzeltilen yarışı `SaveChanges` anında geri getirirdi.
+        //
+        // ÖNCE ÖZGÜN DEĞER, SONRA GÜNCEL DEĞER. Sırası önemli:
+        // `IsModified = false` tek başına güncel değeri ÖZGÜN DEĞERE
+        // GERİ ALIYOR. İlk yazımda yalnızca onu çağırmıştım ve
+        // sonuç şuydu: veritabanı doğru, bellekteki kopya eski.
+        // Sıradaki node bağlamı boş gördü — yani düzeltmenin kendisi
+        // aynı sınıftan yeni bir kayıp üretmişti. Var olan bir test
+        // ("node çıktısı sonraki node'a bağlam olarak geçer") bunu
+        // hemen yakaladı.
+        var entry = db.Entry(run).Property(r => r.ContextJson);
+
+        entry.OriginalValue = merged;
+        entry.CurrentValue = merged;
+        entry.IsModified = false;
     }
 
     /// §8.1: kiralama süresi işin gerçek süresine yakın olmalı. Render için

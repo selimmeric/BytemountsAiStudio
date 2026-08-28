@@ -19,13 +19,30 @@ public static class NodeHandlerRegistration
     private static readonly string[] EnglishTags = ["fake", "test"];
 
     /// Faz 0'ın sahte hattı: tüm sağlayıcılar fake, ağa çıkılmıyor.
+    ///
+    /// `uniqueness` VE `channels` ZORUNLU, isteğe bağlı değil.
+    ///
+    /// İkisi de bir süre `= null` varsayılanlıydı ve sonucu şuydu:
+    /// CLI ikisini de veriyordu, API ve Worker HİÇBİRİNİ vermiyordu.
+    /// Derleyici bir şey söylemedi, çünkü unutmak geçerli bir çağrıydı.
+    ///
+    /// Verilmediğinde olan şey sessizdi ama küçük değildi:
+    ///   - tekillik ÖLÇÜLMÜYOR, QC "ölçülmedi" deyip her videoyu
+    ///     insana gönderiyor — yani otonomi bitiyor
+    ///   - kanal kimliği OKUNMUYOR: ses, yazı tipi, en-boy oranı ve
+    ///     onay modu varsayılana düşüyor. Üç ayrı kanal, tek tip
+    ///     video üretiyor ve "çoklu kanal" iddiası boşalıyor
+    ///
+    /// Zorunlu olduklarında derleyici bütün çağrı yerlerini
+    /// sayıyor. Bir çağıranın gerçekten ihtiyacı yoksa bunu AÇIKÇA
+    /// yazması gerekiyor; unutmak artık mümkün değil.
     public static NodeRegistry BuildFakeRegistry(
         IStorageProvider storage,
         string outputDirectory,
+        ITopicUniqueness uniqueness,
+        IChannelPolicy channels,
         string ffmpegPath = "ffmpeg",
-        string ffprobePath = "ffprobe",
-        ITopicUniqueness? uniqueness = null,
-        IChannelPolicy? channels = null)
+        string ffprobePath = "ffprobe")
     {
         var llm = new FakeLlmProvider
         {
@@ -173,10 +190,10 @@ public static class NodeHandlerRegistration
         IStorageProvider storage,
         HttpClient http,
         string outputDirectory,
+        ITopicUniqueness uniqueness,
+        IChannelPolicy channels,
         string ffmpegPath = "ffmpeg",
-        string ffprobePath = "ffprobe",
-        ITopicUniqueness? uniqueness = null,
-        IChannelPolicy? channels = null)
+        string ffprobePath = "ffprobe")
     {
         // Yerel LLM TEK YERDE kuruluyor.
         //

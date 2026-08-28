@@ -46,9 +46,21 @@ builder.Services.AddScoped<JobQueue>();
 builder.Services.AddScoped<IStorageProvider>(sp =>
     new FileSystemAssetStore(sp.GetRequiredService<StudioDbContext>(), storageRoot));
 
+// TEKILLIK VE KANAL POLITIKASI BURADA DA VERILIYOR.
+//
+// Verilmiyordu ve sonucu sessizdi: tekillik olculmuyordu, yani QC her
+// videoyu "olculmedi" deyip insana gonderiyordu -- otonomi bitiyordu.
+// Kanal politikasi da yoktu, yani ses, yazi tipi, en-boy orani ve onay
+// modu varsayilana dusuyordu: uc ayri kanal tek tip video uretiyordu.
+//
+// Yalnizca CLI ikisini de veriyordu ve butun dogrulama CLI uzerinden
+// yapilmisti. Parametreler artik zorunlu; unutmak derlenmiyor.
 builder.Services.AddScoped(sp =>
     NodeHandlerRegistration.BuildFakeRegistry(
-        sp.GetRequiredService<IStorageProvider>(), outputRoot));
+        sp.GetRequiredService<IStorageProvider>(),
+        outputRoot,
+        new TitleUniqueness(sp.GetRequiredService<StudioDbContext>()),
+        new ChannelPolicy(sp.GetRequiredService<StudioDbContext>())));
 
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddSingleton(new WorkerHostOptions());

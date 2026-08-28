@@ -44,8 +44,16 @@ builder.Services.AddScoped<NodeRegistry>(services =>
     var outputDirectory = Environment.GetEnvironmentVariable("BMAI_OUTPUT")
         ?? Path.Combine(Directory.GetCurrentDirectory(), "output");
 
+    // Tekillik ve kanal politikası VERİLİYOR: ikisi de bir süre
+    // atlanmıştı ve atlandıklarında tekillik ölçülmüyor, kanal
+    // kimliği (ses, yazı tipi, en-boy, onay modu) varsayılana
+    // düşüyordu — sessizce.
     return NodeHandlerRegistration.BuildOpenRegistry(
-        new FileSystemAssetStore(db, storageRoot), http, outputDirectory);
+        new FileSystemAssetStore(db, storageRoot),
+        http,
+        outputDirectory,
+        new TitleUniqueness(db),
+        new ChannelPolicy(db));
 });
 
 builder.Services.AddScoped<WorkflowEngine>();

@@ -124,12 +124,31 @@ public sealed record QualityReport
     ///
     /// Yalnızca DÜŞEN kontrollerin hedefine bakılıyor: geçen bir
     /// kontrolün hedefi bir niyet beyanı değil.
+    ///
+    /// VE YALNIZCA ÖLÇÜLMÜŞ DÜŞÜŞLER HEDEF SEÇİYOR.
+    ///
+    /// Bu kural gerçek bir koşuda görüldü: iki kontrol düşmüştü —
+    /// `qc.speech_ratio` ÖLÇÜLDÜ (%100, hedefi `Timeline`) ve
+    /// `qc.topic_unique` ÖLÇÜLEMEDİ (gömme sağlayıcısı yok, hedefi
+    /// `Script`). "En erken hedef" kuralı `Script`'i seçti ve sistem
+    /// senaryoyu, seslendirmeyi, görselleri ve render'ı yeniden
+    /// koştu — turu dört dakika.
+    ///
+    /// Oysa ölçülemeyen kontrol yeniden koşmayla DEĞİŞMİYOR: eksik
+    /// olan bir ölçüm adımı, bir kalite kusuru değil. Onu hedef
+    /// saymak, düzelebilecek tek düşüşü (timeline) es geçip
+    /// düzelmeyecek olan için hattın en pahalı yarısını tekrarlamak
+    /// demekti.
+    ///
+    /// Düşenlerin hepsi ölçülemediyse hedef kalmıyor ve `RetryPlan`
+    /// zaten insana yönlendiriyor — eksik olan hat, onu bir insan
+    /// tamamlayacak.
     public RetryTarget Target
     {
         get
         {
             var targets = Checks
-                .Where(c => !c.Passed && c.Target != RetryTarget.None)
+                .Where(c => !c.Passed && c.Measured && c.Target != RetryTarget.None)
                 .Select(c => c.Target)
                 .ToList();
 

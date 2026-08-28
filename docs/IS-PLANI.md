@@ -296,7 +296,19 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     Arapça bilinçli seçildi: Türkçe ve İngilizce'nin ikisi de soldan sağa ve Latin alfabesi. İki soldan sağa dil desteklemek "çok dilli" olmayı kanıtlamıyor — ilk gerçek sınav sağdan sola. **Yön bilgisi dilin kendisinden türüyor**, elle tutulan bir liste değil; liste olsaydı dördüncü dilde yine kod değişikliği isterdi.
     **Sınav gerçek bir hata buldu:** .NET `tr_TR` etiketini kabul ediyor ve adını `tr_tr` yapıyor — yani `tr-TR` ile **eşit olmayan** ikinci bir dil nesnesi. Sonuçları sessiz ve ağırdı: `Primary` değeri "tr" değil "tr_tr" çıkıyor (ses ve yazı tipi seçimi hiçbir şeyle eşleşmiyor) ve tekillik sorgusu dile göre filtrelediği için `tr_tr` konuları `tr-TR` konularını hiç görmüyor, aynı video ikinci kez üretiliyordu. **Sınıfın kendi belge yorumu tam olarak bu senaryoyu "önlendi" diye anlatıyordu; önlenmemişti.**
     İkinci bulgu: tempo ayarlarının yarısı `pacing` içinde yarısı kökte yazıldığında kökteki sessizce yok sayılıyordu. Artık ikisine de bakılıyor — ses kimliğindeki esnekliğin aynısı. 21 test
-- [ ] **P3-10** `2p` — 🏁 **Faz 3 kabul:** iki kanal farklı workflow'larla, biri uzun video üretiyor
+- [x] **P3-10** `2p` — 🏁 **Faz 3 kabul:** iki kanal farklı workflow'larla, biri uzun video üretiyor
+  - *Bitti:* ✔ 28 Ağu 2026 — **Worker tarafından, insan müdahalesi olmadan, sıfır retry turuyla:**
+
+    | Kanal | İş akışı | Node | Süre | Tuval | Müzik | Ses | Yazı tipi | QC |
+    |---|---|---|---|---|---|---|---|---|
+    | Sahte Kanal (TR) | `shorts-fake` | 14 | 47.9 sn | 1080×1920 dikey | var | `kanal-tr-ozel` | Georgia | 0.97 |
+    | Fake Channel (EN) | `video-uzun` | 15 | 603.4 sn | 1920×1080 yatay | var | `kanal-en-ozel` | Verdana | 0.97 |
+
+    Seçim KANAL AYARINDAN geliyor, komut satırından değil: iş akışını her çağrıda elle veren biri olsaydı iddia kanala değil operatöre ait olurdu.
+  - *Bu kabul üç ciddi hatayı ortaya çıkardı — üçü de yalnızca Worker'da vardı, çünkü bugüne kadar her şey CLI üzerinden doğrulanmıştı:*
+    1. **Worker hiçbir video üretemiyordu.** `AddStudioPersistence` (API + Worker) `EnableRetryOnFailure` açıyordu, `StudioDbContextFactory.Build` (CLI + BÜTÜN TESTLER) açmıyordu. EF, yeniden deneyen strateji altında açık transaction'a izin vermiyor ve `WorkflowEngine` başarı yolunda tam onu açıyor: her node çalıştırması istisna atıyordu. 1400 test yeşildi çünkü hepsi öteki kurulumu kullanıyordu
+    2. **Tekillik ve kanal politikası Worker'a hiç verilmiyordu** (`= null` varsayılanlı parametreler). Tekillik ölçülmüyor → QC her videoyu insana gönderiyor; kanal kimliği okunmuyor → ses, yazı tipi, en-boy ve onay modu varsayılana düşüyor. Parametreler zorunlu yapıldı: unutmak artık derlenmiyor
+    3. **Paralel dalların çıktısı birbirini siliyordu.** `music` 14:06:06.097–.119 arasında koştu, `visuals` .117'de — müziğin commit'inden 2 ms önce — başlayıp 3 sn sonra kendi bağlamını yazdı ve müziği sildi. Bağlam bellekte birleştirilip kolonun tamamı geri yazılıyordu. Artık `jsonb ||` ile tek ifadede birleşiyor
 
 ---
 
