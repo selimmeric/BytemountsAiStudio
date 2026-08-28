@@ -89,6 +89,16 @@ public static class RenderPlanner
         AudioBitrate = timeline.Output.AudioBitrate,
         FrameRate = timeline.Canvas.Fps,
         DurationSeconds = timeline.Duration.TotalSeconds,
+
+        // SANİYEDEN KAREYE ÇEVİRİ BURADA: kare hızını bilen yer
+        // burası ve `-g` kare istiyor. Çeviriyi emitter'a bırakmak,
+        // ona kare hızını ikinci kez taşımak olurdu.
+        //
+        // En az 1: sıfır kare aralık ffmpeg'e her kareyi anahtar kare
+        // yaptırırdı — dosya birkaç kat büyürdü.
+        KeyframeInterval = timeline.Output.KeyframeIntervalSeconds is { } seconds && seconds > 0
+            ? Math.Max(1, (int)Math.Round(seconds * timeline.Canvas.Fps))
+            : null,
     };
 
     /// SESSİZ plan (P2-11): yalnızca görüntü.

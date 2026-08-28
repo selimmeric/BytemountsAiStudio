@@ -268,7 +268,17 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     **Bölüm planlayıcı saf:** "kaç bölüm ve her biri ne kadar" kararı on beş dakikalık bir video üretilerek öğrenilecek bir şey olmamalı — o video kırk dakika render ve gerçek para. Model başlık ve SORU üretiyor, zaman aritmetiğini kod yapıyor: modele "her bölüm kaç saniye" demek, aritmetiği olasılıklı bir şeye havale etmekti ve toplamı tutmayan bir plan chapter işaretlerinin sonda kaymasıyla ortaya çıkardı.
     **Test bir tasarım hatası yakaladı:** model iki bölüm önerdiğinde on beş dakikayı doldurmak için üç bölüm daha **uyduruyordum**. Planlayıcının işi zamanı paylaştırmak, içerik icat etmek değil. Doğrusu: bölümlerin taşıyabileceği kadar uzun bir video; yetmiyorsa hata ve gerekçesi "daha fazla bölüm gerekiyor". İkinci test daha yakaladı — kısaltmayı gövde üzerinden yapıp toplamı eski paylarla kurmuştum, plan kendi içinde tutarsızdı.
     **Senaryo bölüm başına ayrı çağrı**, tek bir "on beş dakikalık senaryo yaz" değil: tek çağrıda model ilk bölümü ayrıntılı yazıp sonrakileri özet geçiyor, bağlam doldukça cümleler kısalıyor ve son bölüm bir listeye dönüşüyor. Önceki bölümün son üç cümlesi bağlama giriyor — hiç bağlam vermemek, aynı olguyu üç bölümde üç kez anlatan bir video demekti. 43 test
-  - *Kalan:* Canlı model koşusu (dış API bekliyor); 16:9 render ön ayarı
+  - *16:9 render ön ayarı bitti:* ✔ 28 Ağu 2026 — Ön ayar artık **tuvalden türüyor**. `OutputSpec.Preset` her videoda sabit `"shorts-1080x1920"` yazıyordu — 1920×1080 çıkan on dakikalık uzun videoda da. Ad hiçbir yerde okunmuyordu, o yüzden kimse fark etmiyordu; ama çıktının yanında duran ve çıktıyı **yanlış anlatan** bir kayıt, hiç kayıt olmamasından kötü.
+    **Ayarlar da gerçekten farklı, yalnızca ad değil** — yoksa "ön ayar" bir etiketten ibaret kalırdı. Yatay videoda anahtar kareler arası **en çok 2 sn**; dikeyde sınır yok. Sebep: oynatıcı yalnızca anahtar kareye atlayabiliyor ve uzun videoda bölüm işaretleri üretiyoruz — atlamanın nereye düşeceğini şansa bırakmak, işaretlerin yarısını vermekti. 48 saniyelik bir Shorts'ta kimse atlamıyor ve daha uzun GOP daha iyi sıkıştırma demek.
+    **Gerçek videoda ölçüldü:** aynı 603 saniyelik 1920×1080 video, öncesi ve sonrası —
+
+    | | anahtar kare | en büyük aralık | dosya |
+    |---|---|---|---|
+    | önce (sınırsız) | 74 | **8,33 sn** | 13,3 MB |
+    | sonra (2 sn sınır) | 302 | **2,00 sn** | 13,3 MB |
+
+    Atlama isabeti dört kat arttı ve **dosya boyutu hiç değişmedi** — boyut artışı bekliyordum, bu içerik türünde (durağan görsellerden oluşan slayt) çıkmadı. Kısa video etkilenmedi: sınır yok, aralık sahne değişimine göre 5,5 sn'ye kadar. Depodaki timeline belgesi doğruluyor: `preset: video-1920x1080`, `keyframe_interval_seconds: 2`. 7 test
+  - *Kalan:* Canlı model koşusu — **dış API bekliyor** (bkz. anahtar gerektiren maddeler)
 - [x] **P3-03** `4p` — Uzun video render: segment paralel render + concat + anahtar kare hizası
   - *Bitti:* ✔ 28 Ağu 2026 — **Dokuz dakikalık 1920×1080 video gerçekten üretildi**: 545,8 sn, 12 MB, tam −16,0 LUFS, tepe −10,1 dB, QC 0,97, `Completed`, retry turu 0.
     **Segment önbelleği gerçek bir uzun videoda ölçüldü** (P2-11'in kabul kriteri): tur 0'da 15 segment render (163 sn), sonraki turlarda 0 render / 15 önbellek (34 sn) — **retry başına 5 kat hızlanma**. Sentetik bir testte değil, dokuz dakikalık gerçek bir videoda.

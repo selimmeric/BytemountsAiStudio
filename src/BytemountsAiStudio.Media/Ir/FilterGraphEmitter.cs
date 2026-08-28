@@ -128,6 +128,19 @@ public static class FilterGraphEmitter
         args.Add("-r");
         args.Add(options.FrameRate.ToString(CultureInfo.InvariantCulture));
 
+        // ANAHTAR KARE ARALIĞI (P3-02): oynatıcı yalnızca anahtar
+        // kareye atlayabiliyor. Sınır yokken x264 anahtar kareleri
+        // sahne değişimine göre seçiyor ve "3. bölüme atla"
+        // saniyelerce sapabiliyor.
+        //
+        // SINIR, HEDEF DEĞİL: sahne değişimi daha sık anahtar kare
+        // ekleyebilir ve bu iyi — atlama daha da isabetli olur.
+        if (options.KeyframeInterval is { } keyframeInterval && keyframeInterval > 0)
+        {
+            args.Add("-g");
+            args.Add(keyframeInterval.ToString(CultureInfo.InvariantCulture));
+        }
+
         args.Add("-c:a");
         args.Add(options.AudioCodec);
         args.Add("-b:a");
@@ -187,6 +200,14 @@ public sealed record OutputOptions
     public int Crf { get; init; } = 20;
 
     public string PresetSpeed { get; init; } = "medium";
+
+    /// Anahtar kareler arası EN ÇOK kaç KARE. `null` = kodlayıcı
+    /// kendi bilir.
+    ///
+    /// Saniye değil kare, çünkü ffmpeg'in `-g` argümanı kare
+    /// istiyor; saniyeden kareye çeviri kare hızını bilen yerde
+    /// (planlayıcı) yapılıyor.
+    public int? KeyframeInterval { get; init; }
 
     public string PixelFormat { get; init; } = "yuv420p";
 

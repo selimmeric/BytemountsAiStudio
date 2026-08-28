@@ -329,6 +329,27 @@ public sealed record OutputSpec
     /// yuv420p: yaygın oynatıcı uyumluluğu için zorunlu. Bunu değiştirmek
     /// bazı cihazlarda videonun hiç açılmamasına yol açar.
     public string PixelFormat { get; init; } = "yuv420p";
+
+    /// Anahtar kareler arası EN ÇOK kaç saniye. `null` = kodlayıcı
+    /// kendi bilir.
+    ///
+    /// NEDEN VAR (P3-02): oynatıcı yalnızca anahtar kareye
+    /// atlayabiliyor. Sınır koymadığımızda x264 anahtar kareleri
+    /// sahne değişimine göre seçiyor ve aralık içeriğe bağlı oluyor —
+    /// on dakikalık, bölüm işaretli bir videoda "3. bölüme atla"
+    /// saniyelerce sapabiliyor. Bölüm işaretlerini üretip atlamanın
+    /// nereye düşeceğini şansa bırakmak, işaretlerin yarısını
+    /// vermekti.
+    ///
+    /// KISA VİDEODA GEREKMİYOR: 48 saniyelik bir Shorts'ta kimse
+    /// atlamıyor ve daha uzun GOP daha iyi sıkıştırma demek. Sınırı
+    /// her yere koymak, hiçbir faydası olmayan bir yerde dosyayı
+    /// büyütürdü.
+    ///
+    /// SINIR, HEDEF DEĞİL: `-g` en çok bu kadar diyor; sahne
+    /// değişimi daha sık anahtar kare ekleyebiliyor ve bu iyi —
+    /// atlama daha da isabetli oluyor.
+    public double? KeyframeIntervalSeconds { get; init; }
 }
 
 public sealed record Provenance

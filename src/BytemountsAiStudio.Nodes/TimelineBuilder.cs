@@ -171,7 +171,11 @@ public static class TimelineBuilder
                     MaxLines = 2,
                 },
             },
-            Output = new OutputSpec { Preset = "shorts-1080x1920" },
+            // ÖN AYAR TUVALDEN (P3-02): burada sabit `"shorts-1080x1920"`
+            // yazıyordu ve 1920×1080 çıkan uzun videoda da öyle
+            // kalıyordu — çıktının yanında duran, çıktıyı yanlış
+            // anlatan bir kayıt.
+            Output = RenderPreset.ForCanvas(canvas),
             Provenance = new Provenance
             {
                 // İstem damgası artık gerçek (P1-07): senaryo node'u
