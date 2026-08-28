@@ -115,6 +115,11 @@ builder.Services.AddHostedService<SelfRestartService>();
 // ortasinda gormek demekti.
 builder.Services.AddHostedService<StorageReadyService>();
 
+// BOLUM BAKIMI (P4-06): kapsayan bir bolum yoksa INSERT DUSUYOR.
+// Varsayilan bolum bunu yakaliyor ama orada satir birikmesi
+// bolumlemenin sessizce islevsizlesmesi demek.
+builder.Services.AddHostedService<PartitionService>();
+
 builder.Services.AddHostedService<QueueWorker>();
 
 // ---- ZAMANLAYICI (P2-01/02/12) ----

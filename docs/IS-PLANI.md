@@ -372,7 +372,19 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     4. **Sağlık kontrolü yazmak "otomatik yeniden başlatma" demek değil.** Docker'ın `restart` politikası yalnızca ÇIKAN kabı yeniden başlatıyor; `unhealthy` ama çalışan bir kaba Compose dokunmuyor. Autoheal deseni kullanılmadı: o kap Docker soketine erişmek zorunda ve **o soket makinede kök yetkisine denk**. Onun yerine süreç kalıcı sağlıksızlıkta kendini kapatıyor
   - *Sağlık sinyali süreç canlılığını değil, ARALIKSIZ HATAYI ölçüyor* — çünkü bu depoda yaşanan arıza tam olarak şuydu: süreç ayakta, bütün kuyruk döngüleri her turda istisna atıyor, hiçbir video üretilmiyor, kap sağlıklı görünüyor. Kuyruğu boş bir worker hiç iş yapmıyor ve tamamen sağlıklı; ayıran şey aralıksız hata. **60 sn** → `unhealthy`, **5 dk** → süreç kendini kapatıyor. Sıra kasıtlı: önce bildir, sonra harekete geç — eşit olsalardı geçici bir aksaklıkta devam eden bir render çöpe giderdi
   - *Yazı tipleri sessiz bir tuzak:* altyazı SkiaSharp ile çiziliyor ve boş bir Linux imajında hiç yazı tipi yok — video **üretilir**, sadece yazısı olmaz ve QC bunu yakalamaz (süre, çözünürlük ve ses doğru). Kap içinde ölçüldü: altyazı bandında parlaklık 5–198 aralığında, yazı gerçekten çiziliyor. 8 test
-- [ ] **P4-06** `3p` — DB partition (`node_executions`, `run_events`) + okuma replikası
+- [~] **P4-06** `3p` — DB partition (`run_events`) + okuma replikası
+  - *Kismen:* 28 Ağu 2026 — `run_events` aylık bölümlere ayrıldı. **Ölçüldü, varsayılmadı** — 730.000 satırlık bir yıllık veriyle:
+
+    | | düz tablo | bölümlü |
+    |---|---|---|
+    | eski bir ayı silmek | `DELETE` **175 ms** | `DROP PARTITION` **3,5 ms** |
+    | silmeden sonra boyut | 165 MB, 6.000 ölü satır | yer **hemen** geri verildi |
+    | "son 7 gün" sorgusu | **12.555 blok** okuyor | **815 blok** |
+    | disk | 165 MB | 170 MB *(bedeli: her bölümün kendi indeksi)* |
+
+  - ***`node_executions` bölümlenmedi ve bu bilinçli bir geri adım.*** Önce o da bölümlenmişti. PostgreSQL bölüm anahtarının eşsizlik kısıtının parçası olmasını şart koşuyor, yani `(run_id, node_id, loop, attempt)` kısıtına `created_at` eklenmek zorundaydı — ve o an **kısıt işini yapmayı bıraktı**: aynı adımın iki kez yazılması artık engellenmiyor, yalnızca aynı mikrosaniyede yazılması engelleniyor. Var olan bir test bunu hemen yakaladı ve gerekçesi tam yerindeydi: *"çift tetiklemeyi uygulama katmanında değil veritabanında durduruyoruz; uygulama katmanındaki kontrol yarış koşulunda kaçırırdı."* Kısıt, saklama kolaylığından değerli: `node_executions` günde ~1.500 satır büyüyor, `run_events` çok daha hızlı.
+  - *En tehlikeli tuzak ikiye katlı korumayla kapatıldı:* kapsayan bir bölüm yoksa **INSERT düşüyor** — bölüm bakımı bir ay geri kalsa sistem ayın birinde saat 00:00'da, kimsenin ayakta olmadığı bir saatte tamamen dururdu. (1) **Varsayılan bölüm**: kapsanmayan satır oraya düşüyor, INSERT asla düşmüyor. (2) **İleri dönük açma**: açılışta ve günde bir, üç ay ileriye. Varsayılan bölümde satır birikmesi ayrıca **uyarı olarak loglanıyor** — yoksa bölümleme sessizce işlevsizleşir, veri tek yerde birikir ve kimse fark etmez. 6 test
+  - *Kalan:* Okuma replikası
 - [ ] **P4-07** `3p` — NVENC değerlendirmesi (kalite ölçümüyle)
 - [ ] **P4-08** `3p` — Temporal spike + `IWorkflowEngine` arkasında karar
 - [ ] **P4-09** `2p` — 🏁 **Faz 4 kabul:** 100 video/gün yük testi geçildi
