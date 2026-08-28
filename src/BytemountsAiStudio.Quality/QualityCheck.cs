@@ -69,6 +69,24 @@ public sealed record CheckResult
     /// Düştüyse hangi node'a dönülmeli.
     public RetryTarget Target { get; init; } = RetryTarget.None;
 
+    /// Kontrol GERÇEKTEN ÖLÇÜLDÜ mü.
+    ///
+    /// "Ölçüldü ve düştü" ile "ölçülemedi" ikisi de `Passed == false`
+    /// ama tamamen farklı şeyler — ve ayrımı yapmamak gerçek bir kayba
+    /// yol açtı.
+    ///
+    /// İlk uçtan uca koşuda beş kontrol "ölçülmedi" diye düştü (ses
+    /// seviyesi, kırpılma, konuşma oranı, kapak, tekillik) çünkü hat o
+    /// ölçümleri hiç üretmiyor. QC bunu bir kalite sorunu sanıp
+    /// senaryodan yeniden koşma istedi; sistem üç tur boyunca aynı
+    /// videoyu yeniden render etti (her tur ~4 dakika) ve hiçbir şey
+    /// değişmedi.
+    ///
+    /// Yeniden koşmak eksik bir ÖLÇÜM ADIMINI eklemiyor. Ölçülemeyen
+    /// bir kontrol insanın çözeceği bir eksik; retry'ın çözeceği bir
+    /// kusur değil.
+    public bool Measured { get; init; } = true;
+
     public override string ToString()
         => string.Create(CultureInfo.InvariantCulture,
             $"[{(Passed ? "GECTI" : "KALDI")}] {Code}: {Name}{(Detail is null ? "" : $" — {Detail}")}");

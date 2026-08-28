@@ -973,6 +973,20 @@ public sealed class MediaRenderHandler(
 
         var probe = render.Value.Probe;
 
+        // ---- SES ÖLÇÜMÜ (ADR-006, P1-21) ----
+        //
+        // Bu adım uzun süre EKSİKTİ ve bedeli büyüktü: ölçüm olmadığı
+        // için QC'nin ses kontrolleri "ölçülmedi" diye düşüyor, her
+        // video insana gidiyordu — ve retry bunu kalite sorunu sanıp
+        // aynı videoyu üç kez render ediyordu.
+        //
+        // ÖLÇÜM DÜŞERSE NODE DÜŞMÜYOR: video üretildi ve geçerli.
+        // Ölçülemeyen değer null kalıyor, QC de onu "ölçülmedi" diye
+        // işaretliyor — yani eksiklik görünür oluyor, uydurulmuyor.
+        var loudness = await new LoudnessMeter(ffmpegPath)
+            .MeasureAsync(render.Value.OutputPath, probe.DurationSeconds, cancellationToken)
+            .ConfigureAwait(false);
+
         return Result.Success(NodeJson.From(new
         {
             output_path = render.Value.OutputPath,
@@ -983,6 +997,11 @@ public sealed class MediaRenderHandler(
             video_codec = probe.VideoCodec,
             audio_codec = probe.AudioCodec,
             render_ms = (int)render.Value.RenderDuration.TotalMilliseconds,
+            loudness_lufs = loudness.IsSuccess ? loudness.Value.IntegratedLufs : (double?)null,
+            true_peak_db = loudness.IsSuccess ? loudness.Value.TruePeakDb : (double?)null,
+            loudness_range = loudness.IsSuccess ? loudness.Value.LoudnessRange : (double?)null,
+            speech_ratio = loudness.IsSuccess ? loudness.Value.SpeechRatio : null,
+            loudness_error = loudness.IsFailure ? loudness.Error.Message : null,
         }));
     }
 }

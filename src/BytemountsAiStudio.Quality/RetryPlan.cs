@@ -78,6 +78,30 @@ public static class RetryPlanner
                 $"QC kararı: {report.Decision}");
         }
 
+        // ÖLÇÜLEMEYEN KONTROL RETRY'I TETİKLEMİYOR.
+        //
+        // Bu kural gerçek bir kayıptan doğdu: ilk uçtan uca koşuda beş
+        // kontrol "ölçülmedi" diye düştü (ses seviyesi, kırpılma,
+        // konuşma oranı, kapak, tekillik) çünkü hat o ölçümleri hiç
+        // üretmiyor. QC bunu kalite sorunu sanıp senaryodan yeniden
+        // koşma istedi; sistem ÜÇ TUR aynı videoyu render etti (her
+        // tur ~4 dakika) ve hiçbir şey değişmedi — değişemezdi de.
+        //
+        // Yeniden koşmak eksik bir ÖLÇÜM ADIMINI eklemiyor. Düşen
+        // kontrollerin HEPSİ ölçülememişse yapılacak şey insana
+        // gitmek: eksik olan hattın kendisi ve onu bir insan
+        // tamamlayacak.
+        //
+        // Ölçülmüş bir düşüş varsa retry yine koşuyor — o düşüş
+        // gerçek ve düzelebilir.
+        var failures = report.Failures;
+
+        if (failures.Count > 0 && failures.All(c => !c.Measured))
+        {
+            return new RetryPlan(RetryDecision.LoopLimitReached, report.Target, completedLoops,
+                $"{failures.Count} kontrol ölçülemedi; yeniden koşmak ölçüm adımı eklemiyor, insan bakmalı");
+        }
+
         if (report.Target == RetryTarget.None)
         {
             // Hedefi olmayan bir düşüş yeniden koşmayla DÜZELMİYOR.

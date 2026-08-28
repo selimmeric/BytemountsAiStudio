@@ -568,5 +568,9 @@ public static class MechanicalQc
             Weight = 1,
             Target = target,
             Detail = "ölçülmedi",
+
+            // ÖLÇÜLMEDİ, DÜŞMEDİ. Fark retry kararını değiştiriyor:
+            // yeniden koşmak eksik bir ölçüm adımını eklemiyor.
+            Measured = false,
         };
 }
