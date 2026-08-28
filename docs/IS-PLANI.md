@@ -426,7 +426,19 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Atama deterministik* (`sha256(run_id + deney_id)`): rastgele üreteç, hedefli yeniden koşmada (P2-07) aynı run'ın farklı varyanta düşmesi ve **iki varyantta birden sayılması** demekti. Bin run'da dağılım %45–55 aralığında ölçüldü.
   - *Ölçüm sabit bir yaştan okunuyor* (7. gün): bir haftalık videoyla bir günlük videoyu karşılaştırmak, varyantı değil **yaşı** ölçmek demek. Aynı günün iki kez yazılması veritabanı kısıtıyla engelleniyor — iki kez toplanan bir gün bütün oranları bozardı.
   - *Kalan:* Gerçek performans verisi **YouTube Analytics'e bağlı** (P5-01, anahtar bekliyor). Çerçeve elle girilen ölçümlerle uçtan uca test edildi; boru hattı hazır, veri kaynağı engelli.
-- [ ] **P5-03** `4p` — Thumbnail A/B + başlık A/B
+- [x] **P5-03** `4p` — Thumbnail A/B + başlık A/B
+  - *Bitti:* ✔ 29 Ağu 2026 — Deney kolları kapağın piksellerine ve modele giden isteme kadar bağlandı. 39 test.
+  - ***Deneyin sessiz ölüm biçimi: iki kolun aynı çıktıyı üretmesi.*** O zaman deney koşar, veri toplar, örneklemi doldurur ve "fark yok" der. Cümle doğrudur — ölçülen şey varyant değil, **hiçbir şeydir**. P5-03'ün asıl işi bu sessizliği imkânsız kılmak.
+  - *Kapalı sözlük:* tanınmayan bir ayar (`konumu` yerine `konum`) da tanınmayan bir değer de **kalıcı hata**. Sessizce düşseydi iki kol aynı kapağı üretirdi. Aynı hata sözleşme katmanında zaten bir kez ödendi: istem şablonu, kendisinde olmayan yer tutuculara verilen değerleri yutuyor.
+  - *Başlık deneyi için ayrıca:* `{{baslik_stili}}` yer tutucusunun istemde **gerçekten bulunduğu** doğrulanıyor. Yer tutucusuz bir istem sürümüyle koşan deney iki kolda da aynı istemi kullanır ve haftalarca hiçbir şey ölçmez. Stilin ne demek olduğu istem dosyasında yazıyor (`seo.generate/v2`), kodda değil — sürümlü ve gözle karşılaştırılabilir kalsın diye.
+  - *Kollar PİKSELLE ölçülüyor:* "ayar okundu mu" değil, alt konumun metni gerçekten 100+ piksel aşağı taşıdığı, büyük puntonun daha çok mürekkep kullandığı, ağır karartmanın ortalama parlaklığı düşürdüğü ölçülüyor. Ayarın node'a ulaşıp renderer'a ulaşmadığı bir durumda salt bayt karşılaştırması geçer görünürdü.
+  - *Kontrol kolu = bugünkü kapak,* baytı baytına. Kontrol varsayılandan farklı çıksaydı deneyin tabanı kanalın gerçek tabanı olmazdı ve kazanan varyant yayına alındığında ölçülen fark tekrar etmezdi.
+  - *Büyük harf dile duyarlı:* `ToUpperInvariant` Türkçe'de "istanbul"u "ISTANBUL" yapıyor, doğrusu "İSTANBUL". Kapak kanalın en çok görülen tek görseli; oradaki noktasız İ, o kanalın Türkçe yazamadığını söylüyor.
+  - ***Atama grafta değil MOTORDA.*** Bir `experiment.assign` node'u olsaydı, onu eklemeyi unutan her workflow deneylerin dışında kalırdı — ve bunu fark etmenin yolu yok: run başarıyla koşar, video çıkar, sadece deney hiç ölçmez. Motorda olması **atlanamaz** olması demek. Testi doğrulamak için köprü kasten koparıldı: iddiayı taşıyan iki test kırmızıya döndü, geri alınınca yeşile.
+  - *P5-02'de yazılmış ama hiçbir yerden çağrılmayan* `SingleChangedDimension` **hatta bağlandı**: iki boyutta ayrışan bir deney artık açılmıyor. Kural, çağrılana kadar bir niyet beyanıydı.
+  - *Bozuk deney run'ı düşürmüyor, kendini kapatıyor.* Bir ölçüm hatasına üretimi feda etmek yanlış; ama atlanan deneyi "koşuyor" bırakmak daha yanlış. Aynı boyutta iki açık deney (kanalsız + kanala özel — veritabanı kısıtı bunu yakalamıyor, `NULL`'lar tekil sayılıyor) ikisi de kapatılıyor: birini seçmek keyfî olurdu.
+  - *Bozuk deneyde model hiç çağrılmıyor:* doğrulama LLM çağrısından önce, hata token yakmasın diye.
+  - *Kalan:* Kazananı ölçmek yine **YouTube Analytics'e bağlı** (P5-01). Kollar üretimde gerçekten farklı video üretiyor; hangisinin kazandığı veri gelince belli olacak.
 - [ ] **P5-04** `4p` — Konu skorlama ağırlıklarının gerçek performansla kalibrasyonu
 - [ ] **P5-05** `3p` — Prompt varyant performans raporu
 - [ ] **P5-06** `3p` — "Ne işe yarıyor" dashboard'u

@@ -3,9 +3,11 @@ using System.Text.Json.Nodes;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Core.Observability;
 using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Persistence.Entities;
+using BytemountsAiStudio.Persistence.Providers;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Workflow.Definition;
 using BytemountsAiStudio.Workflow.Expressions;
@@ -110,6 +112,44 @@ public sealed class WorkflowEngine(
 
         db.Runs.Add(run);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // DENEY ATAMASI GRAFTA DEĞİL, MOTORDA (P5-03).
+        //
+        // Bir `experiment.assign` node'u olsaydı, o node'u eklemeyi
+        // unutan her workflow deneylerin dışında kalırdı — ve bunu
+        // fark etmenin yolu yok: run başarıyla koşar, video çıkar,
+        // sadece deney hiç ölçmez. Motorda olması, ATLANAMAZ olması
+        // demek.
+        //
+        // İLK NODE'DAN ÖNCE: kapak ve başlık node'ları bağlamdan
+        // okuyor. Sonra atamak, ilk videoların kolsuz üretilmesi
+        // ve deneyin ilk gününü kaybetmesi olurdu.
+        var assigned = await new ExperimentService(db, _time)
+            .AssignAsync(run.Id, channelId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (assigned.IsFailure)
+        {
+            return Result.Failure<Guid>(assigned.Error);
+        }
+
+        if (assigned.Value.Count > 0)
+        {
+            var merged = ExperimentContext.Merge(run.ContextJson, assigned.Value);
+
+            if (merged.IsFailure)
+            {
+                return Result.Failure<Guid>(merged.Error);
+            }
+
+            run.ContextJson = merged.Value;
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            await LogAsync(run.Id, null, "info",
+                "Deney kolları: " + string.Join(", ",
+                    assigned.Value.Select(a => a.Dimension + "=" + a.VariantName)),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         await EnqueueNodesAsync(run, graph, graph.EntryNodes().Select(n => n.Id), cancellationToken)
             .ConfigureAwait(false);

@@ -143,7 +143,11 @@ public sealed class ThumbnailRenderer(IReadOnlyList<string> fontStack)
             return;
         }
 
-        using var paint = new SKPaint { Color = new SKColor(0, 0, 0, 130) };
+        // KARARTMA GÜCÜ DENEYE AÇIK (P5-03): koyu karartma metni her
+        // görselin üstünde okunur kılıyor ama arkadaki görseli de
+        // öldürüyor. Hangisinin daha çok tıklandığı ölçülecek bir şey,
+        // tasarım tercihi değil.
+        using var paint = new SKPaint { Color = new SKColor(0, 0, 0, request.ScrimAlpha) };
         canvas.DrawRect(new SKRect(0, 0, Width, Height), paint);
     }
 
@@ -194,7 +198,15 @@ public sealed class ThumbnailRenderer(IReadOnlyList<string> fontStack)
 
         var lineHeight = fontSize * 1.18f;
         var block = lineHeight * lines.Count;
-        var y = (Height + block) / 2f - lineHeight * 0.28f - (lines.Count - 1) * lineHeight / 2f;
+
+        // METİN KONUMU DENEYE AÇIK (P5-03).
+        //
+        // Alta yaslamak arkadaki görselin yüzünü açıyor ama platformun
+        // sağ alta bastığı süre rozetine yaklaşıyor. Bu yüzden alt
+        // sınır %90'da: rozetin altına girmiyor.
+        var y = request.TextPosition == ThumbnailTextPosition.Lower
+            ? Height * 0.90f - (lines.Count - 1) * lineHeight - lineHeight * 0.28f
+            : (Height + block) / 2f - lineHeight * 0.28f - (lines.Count - 1) * lineHeight / 2f;
 
         foreach (var line in lines)
         {
@@ -269,6 +281,16 @@ public sealed record ThumbnailRequest
     public float StrokeWidth { get; init; } = 10f;
 
     public float FontSize { get; init; } = 96f;
+
+    /// Metnin durduğu yer (P5-03 deney boyutu).
+    public ThumbnailTextPosition TextPosition { get; init; } = ThumbnailTextPosition.Center;
+
+    /// Metnin arkasındaki karartmanın gücü (P5-03 deney boyutu).
+    ///
+    /// SIFIR GEÇERLİ BİR DEĞER DEĞİL: karartmasız kapak, parlak bir
+    /// arka planda okunmuyor. Alt sınır kodda değil deneyin sözlüğünde
+    /// (`ThumbnailVariant.Allowed`) tutuluyor.
+    public byte ScrimAlpha { get; init; } = 130;
 
     /// Bu boyutun altına inilmiyor: daha küçüğü telefon ekranında
     /// okunmuyor ve kapağın tek işi okunmak.

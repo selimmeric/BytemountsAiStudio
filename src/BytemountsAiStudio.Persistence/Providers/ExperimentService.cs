@@ -13,80 +13,179 @@ public sealed class ExperimentService(StudioDbContext db, TimeProvider? timeProv
 {
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 
-    /// Bir run'ı kanalın açık deneylerine atar.
+    /// Bir run'ı kanalın açık deneylerine atar ve ALDIĞI KOLLARI döner.
+    ///
+    /// Kolları dönmesi şart: çağıran (`WorkflowEngine`) bunları run
+    /// bağlamına yazıyor ve kapak/başlık node'ları oradan okuyor.
+    /// Sadece sayı dönseydi atama yapılır, hiçbir node'a ulaşmaz ve
+    /// deney iki kolda da aynı videoyu üretirdi.
     ///
     /// ATAMA DETERMİNİSTİK: `run_id` + deney kimliğinden türeyen bir
     /// özet, varyantı seçiyor. Rastgele sayı üreteci kullanmak,
     /// aynı run'ın yeniden değerlendirilmesinde farklı varyanta
     /// düşmesi demekti — ve hedefli yeniden koşma (P2-07) tam olarak
     /// bunu yapıyor: aynı run'ı ikinci kez çalıştırıyor.
-    ///
-    /// Determinizm ayrıca dağıtım dengesini bozmuyor: sha256 çıktısı
-    /// düzgün dağılıyor.
-    public async Task<Result<int>> AssignAsync(Guid runId, Guid? channelId, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<AssignedVariant>>> AssignAsync(
+        Guid runId, Guid? channelId, CancellationToken cancellationToken)
     {
-        var experiments = await db.Experiments.AsNoTracking()
+        // TRACKED: geçersiz bir deneyi burada KAPATIYORUZ. Bozuk bir
+        // deneyi atlayıp bırakmak, her run'da aynı hatayı sessizce
+        // tekrarlamak olurdu.
+        var experiments = await db.Experiments
             .Where(e => e.State == "Running")
             .Where(e => e.ChannelId == null || e.ChannelId == channelId)
-            .Select(e => e.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         if (experiments.Count == 0)
         {
-            return 0;
+            return Result.Success<IReadOnlyList<AssignedVariant>>([]);
         }
 
-        var assigned = 0;
+        // AYNI BOYUTTA İKİ AÇIK DENEY: ikisi de uygulanamaz.
+        //
+        // Veritabanı kısıtı kanal+boyut ikilisini tekil tutuyor ama
+        // KANALSIZ (tüm kanallara açık) bir deney, kanala özel bir
+        // deneyle aynı boyutta çakışabiliyor — farklı satırlar, aynı
+        // boyut. İkisini birden uygulamak tek değişken kuralını
+        // deneylerin ARASINDA kırardı; birini seçmek keyfî olurdu.
+        var conflicting = experiments
+            .GroupBy(e => e.Dimension, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .SelectMany(g => g)
+            .ToHashSet();
 
-        foreach (var experimentId in experiments)
+        foreach (var experiment in conflicting)
+        {
+            experiment.State = "Invalid";
+            experiment.Reason =
+                $"'{experiment.Dimension}' boyutunda birden fazla açık deney var; "
+                + "hangisinin uygulanacağı belirsiz.";
+            experiment.DecidedAt = _time.GetUtcNow();
+        }
+
+        var assigned = new List<AssignedVariant>();
+
+        foreach (var experiment in experiments.Where(e => !conflicting.Contains(e)))
         {
             var variants = await db.ExperimentVariants.AsNoTracking()
-                .Where(v => v.ExperimentId == experimentId)
+                .Where(v => v.ExperimentId == experiment.Id)
                 .OrderBy(v => v.Name)
-                .Select(v => v.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (variants.Count < 2)
+            var checkedConfigs = Validate(experiment, variants);
+
+            if (checkedConfigs.IsFailure)
             {
-                // TEK VARYANTLI DENEY ATLANMIYOR, SESSİZCE DE
-                // GEÇİLMİYOR: karşılaştıracak bir şey yok ve bu bir
-                // yapılandırma hatası. Atama yapmak, hiçbir şey
-                // ölçmeyen bir deneyin veri topluyormuş gibi
-                // görünmesi olurdu.
+                // DENEY KAPANIYOR, RUN DÜŞMÜYOR.
+                //
+                // Bozuk bir deney yüzünden fabrikayı durdurmak, bir
+                // ölçüm hatasına üretimi feda etmek olurdu. Ama sessizce
+                // atlamak da olmaz: atlanan deney haftalarca "koşuyor"
+                // görünür, veri toplar ve "fark yok" der. Deney
+                // GÖRÜNÜR biçimde kapatılıyor.
+                experiment.State = "Invalid";
+                experiment.Reason = checkedConfigs.Error.Message;
+                experiment.DecidedAt = _time.GetUtcNow();
                 continue;
             }
 
-            var chosen = variants[Bucket(runId, experimentId, variants.Count)];
+            var chosen = variants[Bucket(runId, experiment.Id, variants.Count)];
 
             db.ExperimentAssignments.Add(new ExperimentAssignment
             {
-                ExperimentId = experimentId,
-                VariantId = chosen,
+                ExperimentId = experiment.Id,
+                VariantId = chosen.Id,
                 RunId = runId,
             });
 
-            assigned++;
+            assigned.Add(new AssignedVariant(
+                experiment.Id, chosen.Id, experiment.Dimension, chosen.Name, chosen.ConfigJson));
         }
 
-        if (assigned > 0)
+        try
         {
-            try
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException)
+        {
+            // ZATEN ATANMIŞ: eşsizlik kısıtı yakaladı. Hedefli yeniden
+            // koşma aynı run'ı tekrar buraya getirebiliyor ve ikinci
+            // atama hata değil, gereksiz.
+            db.ChangeTracker.Clear();
+            return Result.Success<IReadOnlyList<AssignedVariant>>([]);
+        }
+
+        return Result.Success<IReadOnlyList<AssignedVariant>>(assigned);
+    }
+
+    /// Bir deneyin GERÇEKTEN ölçebilir olduğunu doğrular.
+    ///
+    /// Üç kontrol, üçü de "hiçbir şey ölçmeyen deney" üretiyor:
+    ///   1. Tek varyant — karşılaştıracak bir şey yok.
+    ///   2. Tanınmayan ayar — sessizce düşer, iki kol aynı çıktıyı verir.
+    ///   3. İki boyutta ayrışma — kazanan bilinir, NEDEN kazandığı bilinmez.
+    ///
+    /// Üçüncüsü `ExperimentEvaluator.SingleChangedDimension` ile
+    /// yapılıyor; o fonksiyon P5-02'de yazılmıştı ve HİÇBİR YERDEN
+    /// ÇAĞRILMIYORDU. Kural, çağrılana kadar bir niyet beyanıydı.
+    private static Result Validate(Experiment experiment, List<ExperimentVariant> variants)
+    {
+        if (variants.Count < 2)
+        {
+            return Error.Permanent("experiment.single_variant",
+                "Deneyde tek varyant var; karşılaştıracak bir şey yok.");
+        }
+
+        var vocabulary = VariantVocabulary.For(experiment.Dimension);
+
+        if (vocabulary.IsFailure)
+        {
+            return Result.Failure(vocabulary.Error);
+        }
+
+        var configs = new Dictionary<Guid, IReadOnlyDictionary<string, string>>();
+
+        foreach (var variant in variants)
+        {
+            var parsed = VariantConfig.Parse(variant.ConfigJson);
+
+            if (parsed.IsFailure)
             {
-                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                return Result.Failure(parsed.Error);
             }
-            catch (DbUpdateException)
+
+            var valid = VariantConfig.Validate(parsed.Value, vocabulary.Value);
+
+            if (valid.IsFailure)
             {
-                // ZATEN ATANMIŞ: eşsizlik kısıtı yakaladı. Hedefli
-                // yeniden koşma aynı run'ı tekrar buraya
-                // getirebiliyor ve ikinci atama hata değil, gereksiz.
-                db.ChangeTracker.Clear();
-                return 0;
+                return Result.Failure(valid.Error);
+            }
+
+            configs[variant.Id] = parsed.Value;
+        }
+
+        var control = variants.Find(v => v.IsControl);
+
+        if (control is null)
+        {
+            return Error.Permanent("experiment.no_control",
+                "Deneyde kontrol kolu yok; karşılaştırmanın tabanı belirsiz.");
+        }
+
+        foreach (var variant in variants.Where(v => !v.IsControl))
+        {
+            var single = ExperimentEvaluator.SingleChangedDimension(
+                configs[control.Id], configs[variant.Id]);
+
+            if (single.IsFailure)
+            {
+                return Result.Failure(single.Error);
             }
         }
 
-        return assigned;
+        return Result.Success();
     }
 
     /// Bir deneyin bugünkü kararı.

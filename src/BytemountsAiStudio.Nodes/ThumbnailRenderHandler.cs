@@ -5,6 +5,7 @@ using BytemountsAiStudio.Core.Assets;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Media.Rendering.Text;
 using BytemountsAiStudio.Workflow.Engine;
 
@@ -54,14 +55,44 @@ public sealed class ThumbnailRenderHandler(IStorageProvider storage) : INodeHand
 
         var background = await BackgroundAsync(context.RunContext, cancellationToken).ConfigureAwait(false);
 
+        // KAPAK DENEYE AÇIK (P5-03).
+        //
+        // Deney yoksa `Default` — bugünkü kapak. Varsayılanı ayrı bir
+        // yerde tutmamak önemli: kontrol kolu ile "deney yok" hâli
+        // farklı kapaklar üretseydi, deneyin karşılaştırdığı taban
+        // kanalın gerçek tabanı olmazdı.
+        var style = ThumbnailVariantSettings.Default;
+        var experiment = ExperimentContext.ConfigFor(context.RunContext, "thumbnail");
+
+        if (experiment is not null)
+        {
+            var parsed = ThumbnailVariant.Parse(experiment);
+
+            if (parsed.IsFailure)
+            {
+                return Result.Failure<JsonElement>(parsed.Error);
+            }
+
+            style = parsed.Value;
+        }
+
+        // BÜYÜK HARF DİLE DUYARLI: `ToUpperInvariant` "istanbul"u
+        // "ISTANBUL" yapıyor, doğrusu "İSTANBUL". Kapak kanalın en çok
+        // görülen tek görseli; oradaki noktasız İ, o kanalın Türkçe
+        // yazamadığını söylüyor.
+        var drawn = ThumbnailVariant.ApplyCase(title, language, style.Uppercase);
+
         var renderer = new ThumbnailRenderer(
             ["Inter", "Noto Sans", "Segoe UI", "Arial"]);
 
         var rendered = renderer.Render(new ThumbnailRequest
         {
-            Title = title,
+            Title = drawn,
             Language = language,
             BackgroundImage = background,
+            TextPosition = style.Position,
+            ScrimAlpha = style.ScrimAlpha,
+            FontSize = style.FontSize,
         });
 
         if (rendered.IsFailure)
@@ -98,8 +129,12 @@ public sealed class ThumbnailRenderHandler(IStorageProvider storage) : INodeHand
             // reddediliyor. Beklenen boyutu yazmak, gerçekte aşan bir
             // dosyayı geçirmek olurdu.
             size_bytes = rendered.Value.Length,
-            title,
+            // ÇİZİLEN metin yazılıyor, SEO başlığı değil: büyük harf
+            // kolunda ikisi farklı ve kapakta ne yazdığını bilmek
+            // sonradan tek yol.
+            title = drawn,
             has_background = background is not null,
+            variant = ExperimentContext.VariantName(context.RunContext, "thumbnail"),
         }));
     }
 

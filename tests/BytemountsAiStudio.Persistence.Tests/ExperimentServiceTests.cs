@@ -107,7 +107,8 @@ public sealed class ExperimentServiceTests(DatabaseFixture fixture) : IAsyncLife
         var assigned = await service.AssignAsync(runId, null, CancellationToken.None);
 
         Assert.True(assigned.IsSuccess);
-        Assert.Equal(1, assigned.Value);
+        Assert.Single(assigned.Value);
+        Assert.Equal("thumbnail", assigned.Value[0].Dimension);
 
         Assert.True(await db.ExperimentAssignments
             .AnyAsync(a => a.ExperimentId == experimentId && a.RunId == runId, CancellationToken.None));
@@ -157,7 +158,11 @@ public sealed class ExperimentServiceTests(DatabaseFixture fixture) : IAsyncLife
         var runId = await SeedRunAsync(db);
         var assigned = await new ExperimentService(db).AssignAsync(runId, null, CancellationToken.None);
 
-        Assert.Equal(0, assigned.Value);
+        Assert.Empty(assigned.Value);
+
+        // VE DENEY GÖRÜNÜR BİÇİMDE KAPANIYOR: sessizce atlanan bir
+        // deney haftalarca "koşuyor" görünür ve hiçbir şey ölçmez.
+        Assert.Equal("Invalid", await db.Experiments.Select(e => e.State).FirstAsync(CancellationToken.None));
     }
 
     /* ---- değerlendirme ---- */
@@ -287,8 +292,19 @@ public sealed class ExperimentServiceTests(DatabaseFixture fixture) : IAsyncLife
             RequiredPerVariant = 1_500,
         };
 
-        var control = new ExperimentVariant { Experiment = experiment, Name = "a-kontrol", IsControl = true };
-        var variant = new ExperimentVariant { Experiment = experiment, Name = "b-varyant", IsControl = false };
+        // KOLLAR GERÇEKTEN AYRIŞIYOR. Aynı ayarla iki kol açmak,
+        // hiçbir şey ölçmeyen bir deney demek — ve `AssignAsync` artık
+        // bunu reddediyor.
+        var control = new ExperimentVariant
+        {
+            Experiment = experiment, Name = "a-kontrol", IsControl = true, ConfigJson = "{}",
+        };
+
+        var variant = new ExperimentVariant
+        {
+            Experiment = experiment, Name = "b-varyant", IsControl = false,
+            ConfigJson = """{"konum":"alt"}""",
+        };
 
         db.Experiments.Add(experiment);
         db.ExperimentVariants.AddRange(control, variant);

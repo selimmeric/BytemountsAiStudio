@@ -6,6 +6,7 @@ using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Workflow.Engine;
 
 namespace BytemountsAiStudio.Nodes;
@@ -70,11 +71,48 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
             return Result.Failure<JsonElement>(template.Error);
         }
 
+        // BAŞLIK STİLİ DENEYE AÇIK (P5-03).
+        //
+        // Deney yoksa `duz` — bugünkü davranış. Deney varsa kol adı
+        // isteme giriyor ve stilin ne demek olduğu istem dosyasında
+        // yazıyor; böylece stil metni sürümlü ve gözle
+        // karşılaştırılabilir kalıyor (§7.3).
+        var style = TitleVariant.DefaultStyle;
+        var experiment = ExperimentContext.ConfigFor(context.RunContext, "title");
+
+        if (experiment is not null)
+        {
+            var parsed = TitleVariant.Parse(experiment);
+
+            if (parsed.IsFailure)
+            {
+                return Result.Failure<JsonElement>(parsed.Error);
+            }
+
+            // İSTEMİN STİLİ GERÇEKTEN ALDIĞI DOĞRULANIYOR.
+            //
+            // Şablon, kendisinde olmayan yer tutuculara verilen
+            // değerleri sessizce yutuyor. Bu kontrol olmadan
+            // `{{baslik_stili}}` içermeyen bir istem sürümüyle koşan
+            // deney iki kolda da AYNI istemi kullanır ve haftalarca
+            // hiçbir şey ölçmeden "fark yok" der.
+            var wired = TitleVariant.Verify(
+                (template.Value.System ?? string.Empty) + template.Value.User);
+
+            if (wired.IsFailure)
+            {
+                return Result.Failure<JsonElement>(wired.Error);
+            }
+
+            style = parsed.Value;
+        }
+
         var rendered = template.Value.Render(new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["topic"] = topic,
             ["language"] = language,
             ["script"] = script,
+            [TitleVariant.Placeholder] = style,
         });
 
         if (rendered.IsFailure)
@@ -105,13 +143,14 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
             return Result.Failure<JsonElement>(response.Error);
         }
 
-        return Build(response.Value.Value.ToolArguments, rendered.Value.Stamp);
+        return Build(response.Value.Value.ToolArguments, rendered.Value.Stamp, style);
     }
 
     /// Model çıktısını sınırlara sığdırır ve sonucu DOĞRULAR.
     ///
     /// Ayrı ve `internal`: kırpma mantığı LLM olmadan sınanabilsin.
-    internal static Result<JsonElement> Build(string? toolArguments, string promptStamp)
+    internal static Result<JsonElement> Build(
+        string? toolArguments, string promptStamp, string style = TitleVariant.DefaultStyle)
     {
         if (string.IsNullOrWhiteSpace(toolArguments))
         {
@@ -168,6 +207,10 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
             description,
             tags,
             prompt = promptStamp,
+            // KOL ÇIKTIYA YAZILIYOR: hangi başlığın hangi stille
+            // üretildiği sonradan atama tablosuna bakmadan görülüyor
+            // ve iki kayıt birbirini denetliyor.
+            title_style = style,
             // Kırpma DEVREYE GİRDİ Mİ — kayda geçiyor. Sürekli kırpılan
             // bir kanal, istemin sınırı yeterince baskılamadığını
             // söylüyor ve bu istem sürümüyle düzeltilecek bir şey.

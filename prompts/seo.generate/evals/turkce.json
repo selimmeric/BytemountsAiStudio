@@ -3,11 +3,20 @@
   "values": {
     "topic": "Göbeklitepe",
     "language": "tr-TR",
-    "script": "Göbeklitepe dünyanın bilinen en eski tapınağıdır.\nYaklaşık on bir bin yıl önce inşa edilmiştir."
+    "script": "Göbeklitepe dünyanın bilinen en eski tapınağıdır.\nYaklaşık on bir bin yıl önce inşa edilmiştir.",
+    "baslik_stili": "soru"
   },
   "expect": {
-    "contains": ["Göbeklitepe", "tr-TR", "YANILTMAMALI", "90 karakter"],
-    "not_contains": ["{{"],
+    "contains": [
+      "Göbeklitepe",
+      "tr-TR",
+      "YANILTMAMALI",
+      "90 karakter",
+      "soru"
+    ],
+    "not_contains": [
+      "{{"
+    ],
     "max_chars": 2000,
     "min_chars": 300
   }
