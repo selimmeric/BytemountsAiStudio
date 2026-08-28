@@ -108,6 +108,7 @@ const liveEl = document.getElementById("live");
 const liveText = document.getElementById("live-text");
 
 const TABS = [
+  ["rapor", "Gece raporu"],
   ["runs", "Koşular"],
   ["approvals", "Onay kuyruğu"],
   ["topics", "Konu havuzu"],
@@ -419,6 +420,61 @@ async function showCost() {
     ${panel("Sağlayıcı kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Düşen", "Tutar"], rows))}`;
 }
 
+/* ---- Gece raporu (P2-13) ---- */
+
+/* Otonom bir sistemde sabah ilk sorulacak soru "gece ne oldu" ve
+ * cevabı tek ekranda olmalı. Koşuları tek tek açıp saymak, sorunun
+ * cevabını her sabah elle üretmekti.
+ *
+ * EN ÜSTTE KABUL KRİTERİ: "5 video üretildi" ile "5 video üretildi ama
+ * 4'ü onay bekliyor" farklı sonuçlar. İkincisi otonomi değil.
+ */
+async function showReport() {
+  const r = await api("/rapor");
+
+  const num = (v) => (v === null || v === undefined ? "—" : v);
+  const pct = (v) => (v === null || v === undefined ? "—" : Math.round(v * 100) + "/100");
+
+  const failures = r.failures.map((f) => `
+    <tr><td class="mono">${esc(f.code)}</td><td class="mono">${f.count}</td></tr>`);
+
+  view.innerHTML = `
+    <section class="panel">
+      <h2>Son ${r.windowHours} saat</h2>
+      <div class="stats">
+        <div class="stat">
+          <b class="${r.acceptanceMet ? "s-Completed" : "s-Failed"}">${r.unattendedVideos}</b>
+          <span>insan müdahalesiz video</span>
+        </div>
+        <div class="stat"><b>${r.runs}</b><span>koşu</span></div>
+        <div class="stat"><b>${esc(money(r.cost))}</b><span>maliyet</span></div>
+        <div class="stat"><b>${esc(money(r.costPerRun))}</b><span>video başına</span></div>
+        <div class="stat"><b>${pct(r.averageScore)}</b><span>ortalama QC (${r.scoredRuns})</span></div>
+        <div class="stat"><b>${num(r.averageMinutes)}</b><span>ortalama dakika</span></div>
+      </div>
+      <p class="muted">${r.acceptanceMet
+        ? "Faz 2 kabul kriteri sağlandı: gecede en az 3 video insan müdahalesi olmadan hazır."
+        : `Kabul kriteri için en az 3 insan müdahalesiz video gerekiyor; ${r.unattendedVideos} var.`}</p>
+    </section>
+
+    ${panel("Koşuların durumu", table(
+      ["Durum", "Adet"],
+      [
+        ["Tamamlandı", r.completed],
+        ["Onay bekliyor", r.waitingApproval],
+        ["Kaynak bekliyor", r.waitingResource],
+        ["Hâlâ koşuyor", r.stillRunning],
+        ["Düştü", r.failed],
+        ["Düzeltme turu", r.retryLoops],
+        ["Ölü mektup", r.deadLettered],
+        ["Bekleyen onay (tüm zamanlar)", r.pendingApprovals],
+      ].map(([k, v]) => `<tr><td>${esc(k)}</td><td class="mono">${v}</td></tr>`)))}
+
+    ${r.failures.length
+      ? panel("Düşme sebepleri", table(["Kod", "Adet"], failures))
+      : ""}`;
+}
+
 /* ---- Sağlayıcı sağlığı (P2-04) ---- */
 
 /* Devre kesicinin SÜREÇ İÇİ durumu değil, filonun gözlemi.
@@ -550,6 +606,7 @@ async function showControl() {
 /* ---- Sekmeler ---- */
 
 const VIEWS = {
+  rapor: showReport,
   runs: showRuns,
   approvals: showApprovals,
   topics: showTopics,

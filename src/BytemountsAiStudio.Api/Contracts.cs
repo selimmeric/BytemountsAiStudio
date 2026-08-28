@@ -113,6 +113,44 @@ internal sealed record ProviderHealthSummary(
     int FailureThreshold,
     IReadOnlyList<ProviderHealthEntry> Providers);
 
+/// Bir hata kodunun kaç kez görüldüğü.
+public sealed record FailureCount(string Code, int Count);
+
+/// Gece raporu (P2-13).
+///
+/// KABUL KRİTERİ `UnattendedVideos` alanında ölçülüyor: insan
+/// müdahalesi olmadan hazır olan video sayısı. "5 video üretildi" ile
+/// "5 video üretildi ama 4'ü onay bekliyor" farklı sonuçlar ve ikisini
+/// aynı sayıya sıkıştırmak, kriterin sağlandığı izlenimi verirdi.
+public sealed record MorningSummary(
+    int WindowHours,
+    int Runs,
+    int Completed,
+    int Failed,
+    int WaitingApproval,
+    int WaitingResource,
+    int StillRunning,
+    /// Pencereden BAĞIMSIZ: dün geceden kalmış bir onay bugünün
+    /// penceresine girmiyor ama hâlâ insanın işi.
+    int PendingApprovals,
+    int DeadLettered,
+    int RetryLoops,
+    decimal Cost,
+    decimal CostPerRun,
+    /// Ortalama koşu süresi (dakika). Hiç biten koşu yoksa null —
+    /// sıfır göstermek "anında bitti" gibi okunurdu.
+    double? AverageMinutes,
+    /// Ortalama QC skoru (0–1). Hiç ölçüm yoksa null.
+    double? AverageScore,
+    int ScoredRuns,
+    int UnattendedVideos,
+    IReadOnlyList<FailureCount> Failures)
+{
+    /// Kabul kriteri sağlandı mı: gecede en az 3 video, insan
+    /// müdahalesi olmadan.
+    public bool AcceptanceMet => UnattendedVideos >= 3;
+}
+
 /// SSE ile yayılan ilerleme.
 ///
 /// Panonun yenilemeden ilerleme görmesi için gereken en küçük belge.

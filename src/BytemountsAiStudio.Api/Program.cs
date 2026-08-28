@@ -273,6 +273,20 @@ app.MapGet("/providers", async (
     return Results.Ok(new ProviderHealthSummary(minutes, ProviderFailureThreshold, providers));
 });
 
+// ---- Gece raporu (P2-13) ----
+//
+// Otonom bir sistemde sabah ilk sorulacak soru "gece ne oldu" ve
+// cevabı tek ekranda olmalı. Koşuları tek tek açıp saymak, sorunun
+// cevabını her sabah elle üretmekti.
+app.MapGet("/rapor", async (
+    StudioDbContext db, CancellationToken cancellationToken, int windowHours = 12) =>
+{
+    var hours = Math.Clamp(windowHours, 1, 24 * 7);
+
+    return Results.Ok(await MorningReport.BuildAsync(
+        db, TimeSpan.FromHours(hours), cancellationToken));
+});
+
 app.Run();
 
 /// Karar sonucunu HTTP'ye çevirir.
