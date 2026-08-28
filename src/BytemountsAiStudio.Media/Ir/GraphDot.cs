@@ -55,10 +55,19 @@ public static class GraphDot
         builder.AppendLine();
         builder.Append("  out_video [shape=doublecircle, label=\"")
             .Append(Escape(graph.VideoOut.ToString())).AppendLine("\"];");
-        builder.Append("  out_audio [shape=doublecircle, label=\"")
-            .Append(Escape(graph.AudioOut.ToString())).AppendLine("\"];");
         builder.Append("  ").Append(SourceOf(graph.VideoOut, graph)).AppendLine(" -> out_video;");
-        builder.Append("  ").Append(SourceOf(graph.AudioOut, graph)).AppendLine(" -> out_audio;");
+
+        // SESSİZ GRAFİKTE SES DÜĞÜMÜ HİÇ ÇİZİLMİYOR.
+        //
+        // Boş bir düğüm çizmek, diyagrama bakan birine "ses var ama
+        // bağlanmamış" dedirtirdi — oysa bölüm bazlı render'da (P2-11)
+        // sessizlik kasıtlı.
+        if (graph.AudioOut is { } audioOut)
+        {
+            builder.Append("  out_audio [shape=doublecircle, label=\"")
+                .Append(Escape(audioOut.ToString())).AppendLine("\"];");
+            builder.Append("  ").Append(SourceOf(audioOut, graph)).AppendLine(" -> out_audio;");
+        }
 
         builder.AppendLine("}");
         return builder.ToString();

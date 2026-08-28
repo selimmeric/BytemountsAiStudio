@@ -50,6 +50,33 @@ internal static class NodeJson
 
         return current.ValueKind == JsonValueKind.String ? current.GetString() : current.ToString();
     }
+
+    /// Bir bayrak okur.
+    ///
+    /// EKSİK ALAN `null`, `false` DEĞİL: "ayarlanmamış" ile "kapalı"
+    /// farklı şeyler ve çağıran taraf ikisini ayırt edebilmeli —
+    /// varsayılanı kim belirliyorsa orada belirlensin.
+    public static bool? Bool(JsonElement element, string path)
+    {
+        var current = element;
+
+        foreach (var part in path.Split('.'))
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out var next))
+            {
+                return null;
+            }
+
+            current = next;
+        }
+
+        return current.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null,
+        };
+    }
 }
 
 /// Konu seçimi. Gerçek hatta Topic Pool'dan en yüksek skorlu konuyu alacak;
@@ -881,6 +908,58 @@ public sealed class MediaRenderHandler(
 
         Directory.CreateDirectory(outputDirectory);
         var outputPath = Path.Combine(outputDirectory, $"{context.RunId:N}.mp4");
+
+        // ---- BÖLÜM BAZLI RENDER (P2-11) ----
+        //
+        // İSTEĞE BAĞLI VE VARSAYILAN KAPALI. Tek geçişli yol üretimde
+        // kanıtlanmış durumda; bölüm bazlı yol testlerde gerçek
+        // ffmpeg'le doğrulandı ama henüz bir gecelik koşudan geçmedi.
+        // Varsayılanı değiştirmek, kanıtlanmamış bir yolu bütün
+        // videolara uygulamak olurdu — ve bir render hatasının bedeli
+        // o videonun tamamı.
+        //
+        // Kazanç retry'da ortaya çıkıyor: QC render'a dönerse
+        // değişmemiş sahneler yeniden kodlanmıyor.
+        if (NodeJson.Bool(context.Config, "segmented") == true)
+        {
+            var cache = Path.Combine(outputDirectory, "segment-onbellek");
+
+            var segmented = await new SegmentRenderer(cache, ffmpegPath, ffprobePath)
+                .RenderAsync(timeline, paths, outputPath, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (segmented.IsFailure)
+            {
+                return Result.Failure<JsonElement>(segmented.Error);
+            }
+
+            // ÖLÇÜLÜYOR, VARSAYILMIYOR (ADR-006): segment yürütücüsü
+            // "başarılı" dese de çıktının süresi ve boyutu ancak
+            // ffprobe'la biliniyor ve QC bu sayılara bakıyor.
+            var segmentProbe = await MediaProbe.ProbeAsync(ffprobePath, outputPath, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (segmentProbe.IsFailure)
+            {
+                return Result.Failure<JsonElement>(segmentProbe.Error);
+            }
+
+            return Result.Success(NodeJson.From(new
+            {
+                output_path = segmented.Value.OutputPath,
+                width = segmentProbe.Value.Width,
+                height = segmentProbe.Value.Height,
+                duration_seconds = segmentProbe.Value.DurationSeconds,
+                size_bytes = segmentProbe.Value.SizeBytes,
+                video_codec = segmentProbe.Value.VideoCodec,
+                audio_codec = segmentProbe.Value.AudioCodec,
+                render_ms = (int)segmented.Value.Duration.TotalMilliseconds,
+                // KAZANÇ SAYI OLARAK: "önbellek işe yarıyor" iddiası,
+                // kaçının yeniden koştuğu görülmediği sürece iddia.
+                segments_rendered = segmented.Value.Rendered,
+                segments_reused = segmented.Value.Reused,
+            }));
+        }
 
         var executor = new FfmpegExecutor(ffmpegPath, ffprobePath);
         var render = await executor

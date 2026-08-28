@@ -111,8 +111,11 @@ public static class FilterGraphEmitter
 
         args.Add("-map");
         args.Add($"[{graph.VideoOut.Id}]");
-        args.Add("-map");
-        args.Add($"[{graph.AudioOut.Id}]");
+        if (graph.AudioOut is { } audioOut)
+        {
+            args.Add("-map");
+            args.Add($"[{audioOut.Id}]");
+        }
 
         args.Add("-c:v");
         args.Add(options.VideoCodec);

@@ -24,10 +24,96 @@ public static class RenderPlanner
     /// tasir; okumaz. Saflik korunuyor.
     public sealed record TimedLayer(string Path, Core.Time.TimeRange Range);
 
+    /// Görüntüsü HAZIR bir videodan gelen plan (P2-11).
+    ///
+    /// Bölüm bazlı render'ın son adımı: segmentler ayrı ayrı render
+    /// edilip birleştiriliyor, sonra ses bu plana takılıyor.
+    ///
+    /// SES ZİNCİRİ AYNEN KULLANILIYOR (`BuildAudio`). Sesi ayrıca
+    /// kurmak, ducking ve müzik mantığının iki yerde yaşaması ve
+    /// zamanla ayrışması demekti — ve o ayrışmanın belirtisi, sesin
+    /// yalnızca bir render yolunda doğru çıkması olurdu.
+    public static Result PlanOverVideo(
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> resolvedPaths,
+        string videoPath)
+    {
+        ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(resolvedPaths);
+        ArgumentException.ThrowIfNullOrWhiteSpace(videoPath);
+
+        var issues = new List<ValidationIssue>();
+
+        var inputs = new List<InputDecl>
+        {
+            new() { Id = "prerendered", Path = videoPath, Kind = InputKind.Video },
+        };
+
+        var nodes = new List<FilterNode>();
+
+        var videoOut = new StreamRef("vout", MediaKind.Video);
+
+        // Biçim yine de uygulanıyor: birleştirilmiş dosya doğru piksel
+        // biçiminde olsa bile, olduğunu VARSAYMAK bazı cihazlarda hiç
+        // açılmayan bir video demekti.
+        nodes.Add(FilterNode.Format(
+            new StreamRef("prerendered", MediaKind.Video), videoOut, timeline.Output.PixelFormat));
+
+        var audioOut = BuildAudio(timeline, resolvedPaths, inputs, nodes, issues);
+
+        if (issues.Count > 0)
+        {
+            return new Result(null, issues);
+        }
+
+        return new Result(
+            new PlanResult(
+                new FilterGraph
+                {
+                    Inputs = inputs,
+                    Nodes = nodes,
+                    VideoOut = videoOut,
+                    AudioOut = audioOut,
+                },
+                OptionsFor(timeline)),
+            issues);
+    }
+
+    private static OutputOptions OptionsFor(TimelineDocument timeline) => new()
+    {
+        VideoCodec = timeline.Output.VideoCodec,
+        Crf = timeline.Output.Crf,
+        PresetSpeed = timeline.Output.PresetSpeed,
+        PixelFormat = timeline.Output.PixelFormat,
+        AudioCodec = timeline.Output.AudioCodec,
+        AudioBitrate = timeline.Output.AudioBitrate,
+        FrameRate = timeline.Canvas.Fps,
+        DurationSeconds = timeline.Duration.TotalSeconds,
+    };
+
+    /// SESSİZ plan (P2-11): yalnızca görüntü.
+    ///
+    /// Bölüm bazlı render'da segmentler sessiz üretiliyor ve ses
+    /// birleştirmeden sonra tek seferde biniyor. Sesi de bölmek,
+    /// cümlelerin segment sınırlarında kesilmesi ve her sınırda duyulur
+    /// bir tıklama demekti — konuşma sahne sınırlarına saygı duymuyor.
+    public static Result PlanVideoOnly(
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> resolvedPaths,
+        IReadOnlyList<TimedLayer>? overlays = null)
+        => Plan(timeline, resolvedPaths, overlays, silent: true);
+
     public static Result Plan(
         TimelineDocument timeline,
         IReadOnlyDictionary<string, string> resolvedPaths,
         IReadOnlyList<TimedLayer>? overlays = null)
+        => Plan(timeline, resolvedPaths, overlays, silent: false);
+
+    private static Result Plan(
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> resolvedPaths,
+        IReadOnlyList<TimedLayer>? overlays,
+        bool silent)
     {
         ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(resolvedPaths);
@@ -141,7 +227,9 @@ public static class RenderPlanner
         nodes.Add(FilterNode.Format(videoTail, videoOut, timeline.Output.PixelFormat));
 
         // ---- ses ----
-        var audioOut = BuildAudio(timeline, resolvedPaths, inputs, nodes, issues);
+        StreamRef? audioOut = silent
+            ? null
+            : BuildAudio(timeline, resolvedPaths, inputs, nodes, issues);
 
         if (issues.Count > 0)
         {
@@ -156,19 +244,7 @@ public static class RenderPlanner
             AudioOut = audioOut,
         };
 
-        var options = new OutputOptions
-        {
-            VideoCodec = timeline.Output.VideoCodec,
-            Crf = timeline.Output.Crf,
-            PresetSpeed = timeline.Output.PresetSpeed,
-            PixelFormat = timeline.Output.PixelFormat,
-            AudioCodec = timeline.Output.AudioCodec,
-            AudioBitrate = timeline.Output.AudioBitrate,
-            FrameRate = fps,
-            DurationSeconds = timeline.Duration.TotalSeconds,
-        };
-
-        return new Result(new PlanResult(graph, options), issues);
+        return new Result(new PlanResult(graph, OptionsFor(timeline)), issues);
     }
 
     private static StreamRef BuildSceneChain(

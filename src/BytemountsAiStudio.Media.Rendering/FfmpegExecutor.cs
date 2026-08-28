@@ -88,7 +88,7 @@ public sealed class FfmpegExecutor(string ffmpegPath = "ffmpeg", string ffprobeP
                 return Result.Failure<RenderOutcome>(probe.Error);
             }
 
-            var verification = Verify(probe.Value, options);
+            var verification = Verify(probe.Value, options, expectAudio: graph.AudioOut is not null);
             if (verification is not null)
             {
                 SafeDelete(partialPath);
@@ -115,6 +115,38 @@ public sealed class FfmpegExecutor(string ffmpegPath = "ffmpeg", string ffprobeP
         {
             SafeDelete(scriptPath);
         }
+    }
+
+    /// Ham FFmpeg çağrısı (P2-11 birleştirme).
+    ///
+    /// Filtre grafiği kurmayan işler için: `concat` demuxer'ı bir
+    /// filtre değil, bir girdi biçimi ve grafiğin içinden ifade
+    /// edilemiyor. Ayrı bir yol açmak yerine planlayıcıyı bunu
+    /// destekleyecek şekilde bükmek, `concat`'in kopyalama davranışını
+    /// (yeniden kodlamama) kaybetmek olurdu — ki bölüm bazlı render'ın
+    /// bütün kazancı orada.
+    ///
+    /// `-y` ve `-nostdin` ÖNDE: üzerine yazma sorusu ya da stdin
+    /// beklemesi, arka planda koşan bir worker'ı sonsuza kadar
+    /// bekletirdi.
+    public Task<Result> RunRawAsync(
+        IReadOnlyList<string> arguments, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        return RunFfmpegAsync(
+            ["-y", "-nostdin", "-hide_banner", .. arguments],
+            new OutputOptions
+            {
+                VideoCodec = "copy",
+                PixelFormat = "yuv420p",
+                AudioCodec = "copy",
+                AudioBitrate = "192k",
+                FrameRate = 30,
+                DurationSeconds = 0,
+            },
+            null,
+            cancellationToken);
     }
 
     private async Task<Result> RunFfmpegAsync(
@@ -229,16 +261,31 @@ public sealed class FfmpegExecutor(string ffmpegPath = "ffmpeg", string ffprobeP
     /// FFmpeg sıfır kodla çıkıp yine de bozuk dosya üretebilir: ses akışı
     /// olmayan, süresi sapan ya da çözünürlüğü yanlış bir mp4 "başarılı"
     /// görünür. QC'nin mekanik kontrolleri (§14.1) buradan besleniyor.
-    private static Error? Verify(MediaProbe probe, OutputOptions options)
+    ///
+    /// `expectAudio` GRAFİKTEN GELİYOR, bir bayrak olarak değil: sessiz
+    /// bir grafiğin (P2-11 segmentleri) sessiz çıktı vermesi doğru,
+    /// sesli bir grafiğin sessiz çıktı vermesi ise tam olarak yakalamak
+    /// istediğimiz sessiz başarısızlık. İkisini ayıran şey çağıranın
+    /// niyeti değil, grafiğin kendisi.
+    private static Error? Verify(MediaProbe probe, OutputOptions options, bool expectAudio)
     {
         if (!probe.HasVideo)
         {
             return Error.Permanent("render.no_video", "Çıktıda video akışı yok.");
         }
 
-        if (!probe.HasAudio)
+        if (expectAudio && !probe.HasAudio)
         {
             return Error.Permanent("render.no_audio", "Çıktıda ses akışı yok.");
+        }
+
+        if (!expectAudio && probe.HasAudio)
+        {
+            // Sessiz olması gereken bir segmentte ses çıkması, ses
+            // zincirinin sızdığını gösteriyor: birleştirmeden sonra
+            // ses İKİ KEZ binerdi ve sonuç yankılı bir anlatım olurdu.
+            return Error.Permanent("render.unexpected_audio",
+                "Sessiz olması gereken çıktıda ses akışı var.");
         }
 
         var expected = options.DurationSeconds;

@@ -90,7 +90,11 @@ public static class GraphValidator
         }
 
         // Çıkışlar üretilmiş ve tüketilmemiş olmalı.
-        foreach (var (name, output) in new[] { ("video", graph.VideoOut), ("ses", graph.AudioOut) })
+        var outputs = graph.AudioOut is { } audio
+            ? new[] { ("video", graph.VideoOut), ("ses", audio) }
+            : [("video", graph.VideoOut)];
+
+        foreach (var (name, output) in outputs)
         {
             var key = output.ToString();
 
@@ -110,7 +114,7 @@ public static class GraphValidator
             issues.Add(new("graph.output_kind", "Video çıkışı video akışı olmalı."));
         }
 
-        if (graph.AudioOut.Kind != MediaKind.Audio)
+        if (graph.AudioOut is { } audioOut && audioOut.Kind != MediaKind.Audio)
         {
             issues.Add(new("graph.output_kind", "Ses çıkışı ses akışı olmalı."));
         }
@@ -119,7 +123,7 @@ public static class GraphValidator
         // der ve render hiç başlamaz.
         var dangling = produced.Keys
             .Where(k => !consumedBy.ContainsKey(k))
-            .Where(k => k != graph.VideoOut.ToString() && k != graph.AudioOut.ToString())
+            .Where(k => k != graph.VideoOut.ToString() && k != graph.AudioOut?.ToString())
             .Where(k => !graph.Inputs.Any(i => k.StartsWith(i.Id + ":", StringComparison.Ordinal)))
             .ToList();
 

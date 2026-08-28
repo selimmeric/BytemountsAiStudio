@@ -434,5 +434,9 @@ public sealed record FilterGraph
 
     public required StreamRef VideoOut { get; init; }
 
-    public required StreamRef AudioOut { get; init; }
+    /// Ses çıkışı. `null` = SESSİZ video ve bu geçerli bir durum
+    /// (P2-11): bölüm bazlı render'da segmentler sessiz üretiliyor,
+    /// ses birleştirmeden sonra tek seferde biniyor. Sesi de bölmek,
+    /// cümlelerin segment sınırlarında kesilmesi demekti.
+    public StreamRef? AudioOut { get; init; }
 }
