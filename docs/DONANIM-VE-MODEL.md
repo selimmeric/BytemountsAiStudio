@@ -208,3 +208,58 @@ koşturamadığımız bir modeli ölçemeyiz.
 Buna karşılık **model çıktısının kalitesi** ölçülüyor: mekanik QC
 (P1-21) her koşuda senaryoyu puanlıyor ve model değiştirildiğinde farkı
 gösteren şey o puan, bu tablo değil.
+
+---
+
+## ⚠️ ANA MAKİNENİN EKRAN KARTI ŞU AN GÜVENİLİR DEĞİL
+
+**28 Ağu 2026 — bu bölüm bir tercih değil, bir arıza kaydı.**
+
+Ana makinede ekran kartına büyük bir model yüklemek sistemi
+**çökertiyor**. Bu tahmin değil, olay günlüğünden okunan bir sayı:
+
+| Bulgu | Sayı |
+|---|---|
+| `0x00000113` mavi ekran (VIDEO_DXGKRNL_FATAL_ERROR) | 5 kez |
+| `0x00000133` mavi ekran (DPC watchdog) | 1 kez |
+| WHEA "düzeltilmiş donanım hatası" — son 8 gün | 47 olay |
+| WHEA — **son 24 saat** | **25 olay** |
+
+Sonuncusu en önemlisi: hata **hızlanıyor**. Düzeltilmiş hatalar
+düzeltilemeyen hataların habercisi.
+
+Son çökme 28 Ağu 04:34'te, 6 GB'lık bir görme modeli (`qwen2.5vl:7b`)
+karta yüklenirken oldu. `0x113` kodu doğrudan ekran kartı sürücüsünü
+işaret ediyor ve önceki dördünde de parametre NVIDIA'yı (`0x10de`)
+gösteriyordu.
+
+### Bunun geliştirmeye etkisi
+
+**Ekran kartında model koşturulmuyor.** Bu, ADR-015'in (ücretsiz/yerel
+önce) geçici olarak askıya alınması değil — yerel model hâlâ tercih,
+ama **işlemcide** ve **küçük**.
+
+Kod tarafında bunun karşılığı zaten var ve olması gereken de buydu:
+her model çağrısı bir arayüzün arkasında (`ILlmProvider`,
+`IVisionProvider`) ve testler sahte sağlayıcıyla koşuyor. Yani model
+koşturamamak **geliştirmeyi durdurmuyor**; yalnızca "canlı modelle
+doğrulandı" diyemiyoruz ve diyemediğimiz yerde bunu açıkça yazıyoruz.
+
+Ollama'yı işlemciye zorlamak gerekirse:
+
+```bash
+set OLLAMA_NUM_GPU=0
+```
+
+### Donanım tarafında sırayla denenecekler
+
+1. **NVIDIA sürücüsünü temiz kur** (DDU ile eskisini sil, sonra kur).
+   `0x113` çoğu zaman sürücü kaynaklı.
+2. **Dell BIOS ve chipset güncellemesi** — PCIe bağlantı hataları
+   sıklıkla ana kart yazılımından geliyor.
+3. **PCIe Link State Power Management → Off** (Güç Seçenekleri).
+   Bağlantının uyku durumuna girip çıkması WHEA hatalarının bilinen bir
+   kaynağı.
+4. Hiçbiri düzeltmezse kart donanım olarak arızalı; garanti/servis.
+
+Bunlar denenene kadar **ana makinede GPU'ya model yüklenmeyecek.**
