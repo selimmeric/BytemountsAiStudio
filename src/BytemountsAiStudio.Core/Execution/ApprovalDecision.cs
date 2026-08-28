@@ -101,3 +101,56 @@ public static class ApprovalGate
     private static string Text(FormattableString text)
         => text.ToString(CultureInfo.InvariantCulture);
 }
+
+/// Hedefli yeniden koşma isteği (P2-07).
+///
+/// Motor ile node arasındaki SÖZLEŞME — onay kapısındakiyle aynı
+/// desen. Motor node tipine bakmıyor, ÇIKTIYA bakıyor: aynı QC
+/// node'u bir koşuda yeniden koşma istiyor, diğerinde istemiyor ve
+/// karar skora bağlı.
+public sealed record RerunRequest(IReadOnlyList<string> Nodes, string Reason)
+{
+    /// Çıktıdaki bu alan sözleşme.
+    public const string Field = "retry";
+
+    /// Bir node çıktısı yeniden koşma istiyor mu.
+    ///
+    /// Boş bir node listesi istek SAYILMIYOR: "yeniden koş ama
+    /// hiçbir şeyi koşma" anlamsız ve o hâlde run sessizce durur —
+    /// kuyrukta iş kalmaz, kimse bir şeyin durduğunu fark etmez.
+    public static RerunRequest? From(JsonElement output)
+    {
+        if (output.ValueKind != JsonValueKind.Object
+            || !output.TryGetProperty(Field, out var retry)
+            || retry.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!retry.TryGetProperty("decision", out var decision)
+            || !string.Equals(decision.GetString(), "Rerun", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (!retry.TryGetProperty("nodes", out var array) || array.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var nodes = array.EnumerateArray()
+            .Where(n => n.ValueKind == JsonValueKind.String)
+            .Select(n => n.GetString()!)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .ToList();
+
+        if (nodes.Count == 0)
+        {
+            return null;
+        }
+
+        var reason = retry.TryGetProperty("reason", out var text) ? text.GetString() : null;
+
+        return new RerunRequest(nodes, reason ?? "QC yeniden koşma istedi");
+    }
+}

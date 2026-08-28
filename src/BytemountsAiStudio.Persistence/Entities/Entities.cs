@@ -133,6 +133,16 @@ public sealed class Run : EntityBase
     /// `node_executions`; burası ondan türetilir.
     public string ContextJson { get; set; } = "{}";
 
+    /// Kaçıncı düzeltme turundayız (P2-07).
+    ///
+    /// QC düşen bir videoyu hedefli olarak yeniden koşturuyor ve o
+    /// koşuda AYNI node'lar bir kez daha çalışıyor. Tur numarası
+    /// olmadan ikinci çalıştırma, `node_executions`'daki
+    /// (run, node, attempt) eşsiz kısıtını ihlal ediyor ve run
+    /// çöküyor — yani hedefli retry, tur numarası olmadan hiç
+    /// çalışamazdı.
+    public int RetryLoop { get; set; }
+
     public decimal EstimatedCost { get; set; }
 
     public decimal ActualCost { get; set; }
@@ -148,6 +158,14 @@ public sealed class Run : EntityBase
 
 public sealed class NodeExecution : EntityBase
 {
+    /// Hangi düzeltme turunda çalıştı (P2-07).
+    ///
+    /// Eşsizlik (run, node, TUR, deneme) üzerinden: "senaryoyu ikinci
+    /// kez ürettik" ile "senaryoyu üretmeyi ikinci kez denedik"
+    /// gerçekten farklı şeyler ve ikisini aynı sayıya sıkıştırmak,
+    /// hedefli retry'ı imkânsız kılardı.
+    public int Loop { get; set; }
+
     public Guid RunId { get; set; }
 
     public Run? Run { get; set; }

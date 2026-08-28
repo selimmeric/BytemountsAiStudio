@@ -274,6 +274,34 @@ public sealed class WorkflowEngine(
             return Result.Success();
         }
 
+        // ---- HEDEFLİ YENİDEN KOŞMA (P2-07) ----
+        //
+        // QC düşen bir videoyu baştan değil, HEDEFTEN yeniden
+        // koşturuyor: senaryo iyiyken render bozuksa senaryoyu
+        // yeniden üretmenin bedeli var, faydası yok — ve o bedel her
+        // turda tekrarlanıyor.
+        //
+        // Motor node TİPİNE değil ÇIKTIYA bakıyor; onay kapısıyla
+        // aynı desen.
+        if (RerunRequest.From(outcome.Value) is { } rerun)
+        {
+            // TUR ARTIYOR: `node_executions` eşsizliği tura bağlı ve
+            // artırmadan aynı node ikinci kez yazılamazdı.
+            run.RetryLoop++;
+
+            await EnqueueNodesAsync(run, graph, rerun.Nodes, cancellationToken).ConfigureAwait(false);
+
+            await LogAsync(run.Id, node.Id, "warn",
+                $"Hedefli yeniden koşma (tur {run.RetryLoop}): {rerun.Reason}", cancellationToken)
+                .ConfigureAwait(false);
+
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _queue.CompleteAsync(handlerLease.Id, cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+            return Result.Success();
+        }
+
         var next = await ResolveNextNodesAsync(run, graph, node.Id, cancellationToken).ConfigureAwait(false);
 
         if (next.Count == 0 && await IsRunCompleteAsync(run, graph, cancellationToken).ConfigureAwait(false))
@@ -475,6 +503,11 @@ public sealed class WorkflowEngine(
             RunId = run.Id,
             NodeId = node.Id,
             NodeType = node.Type,
+            // TUR: hedefli retry aynı node'u ikinci bir turda
+            // çalıştırıyor ve deneme sayacı yeni bir işle 1'den
+            // başlıyor. Tur olmadan bu, (run, node, deneme) eşsiz
+            // kısıtının ihlali ve run'ın çökmesi demekti (P2-07).
+            Loop = run.RetryLoop,
             Attempt = attempt,
             State = state,
             IdempotencyKey = idempotencyKey,

@@ -125,7 +125,11 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
 
             // Aynı node'un aynı denemesi iki kez yazılamaz. Bu, çift tetiklemeyi
             // uygulama katmanında değil veritabanında durdurur.
-            e.HasIndex(x => new { x.RunId, x.NodeId, x.Attempt }).IsUnique();
+            // TUR de esssizlige dahil (P2-07): hedefli retry ayni
+            // node'u ikinci bir turda calistiriyor ve deneme sayaci
+            // yeni bir isle 1'den basliyor. Tur olmadan bu, kisit
+            // ihlali ve cokme demekti.
+            e.HasIndex(x => new { x.RunId, x.NodeId, x.Loop, x.Attempt }).IsUnique();
             e.HasIndex(x => x.IdempotencyKey);
 
             e.HasOne(x => x.Run).WithMany(x => x.NodeExecutions)
