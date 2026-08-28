@@ -242,6 +242,19 @@ public sealed class Job : EntityBase
     public DateTimeOffset? LeaseExpiresAt { get; set; }
 
     public string? LastError { get; set; }
+
+    /// İş ne zaman bitti (başarıyla ya da başarısızlıkla).
+    ///
+    /// Kanal adaleti (P2-05) buna bakıyor: "yakın geçmişte kaç iş
+    /// aldı" ölçütü, biten işleri saymadan hesaplanamıyor ve o ölçüt
+    /// olmadan işler hızlı bittiğinde adalet tamamen bozuluyor —
+    /// koşan sayısı hep sıfır kalıyor ve seçim kimlik sırasına
+    /// düşüyor.
+    ///
+    /// `lease_expires_at` bu iş için kullanılamazdı: tamamlanınca
+    /// temizleniyor ve zaten kiralamanın bitişini değil son
+    /// geçerlilik anını taşıyor.
+    public DateTimeOffset? CompletedAt { get; set; }
 }
 
 public sealed class Asset

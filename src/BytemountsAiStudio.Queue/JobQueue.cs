@@ -88,10 +88,24 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
         return job.Id;
     }
 
+    /// Kanal başına aynı anda kaç iş.
+    ///
+    /// Tavan olmasaydı tek kanalın yirmi işi aynı anda kiralanıp
+    /// diğer kanallar boş worker bulamazdı — P2-05'in tam olarak
+    /// önlemeye çalıştığı durum.
+    public const int MaxLeasedPerChannel = 2;
+
     /// Bir iş kirala. Uygun iş yoksa null.
     ///
     /// Sorgu ham SQL, çünkü `FOR UPDATE SKIP LOCKED` EF LINQ'ta ifade
     /// edilemiyor ve bu cümlenin tamamı kuyruğun doğruluğunu taşıyor.
+    ///
+    /// ÖNCE ADALET, SONRA SIRA (P2-05). Yalnızca öncelik ve yaşa
+    /// bakan bir sıra, çok işi olan bir kanalın diğerlerini aç
+    /// bırakması demekti: yirmi videoluk bir kampanya başlatan kanal,
+    /// günde bir video üreten kanalın işini saatlerce bekletiyor ve
+    /// ikincisi hiçbir zaman "hata" vermiyor — sadece hiç sıra
+    /// alamıyor.
     public async Task<LeasedJob?> LeaseAsync(
         QueueClass queue,
         string workerId,
@@ -101,30 +115,23 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
         var now = _time.GetUtcNow();
         var expiresAt = now.Add(leaseDuration);
 
-        var rows = await db.Database
-            .SqlQuery<JobRow>($"""
-                UPDATE jobs
-                SET state = 'Leased',
-                    leased_by = {workerId},
-                    lease_expires_at = {expiresAt},
-                    attempt = attempt + 1
-                WHERE id = (
-                    SELECT j.id
-                    FROM jobs j
-                    LEFT JOIN channels c ON c.id = j.channel_id
-                    WHERE j.state = 'Pending'
-                      AND j.queue = {queue.ToString()}
-                      AND j.run_after <= {now}
-                      AND COALESCE(c.is_paused, false) = false
-                    ORDER BY j.priority DESC, j.run_after, j.created_at
-                    FOR UPDATE OF j SKIP LOCKED
-                    LIMIT 1
-                )
-                RETURNING id, queue, run_id, node_id, payload_json,
-                          attempt, max_attempts, lease_expires_at
-                """)
-            .ToListAsync(cancellationToken)
+        var channel = await NextChannelAsync(queue, now, cancellationToken).ConfigureAwait(false);
+
+        var rows = await LeaseRowsAsync(queue, workerId, now, expiresAt, channel, cancellationToken)
             .ConfigureAwait(false);
+
+        if (rows.Count == 0 && channel is not null)
+        {
+            // ADALET CANLILIĞI ENGELLEMİYOR.
+            //
+            // Seçilen kanalın işi bu arada başkası tarafından alınmış
+            // olabilir ve kanala bağlı olmayan işler (bakım, deneme)
+            // hiçbir kanalın payına girmiyor. İkinci deneme olmasaydı
+            // worker eli boş dönerdi: adalet uğruna hiç iş yapmamak,
+            // adaletsizlikten kötü.
+            rows = await LeaseRowsAsync(queue, workerId, now, expiresAt, null, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         if (rows.Count == 0)
         {
@@ -145,6 +152,105 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
             LeaseExpiresAt = row.LeaseExpiresAt,
         };
     }
+
+    /// Sıradaki işi hangi kanaldan almalı (P2-05).
+    ///
+    /// Karar SAF bir fonksiyonda (`FairScheduler.NextChannel`); burası
+    /// yalnızca sayıları topluyor. Ayrım, adaleti üç kanallı bir yük
+    /// testi koşturmadan sınayabilmek için — ve o testte gerçek bir
+    /// tasarım açığı bulundu.
+    private async Task<Guid?> NextChannelAsync(
+        QueueClass queue, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var queueName = queue.ToString();
+
+        // TEK SORGUDA üç sayı. Ayrı sorgular, arada değişen bir
+        // kuyrukta tutarsız bir resim verirdi: bekleyen sayısını bir
+        // andan, koşan sayısını başka bir andan okumak.
+        var loads = await db.Jobs.AsNoTracking()
+            .Where(j => j.Queue == queue && j.ChannelId != null)
+            .Where(j => (j.State == JobState.Pending && j.RunAfter <= now)
+                        || j.State == JobState.Leased)
+            .GroupBy(j => j.ChannelId!.Value)
+            .Select(g => new
+            {
+                ChannelId = g.Key,
+                Running = g.Count(j => j.State == JobState.Leased),
+                Waiting = g.Count(j => j.State == JobState.Pending),
+                Oldest = g.Where(j => j.State == JobState.Pending)
+                    .Min(j => (DateTimeOffset?)j.CreatedAt),
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (loads.Count <= 1)
+        {
+            // TEK KANAL VARSA ADALET SORUSU YOK ve sormamak gerekiyor:
+            // ikinci bir sorgu, tek kanallı bir kurulumda her kiralama
+            // için boşuna maliyet olurdu.
+            return null;
+        }
+
+        // GEÇMİŞ PAY ayrı bir sorgu: bitmiş işler yukarıdaki
+        // kümede yok. Bu ölçüt olmadan, işler hızlı bittiğinde koşan
+        // sayısı hep sıfır kalıyor ve seçim kimlik sırasına düşüyor —
+        // en küçük kimlikli kanal her turu kazanıp diğerlerini aç
+        // bırakıyor.
+        var since = now - RecentWindow;
+
+        var served = await db.Jobs.AsNoTracking()
+            .Where(j => j.Queue == queue && j.ChannelId != null
+                        && j.State == JobState.Succeeded && j.CompletedAt >= since)
+            .GroupBy(j => j.ChannelId!.Value)
+            .Select(g => new { ChannelId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ChannelId, x => x.Count, cancellationToken)
+            .ConfigureAwait(false);
+
+        var input = loads
+            .Select(l => new ChannelLoad(l.ChannelId, l.Running, l.Waiting, l.Oldest)
+            {
+                RecentlyServed = served.GetValueOrDefault(l.ChannelId),
+            })
+            .ToList();
+
+        return FairScheduler.NextChannel(input, MaxLeasedPerChannel);
+    }
+
+    /// "Yakın geçmiş" ne kadar.
+    ///
+    /// ON DAKİKA: geçmiş payın amacı uzun vadeli hakkaniyet değil,
+    /// az önce sıra almış bir kanalın hemen tekrar almasını
+    /// engellemek. Uzun bir pencere, sabah çok iş almış bir kanalı
+    /// akşama kadar cezalandırırdı.
+    private static readonly TimeSpan RecentWindow = TimeSpan.FromMinutes(10);
+
+    private Task<List<JobRow>> LeaseRowsAsync(
+        QueueClass queue, string workerId, DateTimeOffset now, DateTimeOffset expiresAt,
+        Guid? channelId, CancellationToken cancellationToken)
+        => db.Database
+            .SqlQuery<JobRow>($"""
+                UPDATE jobs
+                SET state = 'Leased',
+                    leased_by = {workerId},
+                    lease_expires_at = {expiresAt},
+                    attempt = attempt + 1
+                WHERE id = (
+                    SELECT j.id
+                    FROM jobs j
+                    LEFT JOIN channels c ON c.id = j.channel_id
+                    WHERE j.state = 'Pending'
+                      AND j.queue = {queue.ToString()}
+                      AND j.run_after <= {now}
+                      AND COALESCE(c.is_paused, false) = false
+                      AND ({channelId}::uuid IS NULL OR j.channel_id = {channelId})
+                    ORDER BY j.priority DESC, j.run_after, j.created_at
+                    FOR UPDATE OF j SKIP LOCKED
+                    LIMIT 1
+                )
+                RETURNING id, queue, run_id, node_id, payload_json,
+                          attempt, max_attempts, lease_expires_at
+                """)
+            .ToListAsync(cancellationToken);
 
     /// Kiralamayı uzat (heartbeat).
     ///
@@ -168,7 +274,8 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
     public async Task CompleteAsync(Guid jobId, CancellationToken cancellationToken = default)
         => await db.Database.ExecuteSqlAsync($"""
             UPDATE jobs
-            SET state = 'Succeeded', leased_by = NULL, lease_expires_at = NULL, last_error = NULL
+            SET state = 'Succeeded', leased_by = NULL, lease_expires_at = NULL,
+                last_error = NULL, completed_at = {_time.GetUtcNow()}
             WHERE id = {jobId}
             """, cancellationToken).ConfigureAwait(false);
 
@@ -228,7 +335,8 @@ public sealed class JobQueue(StudioDbContext db, TimeProvider? timeProvider = nu
         await db.Database.ExecuteSqlAsync($"""
             UPDATE jobs
             SET state = {(deadLetter ? nameof(JobState.DeadLettered) : nameof(JobState.Failed))},
-                leased_by = NULL, lease_expires_at = NULL, last_error = {text}
+                leased_by = NULL, lease_expires_at = NULL, last_error = {text},
+                completed_at = {now}
             WHERE id = {job.Id}
             """, cancellationToken).ConfigureAwait(false);
 
