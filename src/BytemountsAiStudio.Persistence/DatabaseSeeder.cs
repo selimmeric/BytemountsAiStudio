@@ -168,6 +168,97 @@ public static class DatabaseSeeder
     internal static bool NeedsNewVersion(string? storedGraph, string currentGraph)
         => storedGraph is null || Normalize(storedGraph) != Normalize(currentGraph);
 
+    /// KARŞILAŞTIRMA METİNSEL DEĞİL, ANLAMSAL — VE ANAHTAR SIRASINDAN
+    /// BAĞIMSIZ.
+    ///
+    /// Graf `jsonb` kolonunda duruyor ve PostgreSQL jsonb'yi kendi
+    /// biçiminde saklıyor: boşlukları atıyor ve **anahtarları yeniden
+    /// sıralıyor** (önce uzunluğa, sonra bayta göre). Depodan okunan
+    /// metin, koddaki metinle asla birebir aynı olmuyor — `{"key":...,
+    /// "name":...}` sırası bile korunmuyor.
+    ///
+    /// Satır sonu normalizasyonu bunu yakalamıyordu ve sonuç sessiz bir
+    /// hataydı: her `db seed` çağrısı "graf değişmiş" deyip yeni bir
+    /// sürüm ekliyordu. Tablo sonsuza kadar büyüyor, `current_version`
+    /// her dağıtımda artıyor ve "bu video hangi grafla üretildi"
+    /// sorusunun cevabı anlamsızlaşıyordu.
+    ///
+    /// Bunu ancak GERÇEK bir veritabanında koşturmak gösterdi: testler
+    /// dizeyi doğrudan karşılaştırıyordu ve jsonb hiç devreye
+    /// girmiyordu. Yalnızca ayrıştırıp yeniden yazmak da yetmedi —
+    /// belge sırası korunduğu için iki metin yine farklı çıkıyordu.
+    /// Anahtarların SIRALANMASI şart.
     private static string Normalize(string json)
-        => json.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+
+            var builder = new System.Text.StringBuilder();
+            WriteCanonical(document.RootElement, builder);
+
+            return builder.ToString();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Okunamayan bir graf METİN olarak karşılaştırılıyor:
+            // ayrıştırılamayanı "değişmemiş" saymak, bozuk bir grafın
+            // sonsuza kadar depoda kalması olurdu.
+            return json.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        }
+    }
+
+    /// Anahtarları sıralanmış, boşluksuz JSON.
+    ///
+    /// DİZİ SIRASI KORUNUYOR: nesne anahtarlarının sırası anlam
+    /// taşımıyor ama dizininki taşıyor — kenarların sırası grafın
+    /// kendisi.
+    private static void WriteCanonical(
+        System.Text.Json.JsonElement element, System.Text.StringBuilder builder)
+    {
+        switch (element.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object:
+                builder.Append('{');
+                var first = true;
+
+                foreach (var property in element.EnumerateObject()
+                             .OrderBy(p => p.Name, StringComparer.Ordinal))
+                {
+                    if (!first)
+                    {
+                        builder.Append(',');
+                    }
+
+                    first = false;
+                    builder.Append(System.Text.Json.JsonSerializer.Serialize(property.Name)).Append(':');
+                    WriteCanonical(property.Value, builder);
+                }
+
+                builder.Append('}');
+                break;
+
+            case System.Text.Json.JsonValueKind.Array:
+                builder.Append('[');
+                var firstItem = true;
+
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (!firstItem)
+                    {
+                        builder.Append(',');
+                    }
+
+                    firstItem = false;
+                    WriteCanonical(item, builder);
+                }
+
+                builder.Append(']');
+                break;
+
+            default:
+                builder.Append(element.GetRawText());
+                break;
+        }
+    }
 }

@@ -45,6 +45,30 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
         b.HasPostgresExtension("vector");
         b.HasPostgresExtension("pg_trgm");
 
+        // ---- KİMLİĞİ UYGULAMA ÜRETİYOR, VERİTABANI DEĞİL ----
+        //
+        // `EntityBase.Id` C#'ta UUIDv7 ile doluyor ve tablolarda hiçbir
+        // varsayılan yok. EF ise Guid anahtarları varsayılan olarak
+        // "depo üretir" (`ValueGeneratedOnAdd`) sayıyor ve bu, sessiz
+        // bir hataya yol açıyordu:
+        //
+        // Bir varlık İZLENEN bir gezinme koleksiyonuna eklendiğinde
+        // (`workflow.Versions.Add(...)`) EF, Added mı Modified mı
+        // olduğuna anahtarın dolu olup olmamasına bakarak karar
+        // veriyor. Anahtar zaten dolu olduğu için "bu kayıt var" deyip
+        // INSERT yerine UPDATE üretiyordu — ve o UPDATE hiçbir satırı
+        // etkilemediği için `DbUpdateConcurrencyException` fırlatıyordu.
+        //
+        // `db.Set<T>().Add(...)` ile eklenen her yerde sorun yoktu
+        // (durum açıkça veriliyor), bu yüzden bütün testler geçiyordu.
+        // Tohumlama gerçek bir veritabanında ilk kez koşturulduğunda
+        // ortaya çıktı.
+        foreach (var entity in b.Model.GetEntityTypes()
+                     .Where(e => typeof(EntityBase).IsAssignableFrom(e.ClrType)))
+        {
+            entity.FindProperty(nameof(EntityBase.Id))?.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+        }
+
         // Enum'lar metin olarak saklanır. Sayı olsaydı enum sırasını değiştiren
         // bir refactor veritabanındaki anlamı sessizce kaydırırdı; ayrıca
         // psql'den bakan insan ne olduğunu göremezdi.
