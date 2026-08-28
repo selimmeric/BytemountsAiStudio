@@ -181,6 +181,47 @@ public sealed record AssetReport(
     IReadOnlyList<LicenseCount> ByLicense,
     IReadOnlyList<AssetEntry> Assets);
 
+/// Bir iş akışı sürümü (P3-06).
+public sealed record WorkflowVersionSummary(
+    int Version,
+    bool IsCurrent,
+    int NodeCount,
+    int EdgeCount,
+    int RunCount,
+    /// KOŞAN RUN SAYISI AYRI: eski bir sürümü silmenin güvenli olup
+    /// olmadığı buna bağlı ve "toplam run" bu soruya cevap vermiyor.
+    int ActiveRunCount,
+    DateTimeOffset CreatedAt);
+
+public sealed record WorkflowSummary(
+    string Key,
+    string Name,
+    string ContentKind,
+    int CurrentVersion,
+    IReadOnlyList<WorkflowVersionSummary> Versions);
+
+public sealed record GraphNodeView(string Id, string Type);
+
+public sealed record GraphEdgeView(string From, string To, string? When);
+
+public sealed record WorkflowGraphView(
+    string Key,
+    int Version,
+    IReadOnlyList<GraphNodeView> Nodes,
+    IReadOnlyList<GraphEdgeView> Edges,
+    /// Graf okunamadıysa sebebi. `null` = sorun yok.
+    string? Error);
+
+/// Bir istem şablonu (P3-07).
+public sealed record PromptSummary(
+    string Key,
+    int Version,
+    string Stamp,
+    string? Description,
+    int SystemLength,
+    int UserLength,
+    IReadOnlyList<string> Variables);
+
 /// SSE ile yayılan ilerleme.
 ///
 /// Panonun yenilemeden ilerleme görmesi için gereken en küçük belge.

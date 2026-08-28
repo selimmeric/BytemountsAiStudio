@@ -117,6 +117,54 @@ public sealed record PromptTemplate
         return result.ToString();
     }
 
+    /// Metindeki `{{ad}}` yer tutucularının adları.
+    ///
+    /// Ayrı bir tarayıcı değil, `Substitute`'ün aynı kuralları:
+    /// ikisi ayrışırsa panel bir değişken listeler, çalışma zamanı
+    /// başkasını arar ve fark ancak çağrı düştüğünde görülür.
+    ///
+    /// Kapanmamış bir `{{` yok sayılıyor — `Substitute` de öyle
+    /// yapıyor ve iki yerin aynı metni aynı okuması, listenin doğru
+    /// olmasının tek garantisi.
+    public static IReadOnlyList<string> VariablesIn(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return [];
+        }
+
+        var names = new List<string>();
+        var index = 0;
+
+        while (index < text.Length)
+        {
+            var open = text.IndexOf("{{", index, StringComparison.Ordinal);
+
+            if (open < 0)
+            {
+                break;
+            }
+
+            var close = text.IndexOf("}}", open + 2, StringComparison.Ordinal);
+
+            if (close < 0)
+            {
+                break;
+            }
+
+            var name = text[(open + 2)..close].Trim();
+
+            if (name.Length > 0)
+            {
+                names.Add(name);
+            }
+
+            index = close + 2;
+        }
+
+        return names;
+    }
+
     internal static string ComputeHash(string content)
     {
         // Satır sonu normalize ediliyor: aynı dosya Windows ve Linux'ta

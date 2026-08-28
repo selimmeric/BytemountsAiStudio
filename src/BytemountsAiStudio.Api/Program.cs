@@ -1,3 +1,4 @@
+using BytemountsAiStudio.Contracts.Prompts;
 using System.Reflection;
 using BytemountsAiStudio.Api;
 using BytemountsAiStudio.Core.Execution;
@@ -299,6 +300,59 @@ app.MapGet("/varliklar", async (
     bool risky = false,
     int limit = AssetQueries.DefaultLimit) =>
     Results.Ok(await AssetQueries.BuildAsync(db, kind, risky, limit, cancellationToken)));
+
+// ---- İş akışı sürümleri (P3-06) ----
+//
+// "Bu video hangi grafla üretildi" sorusunun ekranı. Eski sürüm
+// silinmiyor çünkü koşan run'lar ona bağlı; bir run başladığı grafla
+// bitmeli, ortasında graf değiştirmek yarısı eski yarısı yeni
+// kurallarla üretilmiş bir video demekti.
+app.MapGet("/isakislari", async (StudioDbContext db, CancellationToken cancellationToken) =>
+    Results.Ok(await WorkflowQueries.ListAsync(db, cancellationToken)));
+
+app.MapGet("/isakislari/{key}/{version:int}", async (
+    string key, int version, StudioDbContext db, CancellationToken cancellationToken) =>
+{
+    var graph = await WorkflowQueries.GraphAsync(db, key, version, cancellationToken);
+
+    return graph is null ? Results.NotFound() : Results.Ok(graph);
+});
+
+// ---- İstem kayıt defteri (P3-07) ----
+//
+// Hangi videonun hangi istemle üretildiği çıktıya damga olarak
+// yazılıyor (`script.generate@2#a1b2...`). Bu ekran o damganın
+// karşılığını gösteriyor: damga olmadan "neden bu senaryo böyle
+// çıktı" sorusu cevapsız kalır.
+app.MapGet("/istemler", () =>
+{
+    var registry = PromptRegistry.Embedded;
+
+    if (registry.IsFailure)
+    {
+        return Results.Problem(registry.Error.Message);
+    }
+
+    var prompts = registry.Value.Keys
+        .SelectMany(key => registry.Value.Versions(key))
+        .OrderBy(p => p.Key, StringComparer.Ordinal)
+        .ThenByDescending(p => p.Version)
+        .Select(p => new PromptSummary(
+            p.Key,
+            p.Version,
+            p.Stamp,
+            p.Description,
+            p.System?.Length ?? 0,
+            p.User.Length,
+            // DEĞİŞKENLER LİSTELENİYOR: bir istemi çağıran taraf hangi
+            // değerleri vermesi gerektiğini bilmek zorunda ve eksik
+            // değişken çalışma zamanında hata veriyor.
+            [.. PromptTemplate.VariablesIn(p.User).Concat(PromptTemplate.VariablesIn(p.System ?? ""))
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)]))
+        .ToList();
+
+    return Results.Ok(prompts);
+});
 
 app.Run();
 

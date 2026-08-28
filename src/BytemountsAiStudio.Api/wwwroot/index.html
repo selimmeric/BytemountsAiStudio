@@ -116,6 +116,8 @@ const TABS = [
   ["cost", "Maliyet"],
   ["providers", "Sağlayıcılar"],
   ["varliklar", "Varlıklar"],
+  ["isakislari", "İş akışları"],
+  ["istemler", "İstemler"],
   ["control", "Kontrol"],
 ];
 
@@ -421,6 +423,71 @@ async function showCost() {
     ${panel("Sağlayıcı kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Düşen", "Tutar"], rows))}`;
 }
 
+/* ---- İş akışı sürümleri (P3-06) ---- */
+
+/* "Bu video hangi grafla üretildi" sorusunun ekranı.
+ *
+ * Eski sürüm silinmiyor çünkü koşan run'lar ona bağlı: bir run
+ * başladığı grafla bitmeli, ortasında graf değiştirmek yarısı eski
+ * yarısı yeni kurallarla üretilmiş bir video demekti.
+ *
+ * KOŞAN RUN SAYISI AYRI GÖSTERİLİYOR: eski bir sürümü silmenin
+ * güvenli olup olmadığı buna bağlı ve "toplam run" bu soruya cevap
+ * vermiyor.
+ */
+async function showWorkflows() {
+  const list = await api("/isakislari");
+
+  view.innerHTML = list.map((w) => panel(
+    `${w.name}  ·  ${w.key}`,
+    table(
+      ["Sürüm", "Durum", "Node", "Kenar", "Koşu", "Aktif", "Tarih"],
+      w.versions.map((v) => `
+        <tr>
+          <td class="mono">${v.version}</td>
+          <td>${v.isCurrent
+            ? `<span class="tag s-Running">güncel</span>`
+            : `<span class="tag">eski</span>`}</td>
+          <td class="mono">${v.nodeCount}</td>
+          <td class="mono">${v.edgeCount}</td>
+          <td class="mono">${v.runCount}</td>
+          <td class="mono">${v.activeRunCount
+            ? `<span class="s-Running">${v.activeRunCount}</span>` : "0"}</td>
+          <td class="muted">${esc(when(v.createdAt))}</td>
+        </tr>`)),
+    ` <span class="muted">${esc(w.contentKind)}</span>`)).join("");
+}
+
+/* ---- İstem kayıt defteri (P3-07) ---- */
+
+/* Hangi videonun hangi istemle üretildiği çıktıya DAMGA olarak
+ * yazılıyor (`script.generate@2#a1b2...`). Bu ekran o damganın
+ * karşılığını gösteriyor — damga olmadan "neden bu senaryo böyle
+ * çıktı" sorusu cevapsız kalır.
+ *
+ * DEĞİŞKENLER LİSTELENİYOR: bir istemi çağıran taraf hangi değerleri
+ * vermesi gerektiğini bilmek zorunda ve eksik değişken çalışma
+ * zamanında hata veriyor.
+ */
+async function showPrompts() {
+  const prompts = await api("/istemler");
+
+  const rows = prompts.map((p) => `
+    <tr>
+      <td class="mono">${esc(p.key)}</td>
+      <td class="mono">v${p.version}</td>
+      <td class="mono muted" title="${esc(p.stamp)}">${esc(p.stamp.split("#")[1] ?? "")}</td>
+      <td>${esc(p.description ?? "—")}</td>
+      <td class="mono">${p.systemLength + p.userLength}</td>
+      <td class="mono muted">${p.variables.map(esc).join(", ") || "—"}</td>
+    </tr>`);
+
+  view.innerHTML = panel(
+    "İstem kayıt defteri",
+    table(["Anahtar", "Sürüm", "Özet", "Açıklama", "Karakter", "Değişkenler"], rows),
+    ` <span class="muted">${prompts.length} şablon</span>`);
+}
+
 /* ---- Varlık gezgini ve lisans raporu (P3-08) ---- */
 
 /* Lisans bir metadata değil, bir UYUM KAYDI. "Bu videoda kullandığımız
@@ -676,6 +743,8 @@ const VIEWS = {
   cost: showCost,
   providers: showProviders,
   varliklar: showAssets,
+  isakislari: showWorkflows,
+  istemler: showPrompts,
   control: showControl,
 };
 

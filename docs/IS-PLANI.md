@@ -280,8 +280,13 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     **İki parça ayrı ayrı doğru olup birlikte yanlış olabilirdi**: bölüm planı 90 saniyelik bölümlere izin veriyor, işaret kuralı 10 saniyelik aralık istiyor. Ayrı bir test ikisinin aynı dünyada yaşadığını doğruluyor. 16 test
   - *Kalan:* Intro/outro görselleri ve bölüm geçiş efektleri
 - [ ] **P3-05** `6p` — React Flow workflow editörü: node ekleme/bağlama, ayar formları, doğrulama
-- [ ] **P3-06** `3p` — Workflow sürümleme UI + çalışan run'ların eski sürümde kalması
-- [ ] **P3-07** `3p` — Prompt registry UI + eval sonuçları
+- [x] **P3-06** `3p` — Workflow sürümleme UI + çalışan run'ların eski sürümde kalması
+  - *Bitti:* ✔ 28 Ağu 2026 — `/isakislari` + panelde sekme. Ekran "bu video hangi grafla üretildi" sorusunun cevabı: `shorts-fake` v1'de 7 node'du, v7'de 14 — müzik, kapak ve semantik QC eklendikçe büyüdü ve **her sürüm duruyor**. Eski sürüm silinmiyor çünkü koşan run'lar ona bağlı: bir run başladığı grafla bitmeli, ortasında graf değiştirmek yarısı eski yarısı yeni kurallarla üretilmiş bir video demekti.
+    **Aktif run sayısı ayrı gösteriliyor**: eski bir sürümü silmenin güvenli olup olmadığı buna bağlı ve "toplam koşu" bu soruya cevap vermiyor. Sürüm başına ayrı sorgu yerine tek gruplu sorgu — yirmi sürümlü bir iş akışında yirmi sorgu, ekranı açan herkesin veritabanını yorması demekti. Okunamayan bir graf sessizce boş görünmüyor, sebebini söylüyor
+- [~] **P3-07** `3p` — Prompt registry UI + eval sonuçları
+  - *Kismen:* 28 Ağu 2026 — `/istemler` + panelde sekme: 10 şablon, sürümleri, **özet damgası** ve **değişken listeleri**. Hangi videonun hangi istemle üretildiği çıktıya damga olarak yazılıyor (`script.generate@2#a1b2…`); ekran o damganın karşılığını gösteriyor — damga olmadan "neden bu senaryo böyle çıktı" sorusu cevapsız kalır.
+    Değişkenler listeleniyor çünkü bir istemi çağıran taraf hangi değerleri vermesi gerektiğini bilmek zorunda ve eksik değişken çalışma zamanında hata veriyor. **Değişken tarayıcısı `Substitute` ile aynı kuralları kullanıyor**: ikisi ayrışırsa panel bir değişken listeler, çalışma zamanı başkasını arar ve fark ancak çağrı düştüğünde görülür
+  - *Kalan:* Eval sonuçlarının panelde gösterilmesi
 - [x] **P3-08** `3p` — Varlık gezgini + lisans raporu
   - *Bitti:* ✔ 28 Ağu 2026 — `/varliklar` + panelde sekme. **Rapor bir envanter değil, bir RİSK LİSTESİ**: riskliler en üstte, çünkü alfabetik sıralamak tek bir eksik kaydı yüzlerce satırın arasına gömerdi. Lisans bir metadata değil, bir uyum kaydı (§2.3/14) — "bu videodaki görselin lisansı neydi" sorusu bir talep geldiğinde soruluyor ve o an aramaya başlamak çok geç.
     **Gerçek veriye bakmak kendi kuralımı düzeltti:** ilk yazımda TÜRE bakıyordum ("ses ve müzikte lisans zorunlu") ve rapor kendi ürettiğimiz **38 seslendirme dosyasını** uyum riski olarak işaretledi. Yüzlerce yanlış alarm raporu okunmaz yapardı ve gerçek bir risk o gürültünün içinde kaybolurdu. Ayıran şey tür değil **kaynak**: `SourceUrl` boşsa üreten biziz. Düzeltmeden sonra 120 varlıkta 0 risk — doğru sonuç, çünkü hepsi ya bizim ya lisanslı.
