@@ -80,6 +80,30 @@ public sealed record WorkflowGraph
         return resolved;
     }
 
+    /// Bir hedef kümesinin GİRİŞ node'ları: kümedeki başka bir
+    /// node'dan beslenmeyenler.
+    ///
+    /// Hedefli retry planı hedefi VE sonrasındaki her şeyi
+    /// listeliyor. Hepsini birden kuyruğa atmak, sırayı yok saymak
+    /// olurdu: yeni görseller daha üretilmeden timeline derlenir,
+    /// derlenmemiş timeline render edilirdi. Yalnızca girişler
+    /// kuyruğa giriyor; gerisini kenar takibi zaten sırayla
+    /// tetikliyor — ve aynı node'un iki kez kuyruğa girmesi de böyle
+    /// engelleniyor.
+    public IReadOnlyList<string> EntryPointsOf(IReadOnlyCollection<string> nodeIds)
+    {
+        ArgumentNullException.ThrowIfNull(nodeIds);
+
+        var roots = nodeIds
+            .Where(id => !Predecessors(id).Any(p => nodeIds.Contains(p, StringComparer.Ordinal)))
+            .ToList();
+
+        // KÜMENİN TAMAMI BİR DÖNGÜNÜN İÇİNDEYSE hiçbir node giriş
+        // sayılmaz ve retry sessizce hiçbir şey koşmazdı. O hâlde
+        // kümeyi olduğu gibi kuyruğa vermek, hiç koşmamaktan iyi.
+        return roots.Count > 0 ? roots : nodeIds.ToList();
+    }
+
     /// Bir node'un beslendiği node'lar. Tetikleme kararı buna bakar:
     /// tüm girdiler tamamlanmadan node çalışmaz.
     public IReadOnlyList<string> Predecessors(string nodeId)

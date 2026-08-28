@@ -324,7 +324,11 @@ public sealed class WorkflowEngine(
             // artırmadan aynı node ikinci kez yazılamazdı.
             run.RetryLoop++;
 
-            await EnqueueNodesAsync(run, graph, targets, cancellationToken).ConfigureAwait(false);
+            // YALNIZCA GİRİŞLER kuyruğa giriyor: plan hedefi ve
+            // sonrasını listeliyor, hepsini birden atmak yeni
+            // görseller üretilmeden timeline'ı derlemek olurdu.
+            await EnqueueNodesAsync(run, graph, graph.EntryPointsOf(targets), cancellationToken)
+                .ConfigureAwait(false);
 
             await LogAsync(run.Id, node.Id, "warn",
                 $"Hedefli yeniden koşma (tur {run.RetryLoop}): {rerun.Reason}", cancellationToken)
@@ -416,9 +420,21 @@ public sealed class WorkflowEngine(
                 }
             }
 
-            // Döngü sınırı: bu node kaç kez çalıştı?
+            // Döngü sınırı: bu node BU TURDA kaç kez çalıştı?
+            //
+            // SAYAÇ TURA BAĞLI ve bu ayrım hedefli retry'ı mümkün
+            // kılan şey. Sayaç run'ın tamamını kapsasaydı ilk retry
+            // turundan sonra hiçbir alt node yeniden koşamazdı:
+            // render düzeltilir, ama onu denetleyecek QC "döngü
+            // sınırına ulaştı" diye atlanır ve düzeltilmiş video hiç
+            // kontrol edilmeden run tamamlanırdı. Yani retry
+            // çalışır, doğrulama çalışmazdı.
+            //
+            // Toplam hâlâ sınırlı: retry turları da sınırlı (P2-07,
+            // varsayılan 3), dolayısıyla en fazla tur × MaxLoops.
             var executions = await db.NodeExecutions
                 .CountAsync(e => e.RunId == run.Id && e.NodeId == edge.To
+                                 && e.Loop == run.RetryLoop
                                  && e.State == NodeState.Succeeded, cancellationToken)
                 .ConfigureAwait(false);
 

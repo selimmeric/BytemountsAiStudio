@@ -48,7 +48,14 @@ public static class RetryPlanner
     /// hedefli retry'ın tanımı bu.
     private static readonly (RetryTarget Stage, string[] Nodes)[] Pipeline =
     [
-        (RetryTarget.Script, ["script.generate", "claim.check"]),
+        // ANLATIM SENARYOYA BAĞLI.
+        //
+        // Senaryo yeniden üretilip seslendirme yenilenmezse video,
+        // ESKİ metni okuyan bir sesle YENİ metnin altyazılarını
+        // taşır. Kulakla gözün farklı şeyler söylediği bir video,
+        // hiç düzeltilmemiş olandan daha kötü — ve mekanik QC bunu
+        // yakalayamaz, çünkü her iki parça da tek başına geçerli.
+        (RetryTarget.Script, ["script.generate", "claim.check", "tts.synthesize"]),
         (RetryTarget.Visuals, ["visual.resolve"]),
         (RetryTarget.Timeline, ["timeline.compile"]),
         (RetryTarget.Render, ["media.render"]),

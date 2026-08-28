@@ -78,6 +78,51 @@ public sealed class SeedGraphTests
         Assert.NotEmpty(resolved);
     }
 
+    /// PLAN HEDEFİ VE SONRASINI LİSTELİYOR; kuyruğa yalnızca GİRİŞ
+    /// giriyor.
+    ///
+    /// Hepsini birden atmak sırayı yok saymak olurdu: yeni görseller
+    /// daha üretilmeden timeline derlenir, derlenmemiş timeline
+    /// render edilirdi — üstelik her biri kenar takibiyle bir kez
+    /// daha kuyruğa girerdi.
+    [Fact]
+    public void GorselHedefi_YalnizcaGorseliKuyrugaAtiyor()
+    {
+        var graph = Seed();
+        var targets = graph.ResolveTargets(RetryPlanner.NodesFrom(RetryTarget.Visuals));
+
+        // Plan görselden sonraki her şeyi kapsıyor...
+        Assert.Contains("visuals", targets);
+        Assert.Contains("timeline", targets);
+        Assert.Contains("render", targets);
+
+        // ...ama kuyruğa yalnızca görsel giriyor.
+        Assert.Equal(["visuals"], graph.EntryPointsOf(targets));
+    }
+
+    /// SENARYO YENİLENİYORSA SESLENDİRME DE YENİLENMELİ.
+    ///
+    /// Bu testi yazarken çıktı: senaryo hedefi seslendirmeyi
+    /// kapsamıyordu. Yani senaryo yeniden üretilir, ses eski kalır ve
+    /// video ESKİ metni okuyan bir sesle YENİ metnin altyazılarını
+    /// taşırdı. Mekanik QC bunu yakalayamaz — her iki parça da tek
+    /// başına geçerli.
+    ///
+    /// Kapsamadığı, `EntryPointsOf` iki giriş döndürünce görüldü:
+    /// zincir seslendirmede kopuyordu.
+    [Fact]
+    public void SenaryoHedefi_SeslendirmeyiDeKapsiyor()
+    {
+        var graph = Seed();
+        var targets = graph.ResolveTargets(RetryPlanner.NodesFrom(RetryTarget.Script));
+
+        Assert.Contains("claims", targets);
+        Assert.Contains("tts", targets);
+
+        // Tek giriş: zincir kopuk değil.
+        Assert.Equal(["script"], graph.EntryPointsOf(targets));
+    }
+
     /// Hedefli retry'ın ANLAMI: önceki aşamalar korunuyor.
     [Fact]
     public void RenderHedefi_SenaryoyuKapsamiyor()
