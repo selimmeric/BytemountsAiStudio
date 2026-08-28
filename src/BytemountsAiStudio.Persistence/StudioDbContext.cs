@@ -4,8 +4,35 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BytemountsAiStudio.Persistence;
 
-public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbContext(options)
+public class StudioDbContext : DbContext
 {
+    public StudioDbContext(DbContextOptions<StudioDbContext> options)
+        : base(options)
+    {
+    }
+
+    /// Türetilmiş bağlamlar için (P4-06).
+    ///
+    /// `ReadOnlyDbContext` bu sınıftan türüyor ki panel sorguları
+    /// DEĞİŞMEDEN replikaya yönlendirilebilsin. Ayrı bir DbSet
+    /// arayüzü çıkarmak, aynı sorguların iki biçimde yazılması
+    /// demekti — ve ikisi zamanla ayrışırdı.
+    ///
+    /// `base(options)`, `this(...)` DEĞİL. İlk yazımda birincil
+    /// kurucuya zincirlemek zorunda kaldım ve `DbContextOptions`'ı
+    /// `DbContextOptions<StudioDbContext>`'e cast ettim — DERLENİYOR
+    /// ama çalışma zamanında `DbContextOptions<ReadOnlyDbContext>`
+    /// geldiğinde atardı. Derlenen ama olamayacak bir dönüşüm, en
+    /// geç anda patlayan hata türü. Birincil kurucudan vazgeçmek
+    /// bunun bedeli.
+    ///
+    /// SINIF ARTIK `sealed` DEĞİL: tek türetilmiş tip depoda ve onun
+    /// tek işi bağlantıyı değiştirmek.
+    protected StudioDbContext(DbContextOptions options)
+        : base(options)
+    {
+    }
+
     public DbSet<Channel> Channels => Set<Channel>();
 
     public DbSet<Topic> Topics => Set<Topic>();
@@ -37,6 +64,16 @@ public sealed class StudioDbContext(DbContextOptions<StudioDbContext> options) :
     public DbSet<Setting> Settings => Set<Setting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
+        => ApplyModel(modelBuilder);
+
+    /// Model tanımı AYRI BİR METOTTA (P4-06).
+    ///
+    /// Okuma replikası bağlamı (`ReadOnlyDbContext`) aynı modeli
+    /// kullanıyor. Kopyalamak, replika şemasının birincilden
+    /// ayrışması demekti — oysa replika birincilin bayt kopyası;
+    /// ayrışması mümkün bile değil. Kopyalanmış bir tanım yalnızca
+    /// güncellenmeyi unutulacak ikinci bir yer olurdu.
+    internal static void ApplyModel(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 

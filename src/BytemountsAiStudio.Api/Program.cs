@@ -21,8 +21,19 @@ var connectionString = Environment.GetEnvironmentVariable("BMAI_CONNECTION")
     ?? builder.Configuration.GetConnectionString("Studio")
     ?? "Host=localhost;Port=5432;Database=bmai;Username=bmai;Password=bmai_dev";
 
-builder.Services.AddDbContext<StudioDbContext>(options =>
-    options.UseNpgsql(connectionString, npgsql => npgsql.UseVector()).UseSnakeCaseNamingConvention());
+// TEK KAYIT NOKTASI.
+//
+// API burada KENDI `AddDbContext` cagrisini yaziyordu ve bu, ayni
+// ayrismanin ucuncu ornegiydi: `AddStudioPersistence` bugun
+// `StudioDbContextFactory` ile birlestirildi ama API o yolu hic
+// cagirmiyordu. Sonucu, okuma replikasi baglaminin (P4-06) API'de hic
+// kayitli olmamasi ve panelin uc ucunun "Body was inferred" ile
+// dusmesiydi -- calisirken goruldu.
+//
+// Ayni hata bugun iki kez daha cikti: Worker'da yurutme stratejisi
+// ayrismasi ve node kaydinda eksik saglayicilar. Uc host'un ayri ayri
+// kurulmasi, bu depoda tekrar eden hata sinifi.
+builder.Services.AddStudioPersistence(connectionString);
 
 builder.Services.AddScoped<JobQueue>();
 builder.Services.AddHttpClient();
@@ -290,8 +301,12 @@ app.MapGet("/providers", async (
 // Otonom bir sistemde sabah ilk sorulacak soru "gece ne oldu" ve
 // cevabı tek ekranda olmalı. Koşuları tek tek açıp saymak, sorunun
 // cevabını her sabah elle üretmekti.
+// OKUMA REPLIKASINDAN (P4-06): gece raporu agir ve tazelik
+// gerektirmiyor -- "gece ne oldu" sorusu birkac saniyelik gecikmeyle
+// de ayni cevabi veriyor. Replika yoksa bu baglam birincile
+// bagli, yani davranis degismiyor.
 app.MapGet("/rapor", async (
-    StudioDbContext db, CancellationToken cancellationToken, int windowHours = 12) =>
+    ReadOnlyDbContext db, CancellationToken cancellationToken, int windowHours = 12) =>
 {
     var hours = Math.Clamp(windowHours, 1, 24 * 7);
 
@@ -304,8 +319,10 @@ app.MapGet("/rapor", async (
 // Lisans bir metadata değil, bir UYUM KAYDI (§2.3/14). "Bu videoda
 // kullandığımız görselin lisansı neydi" sorusu bir talep geldiğinde
 // soruluyor ve o an aramaya başlamak çok geç.
+// Okuma replikasindan: tek sorguda bin satira kadar tariyor ve
+// lisans raporu saniyelik tazelik gerektirmiyor.
 app.MapGet("/varliklar", async (
-    StudioDbContext db,
+    ReadOnlyDbContext db,
     CancellationToken cancellationToken,
     string? kind = null,
     bool risky = false,
@@ -318,7 +335,9 @@ app.MapGet("/varliklar", async (
 // silinmiyor çünkü koşan run'lar ona bağlı; bir run başladığı grafla
 // bitmeli, ortasında graf değiştirmek yarısı eski yarısı yeni
 // kurallarla üretilmiş bir video demekti.
-app.MapGet("/isakislari", async (StudioDbContext db, CancellationToken cancellationToken) =>
+// Okuma replikasindan: surum listesi ve kosu sayilari, gruplu
+// sorgularla butun `runs` tablosuna bakiyor.
+app.MapGet("/isakislari", async (ReadOnlyDbContext db, CancellationToken cancellationToken) =>
     Results.Ok(await WorkflowQueries.ListAsync(db, cancellationToken)));
 
 app.MapGet("/isakislari/{key}/{version:int}", async (

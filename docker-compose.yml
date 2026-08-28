@@ -167,9 +167,49 @@ services:
       timeout: 3s
       retries: 20
 
+  # Okuma replikasi (P4-06).
+  #
+  # NEDEN: panel sorgulari (gece raporu, varlik gezgini, is akisi
+  # surumleri) uretim dongusunun YAZDIGI veritabaninda kosuyor. Agir
+  # bir panel sorgusu uretimi yavaslatabiliyor ve tersi de dogru.
+  #
+  # `scale` profilinde: tek makineli gelistirmede tek veritabani hem
+  # yeterli hem daha basit -- replikasyon gecikmesi panelde eski veri
+  # demek ve gereksiz yere aciklanmasi gereken bir davranis.
+  postgres-replika:
+    image: pgvector/pgvector:pg16
+    container_name: bmai-postgres-replika
+    profiles: ["scale"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGUSER: bmai
+      PGPASSWORD: bmai_dev
+      PGDATA: /var/lib/postgresql/data
+      BIRINCIL_HOST: postgres
+      YUVA: replika_yuvasi
+    entrypoint: ["bash", "/replika-baslat.sh"]
+    user: postgres
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - replika-data:/var/lib/postgresql/data
+      - ./docker/postgres/replika-baslat.sh:/replika-baslat.sh:ro
+    healthcheck:
+      # `pg_isready` standby'da da calisiyor; replika kurtarma
+      # modundayken bile sorgu kabul ediyor.
+      test: ["CMD-SHELL", "pg_isready -U bmai -d bmai"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
 volumes:
   piper-voices:
   postgres-data:
   seq-data:
   searxng-data:
   minio-data:
+  replika-data:

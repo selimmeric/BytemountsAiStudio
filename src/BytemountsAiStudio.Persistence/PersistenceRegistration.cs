@@ -32,6 +32,38 @@ public static class PersistenceRegistration
             builder.UseNpgsql(connectionString, StudioDbContextFactory.ConfigureNpgsql)
                    .UseSnakeCaseNamingConvention());
 
+        // OKUMA REPLİKASI (P4-06): `BMAI_CONNECTION_READ` doluysa oraya,
+        // boşsa BİRİNCİLE bağlanıyor.
+        //
+        // Replika yoksa kayıt YAPILMAMASI seçenek değildi: o zaman
+        // `ReadOnlyDbContext` isteyen her yer, replikası olmayan bir
+        // kurulumda açılışta çözülemeyen bağımlılık hatası verirdi.
+        // Birincile düşmek, replikanın bir OPTİMİZASYON olduğunu ve
+        // doğruluğun ona bağlı olmadığını koda yazıyor.
+        var readConnection = ReadConnectionString(connectionString);
+
+        services.AddDbContext<ReadOnlyDbContext>(builder =>
+            builder.UseNpgsql(readConnection, StudioDbContextFactory.ConfigureNpgsql)
+                   .UseSnakeCaseNamingConvention()
+                   // DEĞİŞİKLİK İZLEME KAPALI: bu bağlam yalnızca
+                   // okuyor ve izleme, okunan her satır için gereksiz
+                   // bellek ve karşılaştırma demek. Panelin varlık
+                   // gezgini tek sorguda bin satır okuyabiliyor.
+                   .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+
         return services;
     }
+
+    /// Okuma bağlantısı — tanımlı değilse birincil.
+    public static string ReadConnectionString(string writeConnectionString)
+        => Environment.GetEnvironmentVariable("BMAI_CONNECTION_READ") is { Length: > 0 } read
+            ? read
+            : writeConnectionString;
+
+    /// Okuma replikası ayrı bir sunucuda mı.
+    ///
+    /// Panel bunu gösteriyor: replikaya bağlı olduğunu bilmeyen biri,
+    /// gecikmeden gelen eski bir sayıyı hata sanabilir.
+    public static bool UsesReadReplica
+        => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BMAI_CONNECTION_READ"));
 }
