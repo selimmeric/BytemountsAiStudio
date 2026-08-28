@@ -283,6 +283,19 @@ public static class RenderPlanner
             current = zoomed;
         }
 
+        // AÇILMA ÖNCE, KARARMA SONRA.
+        //
+        // Sıra keyfi değil: ikisi de aynı akışa `fade` filtresi
+        // ekliyor ve ters sırada yazılsalardı açılma, kararmanın
+        // ÜSTÜNE uygulanırdı — yani videonun sonu önce kararıp sonra
+        // yeniden açılırdı.
+        if (scene.TransitionIn is { Kind: TransitionKind.Fade } opening)
+        {
+            var opened = new StreamRef($"{prefix}fadein", MediaKind.Video);
+            nodes.Add(FilterNode.FadeIn(current, opened, opening.Duration.TotalSeconds));
+            current = opened;
+        }
+
         if (scene.TransitionOut is { Kind: TransitionKind.Fade } transition)
         {
             var faded = new StreamRef($"{prefix}fade", MediaKind.Video);

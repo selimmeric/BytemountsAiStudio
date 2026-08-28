@@ -86,7 +86,18 @@ public static class SegmentCache
                 $"o[{(overlay.Range.Start - scene.Range.Start).Value}-{(overlay.Range.End - scene.Range.Start).Value}]{overlay.StyleRef}:{overlay.Text}|");
         }
 
-        // GEÇİŞ: sahnenin sonundaki solma da görüntünün parçası.
+        // GEÇİŞ: sahnenin başındaki açılma ve sonundaki solma da
+        // görüntünün parçası.
+        //
+        // AÇILMA DA ANAHTARDA: eklenmeseydi, bölüm sınırı uzayınca ya
+        // da videonun başına açılma gelince önbellek ESKİ kareyi
+        // döndürürdü. Değişikliği isteyen kişi videoyu izleyip
+        // "yapmadın" derdi ve haklı olurdu — ama sebep kodda değil,
+        // anahtarda olurdu.
+        builder.Append(scene.TransitionIn is { } opening
+            ? string.Create(CultureInfo.InvariantCulture, $"i{opening.Kind}/{opening.Duration.Value}|")
+            : "i-|");
+
         builder.Append(scene.TransitionOut is { } transition
             ? string.Create(CultureInfo.InvariantCulture, $"t{transition.Kind}/{transition.Duration.Value}|")
             : "t-|");

@@ -97,7 +97,6 @@ public static class TimelineBuilder
             }
 
             var (start, duration, ids, asset) = scene.Value;
-            var isLast = index == planned.Count - 1;
 
             scenes.Add(new Scene
             {
@@ -113,11 +112,15 @@ public static class TimelineBuilder
                         ? new KenBurns { FromScale = 1.0, ToScale = 1.12, ToX = 0.04 }
                         : new KenBurns { FromScale = 1.12, ToScale = 1.0, FromX = -0.04 },
                 },
-                TransitionOut = isLast ? null : new Transition(TransitionKind.Fade, new Ms(300)),
             });
 
             total = start + duration;
         }
+
+        // GEÇİŞLER İKİNCİ GEÇİŞTE: bölüm sınırının hangi sahneye
+        // düştüğü BÜTÜN sahne sonlarına bakmadan bilinemiyor, tek
+        // döngüde karar verilemezdi.
+        scenes = ApplyTransitions(scenes, ChapterStartsFrom(runContext));
 
         var cues = new List<CaptionCue>();
 
@@ -238,6 +241,139 @@ public static class TimelineBuilder
     /// bir kontrol varken riski üretim hattının içine sokmak olurdu —
     /// ve bir Content ID talebi kanalın o videodan gelen gelirinin
     /// tamamını götürüyor.
+    /* ---- geçişler (P3-04) ---- */
+
+    /// Videonun başındaki açılma.
+    internal static readonly Ms Opening = new(500);
+
+    /// Videonun sonundaki kapanma.
+    ///
+    /// AÇILMADAN UZUN ve bu bilinçli: izleyici içeriğe hızlı girmek
+    /// istiyor, sonda ise nefes alacak yer iyi geliyor.
+    internal static readonly Ms Closing = new(900);
+
+    /// Bölüm değişimi.
+    internal static readonly Ms ChapterCut = new(700);
+
+    /// Aynı bölüm içindeki sahne geçişi.
+    internal static readonly Ms SceneCut = new(300);
+
+    /// Sahnelere açılma/kararma yazar (P3-04).
+    ///
+    /// ÜÇ FARKLI UZUNLUK, ÇÜNKÜ ÜÇ FARKLI ŞEY OLUYOR:
+    ///   - videonun başı ve sonu (siyahtan açılma, siyaha kapanma)
+    ///   - bölüm değişimi
+    ///   - aynı bölüm içinde sahne değişimi
+    ///
+    /// Hepsi 300 ms olduğunda on dakikalık bir videoda YAPI
+    /// GÖRÜNMÜYORDU: beş bölümlük bir belgesel, kırk sahnelik tek bir
+    /// akış gibi izleniyordu. Bölüm sınırının daha uzun sürmesi,
+    /// izleyiciye "burada konu değişti" diyen tek görsel işaret.
+    ///
+    /// Videonun kendi başı ve sonu hiç yoktu: ilk kare tam
+    /// parlaklıkta patlıyor, son kare aniden kesiliyordu. Son
+    /// sahnenin geçişi kasten `null`'dı çünkü geçiş "sahneler arası"
+    /// diye düşünülmüştü — oysa videonun sonu da bir geçiş.
+    internal static List<Scene> ApplyTransitions(
+        List<Scene> scenes, IReadOnlyList<int> chapterStartsMs)
+    {
+        ArgumentNullException.ThrowIfNull(scenes);
+
+        if (scenes.Count == 0)
+        {
+            return scenes;
+        }
+
+        var ends = scenes.Select(s => s.Range.End.Value).ToList();
+        var boundaries = ChapterBoundaries.Match(ends, chapterStartsMs);
+
+        var result = new List<Scene>(scenes.Count);
+
+        for (var i = 0; i < scenes.Count; i++)
+        {
+            var scene = scenes[i];
+            var isFirst = i == 0;
+            var isLast = i == scenes.Count - 1;
+
+            var opening = isFirst ? Opening : Ms.Zero;
+
+            var closing = isLast
+                ? Closing
+                : boundaries.Contains(i) ? ChapterCut : SceneCut;
+
+            // KISA SAHNEDE GEÇİŞ KISALTILIYOR, ATILMIYOR.
+            //
+            // İkisinin toplamı sahneyi aşarsa görüntü açılırken
+            // kararmaya başlar ve sahne hiç tam parlaklığa çıkmaz.
+            // Doğrulayıcı bunu hata sayıyor; burada kırpmak, geçerli
+            // bir belge üretmenin ve kısa sahneyi cezalandırmamanın
+            // yolu. Atmak da olurdu ama o zaman bir sahne sebepsizce
+            // sert kesilirdi.
+            var span = scene.Range.Duration.Value;
+            (opening, closing) = Fit(opening, closing, span);
+
+            result.Add(scene with
+            {
+                TransitionIn = opening.Value > 0
+                    ? new Transition(TransitionKind.Fade, opening)
+                    : null,
+                TransitionOut = closing.Value > 0
+                    ? new Transition(TransitionKind.Fade, closing)
+                    : null,
+            });
+        }
+
+        return result;
+    }
+
+    /// İki geçişi sahneye sığdırır — oranlarını koruyarak.
+    private static (Ms Opening, Ms Closing) Fit(Ms opening, Ms closing, int spanMs)
+    {
+        var total = opening.Value + closing.Value;
+
+        if (total <= spanMs || total == 0)
+        {
+            return (opening, closing);
+        }
+
+        // Sahnenin tamamını geçişe ayırmak da yanlış olurdu: hiç tam
+        // parlaklıkta kare kalmazdı. Yarısı geçişe, yarısı görüntüye.
+        var budget = spanMs / 2;
+
+        return (new Ms(opening.Value * budget / total), new Ms(closing.Value * budget / total));
+    }
+
+    /// Bölüm başlangıçları — bölüm planı yoksa boş liste.
+    ///
+    /// KISA VİDEODA BÖLÜM YOK ve bu bir eksiklik değil: 48 saniyelik
+    /// bir Shorts'ta bölüm sınırı diye bir şey olmuyor. Liste boş
+    /// olunca her sahne normal geçişini alıyor, videonun başı ve
+    /// sonu yine açılıp kapanıyor.
+    internal static IReadOnlyList<int> ChapterStartsFrom(JsonElement runContext)
+    {
+        if (!runContext.TryGetProperty("chapters", out var node)
+            || node.ValueKind != JsonValueKind.Object
+            || !node.TryGetProperty("chapters", out var array)
+            || array.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var starts = new List<int>();
+
+        foreach (var chapter in array.EnumerateArray())
+        {
+            if (chapter.ValueKind == JsonValueKind.Object
+                && chapter.TryGetProperty("start_ms", out var start)
+                && start.TryGetInt32(out var value))
+            {
+                starts.Add(value);
+            }
+        }
+
+        return starts;
+    }
+
     internal static MusicBed? MusicFrom(JsonElement runContext)
     {
         if (!runContext.TryGetProperty("music", out var music)

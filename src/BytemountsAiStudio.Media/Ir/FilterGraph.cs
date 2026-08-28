@@ -215,6 +215,26 @@ public sealed record FilterNode
             Args = [FilterArg.Positional(pixelFormat)],
         };
 
+    /// Sahne başı açılması: siyahtan görüntüye.
+    ///
+    /// `st` her zaman 0 — sahnenin BAŞI. Parametre almıyor, çünkü
+    /// "sahnenin ortasında açılma" diye bir şey yok ve serbest
+    /// bırakmak sessizce yanlış yazılabilecek bir sayı eklerdi.
+    public static FilterNode FadeIn(StreamRef input, StreamRef output, double durationSeconds)
+        => new()
+        {
+            Filter = "fade",
+            Inputs = [input],
+            Outputs = [output],
+            Args =
+            [
+                FilterArg.Named("t", "in"),
+                FilterArg.Named("st", 0),
+                FilterArg.Named("d", durationSeconds),
+            ],
+            Comment = "sahne başı açılma",
+        };
+
     /// Sahne sonu kararması. `st` saniye cinsinden sahne içi konumdur.
     public static FilterNode FadeOut(StreamRef input, StreamRef output, double startSeconds, double durationSeconds)
         => new()

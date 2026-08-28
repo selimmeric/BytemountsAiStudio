@@ -156,6 +156,15 @@ public sealed record Scene
 
     public IReadOnlyList<TextOverlay> Overlays { get; init; } = [];
 
+    /// Sahnenin BAŞINDAKİ açılma (P3-04).
+    ///
+    /// `TransitionOut`'un simetriği ve ilk sahne için var: video
+    /// siyahtan açılmıyordu, ilk kare tam parlaklıkta patlıyordu.
+    /// Kapanış da öyleydi — son sahnenin `TransitionOut`'u kasten
+    /// `null`'dı, çünkü "sahneler arası geçiş" olarak düşünülmüştü.
+    /// Oysa videonun kendi başı ve sonu da bir geçiş.
+    public Transition? TransitionIn { get; init; }
+
     public Transition? TransitionOut { get; init; }
 }
 

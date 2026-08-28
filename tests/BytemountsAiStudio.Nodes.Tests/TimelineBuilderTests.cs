@@ -1,3 +1,4 @@
+using BytemountsAiStudio.Media.Timeline;
 using System.Text.Json;
 using BytemountsAiStudio.Nodes;
 
@@ -295,9 +296,17 @@ public sealed class TimelineBuilderTests
         Assert.False(document.RightToLeft);
     }
 
-    /// Son sahnede geçiş olmamalı: bir yere geçmiyor.
+    /// VİDEO SİYAHTAN AÇILIYOR VE SİYAHA KAPANIYOR (P3-04).
+    ///
+    /// Bu test eskiden tersini söylüyordu: "son sahnede geçiş
+    /// olmamalı, bir yere geçmiyor." Gerekçe yanlıştı — son sahne bir
+    /// yere geçiyor: SİYAHA. Aynı şekilde ilk kare tam parlaklıkta
+    /// patlıyordu, çünkü açılma diye bir kavram hiç yoktu.
+    ///
+    /// Geçiş "sahneler arası" diye düşünülmüştü; videonun kendi başı
+    /// ve sonu da bir geçiş.
     [Fact]
-    public void SonSahnede_GecisYok()
+    public void Video_SiyahtanAciliyorVeSiyahaKapaniyor()
     {
         var context = Context(new
         {
@@ -308,8 +317,48 @@ public sealed class TimelineBuilderTests
 
         var scenes = TimelineBuilder.Build(context).Value.Scenes;
 
-        Assert.NotNull(scenes[0].TransitionOut);
-        Assert.Null(scenes[1].TransitionOut);
+        // İlk sahne açılıyor, sonuncusu kapanıyor.
+        Assert.NotNull(scenes[0].TransitionIn);
+        Assert.NotNull(scenes[^1].TransitionOut);
+
+        // Ortadaki sahneler açılmıyor: her sahnede açılma olsaydı
+        // video sürekli kararıp aydınlanırdı.
+        Assert.Null(scenes[1].TransitionIn);
+
+        // KAPANIŞ, SAHNE GEÇİŞİNDEN UZUN: ikisi aynı olsaydı videonun
+        // bittiği, sahnenin değiştiğinden ayırt edilemezdi.
+        Assert.True(scenes[^1].TransitionOut!.Duration > scenes[0].TransitionOut!.Duration);
+    }
+
+    /// KISA SAHNEDE GEÇİŞLER KIRPILIYOR, BELGE GEÇERSİZ OLMUYOR.
+    ///
+    /// Açılma 500 ms, kapanma 900 ms: 600 ms'lik tek sahnelik bir
+    /// videoda ikisi birden sığmıyor ve üst üste binseler görüntü
+    /// hiç tam parlaklığa çıkmazdı. Doğrulayıcı bunu hata sayıyor —
+    /// yani kırpmasaydık belge reddedilirdi.
+    [Fact]
+    public void KisaSahne_GecislerKirpiliyorVeBelgeGecerli()
+    {
+        var context = Context(new
+        {
+            topic = new { language = "tr-TR" },
+            tts = new { segments = new[] { Segment(0, 0, 600, "a") } },
+            visuals = new { images = new[] { Scene(0, 0, 600, "s0") } },
+        });
+
+        var document = TimelineBuilder.Build(context).Value;
+        var scene = document.Scenes[0];
+
+        var opening = scene.TransitionIn?.Duration.Value ?? 0;
+        var closing = scene.TransitionOut?.Duration.Value ?? 0;
+
+        Assert.True(opening + closing <= 600);
+
+        // Ve tam parlaklıkta kare kalıyor: sahnenin tamamı geçiş
+        // değil.
+        Assert.True(opening + closing < 600);
+
+        Assert.Empty(TimelineValidator.Validate(document));
     }
 
     /// Görseller paralel üretildiği için sıra karışık gelebiliyor.

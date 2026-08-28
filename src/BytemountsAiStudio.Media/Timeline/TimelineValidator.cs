@@ -114,6 +114,30 @@ public static class TimelineValidator
                 issues.Add(new("transition.too_long",
                     $"{scene.Index}. sahnenin geçişi sahneden uzun: {transition.Duration} > {scene.Range.Duration}"));
             }
+
+            if (scene.TransitionIn is { } opening
+                && opening.Kind != TransitionKind.None
+                && opening.Duration > scene.Range.Duration)
+            {
+                issues.Add(new("transition.too_long",
+                    $"{scene.Index}. sahnenin açılması sahneden uzun: {opening.Duration} > {scene.Range.Duration}"));
+            }
+
+            // AÇILMA VE KARARMA BİRLİKTE SAHNEYİ AŞMAMALI.
+            //
+            // İkisi ayrı ayrı sahneden kısa olabiliyor ama toplamları
+            // aşarsa üst üste binerler: görüntü açılırken kararmaya
+            // başlar ve sahne hiçbir zaman tam parlaklığa çıkmaz.
+            // Tek tek bakan bir kontrol bunu göremezdi.
+            var opens = scene.TransitionIn is { Kind: not TransitionKind.None } o ? o.Duration.Value : 0;
+            var closes = scene.TransitionOut is { Kind: not TransitionKind.None } c ? c.Duration.Value : 0;
+
+            if (opens + closes > scene.Range.Duration.Value)
+            {
+                issues.Add(new("transition.overlap",
+                    $"{scene.Index}. sahnenin açılması ve kararması üst üste biniyor: " +
+                    $"{opens}ms + {closes}ms > {scene.Range.Duration}"));
+            }
         }
 
         if (ordered.Count > 0)
