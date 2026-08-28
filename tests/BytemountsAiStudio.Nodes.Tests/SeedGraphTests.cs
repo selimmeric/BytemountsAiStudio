@@ -40,22 +40,54 @@ public sealed class SeedGraphTests
         var types = Seed().Nodes.Select(n => n.Type).ToHashSet(StringComparer.Ordinal);
 
         Assert.Contains("qc.mechanical", types);
+        Assert.Contains("qc.semantic", types);
         Assert.Contains("human.approval", types);
     }
 
-    /// ONAY EN SONDA: kendisinden sonra hiçbir node yoksa "onaylandı"
-    /// kararının ardından koşacak bir şey de yok demektir. Onayı
-    /// ortada bırakmak, insanı henüz üretilmemiş bir videoya
-    /// baktırmak olurdu.
+    /// ONAY EN SONDA VE HER İKİ QC'DEN SONRA.
+    ///
+    /// Kendisinden sonra hiçbir node yoksa "onaylandı" kararının
+    /// ardından koşacak bir şey de yok demektir. Onayı ortada
+    /// bırakmak, insanı henüz üretilmemiş bir videoya baktırmak
+    /// olurdu.
+    ///
+    /// İnsana giden skorun HER İKİ QC'yi de içermesi gerekiyor:
+    /// yalnızca mekanik QC'den sonra sorulsaydı, semantik kontrollerin
+    /// sonucu karara hiç girmezdi.
     [Fact]
-    public void OnayKapisi_RenderVeQcSonrasinda()
+    public void OnayKapisi_HerIkiQcdenSonra()
     {
         var graph = Seed();
         var approval = graph.Nodes.Single(n => n.Type == "human.approval");
-        var qc = graph.Nodes.Single(n => n.Type == "qc.mechanical");
 
-        Assert.Contains(qc.Id, graph.Predecessors(approval.Id));
+        // Onaydan SONRA hiçbir şey yok.
         Assert.DoesNotContain(graph.Edges, e => e.From == approval.Id);
+
+        // Onaya giden zincir geriye doğru izlendiğinde iki QC de
+        // görülüyor.
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<string>(graph.Predecessors(approval.Id));
+
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+
+            if (!seen.Add(id))
+            {
+                continue;
+            }
+
+            foreach (var predecessor in graph.Predecessors(id))
+            {
+                queue.Enqueue(predecessor);
+            }
+        }
+
+        var typesBefore = seen.Select(id => graph.Node(id)!.Type).ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("qc.mechanical", typesBefore);
+        Assert.Contains("qc.semantic", typesBefore);
+        Assert.Contains("media.render", typesBefore);
     }
 
     /// RETRY HEDEFLERİ GRAFA DENK GELİYOR.

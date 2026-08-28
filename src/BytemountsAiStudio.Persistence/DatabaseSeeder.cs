@@ -39,6 +39,7 @@ public static class DatabaseSeeder
             { "id": "claims",   "type": "claim.check",      "config": {} },
             { "id": "seo",      "type": "seo.generate",     "config": {} },
             { "id": "qc",       "type": "qc.mechanical",    "config": {} },
+            { "id": "qcs",      "type": "qc.semantic",      "config": {} },
             { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
           ],
           "edges": [
@@ -53,7 +54,8 @@ public static class DatabaseSeeder
             { "from": "timeline", "to": "render" },
             { "from": "render",   "to": "seo" },
             { "from": "seo",      "to": "qc" },
-            { "from": "qc",       "to": "onay" }
+            { "from": "qc",       "to": "qcs" },
+            { "from": "qcs",      "to": "onay" }
           ]
         }
         """;

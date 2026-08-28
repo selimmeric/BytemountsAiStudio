@@ -97,6 +97,13 @@ public static class NodeHandlerRegistration
             .Register(new ClaimCheckHandler(llm))
             .Register(new SeoGenerateHandler(llm))
             .Register(new QualityCheckHandler(storage))
+            // SEMANTİK QC GÖRME MODELİ OLMADAN KAYITLI.
+            //
+            // Model yokken kontroller "ölçülemedi" diye DÜŞÜYOR ve
+            // video insana gidiyor — sessizce geçmiyor. Kaydetmemek,
+            // semantik kontrolün hiç var olmadığı bir hat demekti ve
+            // model geldiğinde de kimse eklemeyi hatırlamazdı.
+            .Register(new SemanticQualityHandler(storage))
             .Register(new ApprovalGateHandler());
     }
 
@@ -195,6 +202,13 @@ public static class NodeHandlerRegistration
             // olmadan onay kapısı hep "skor yok" görüyor, yani
             // seçici onay hiç devreye giremiyor (P2-08).
             .Register(new QualityCheckHandler(storage))
+            // SEMANTİK QC GÖRME MODELİ OLMADAN KAYITLI.
+            //
+            // Model yokken kontroller "ölçülemedi" diye DÜŞÜYOR ve
+            // video insana gidiyor — sessizce geçmiyor. Kaydetmemek,
+            // semantik kontrolün hiç var olmadığı bir hat demekti ve
+            // model geldiğinde de kimse eklemeyi hatırlamazdı.
+            .Register(new SemanticQualityHandler(storage))
             // Onay kapısı HER İKİ hatta da kayıtlı: sahte hatta
             // kayıtlı olmasaydı onay içeren bir graf sahte koşuda
             // "bilinmeyen node tipi" diye reddedilirdi.
@@ -216,6 +230,7 @@ public static class NodeHandlerRegistration
         "claim.check",
         "music.select",
         "qc.mechanical",
+        "qc.semantic",
         "human.approval",
     };
 
