@@ -87,6 +87,10 @@ public sealed class TargetedRetryTests(DatabaseFixture fixture) : IAsyncLifetime
 
     /// KABUL KRİTERİ: render'a dönen bir retry, senaryoyu yeniden
     /// üretmiyor.
+    ///
+    /// Hedef, QC planlayıcısının gerçekte ürettiği ad biçiminde
+    /// veriliyor: boru hattı AŞAMASI (`test.render`), grafın node
+    /// kimliği (`render`) değil.
     [Fact]
     public async Task RenderRetry_SenaryoyuYenidenUretmiyor()
     {
@@ -208,6 +212,121 @@ public sealed class TargetedRetryTests(DatabaseFixture fixture) : IAsyncLifetime
         // Run TAMAMLANDI, asılı kalmadı.
         Assert.Equal(RunState.Completed, stored.State);
         Assert.Equal(0, stored.RetryLoop);
+    }
+
+    /// HEDEF ADI GRAFTAKİ KİMLİĞE ÇEVRİLMEZSE RETRY HİÇ ÇALIŞMIYOR.
+    ///
+    /// Bu testi ilk yazdığımda geçmedi ve sebebi test değil koddu:
+    /// QC planlayıcısı aşama adları üretiyor (`media.render`), graf
+    /// ise node'lara keyfi kimlikler veriyor (`render`) — tohum iş
+    /// akışında bile ikisi farklı. Motor kimliğe göre arıyordu, hiçbir
+    /// şey bulamıyordu.
+    [Fact]
+    public async Task Hedef_NodeKimligiyleDeVerilebiliyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var script = new ScriptedHandler("test.script", QueueClass.Llm, _ => ScriptedHandler.Json("{}"));
+        var visual = new ScriptedHandler("test.visual", QueueClass.ImageGeneration, _ => ScriptedHandler.Json("{}"));
+        var render = new ScriptedHandler("test.render", QueueClass.Render, _ => ScriptedHandler.Json("{}"));
+
+        var qcCalls = 0;
+
+        // Aşama adı değil, GRAFTAKİ KİMLİK.
+        var qc = new ScriptedHandler("test.qc", QueueClass.Search, _ =>
+            ++qcCalls == 1
+                ? ScriptedHandler.Json("""{"retry":{"decision":"Rerun","nodes":["render"]}}""")
+                : ScriptedHandler.Json("{}"));
+
+        var engine = new WorkflowEngine(db, new JobQueue(db),
+            new NodeRegistry().Register(script).Register(visual).Register(render).Register(qc));
+
+        var versionId = await CreateWorkflowAsync(db, Graph());
+        await engine.StartRunAsync(versionId, null, null, CancellationToken.None);
+
+        await DrainAsync(engine);
+
+        Assert.Equal(2, render.Calls.Count);
+        Assert.Single(script.Calls);
+    }
+
+    /// HEDEF BULUNAMAZSA RUN BAŞARIYLA TAMAMLANMIYOR.
+    ///
+    /// Devam etseydi sonuç şu olurdu: QC "video bozuk" dedi, düzeltme
+    /// hiçbir şey koşmadı, run başarıyla bitti ve bozuk video
+    /// yayınlandı. Bu, sessiz başarının en pahalı biçimi.
+    [Fact]
+    public async Task BilinmeyenHedef_RunuDusuruyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var script = new ScriptedHandler("test.script", QueueClass.Llm, _ => ScriptedHandler.Json("{}"));
+        var visual = new ScriptedHandler("test.visual", QueueClass.ImageGeneration, _ => ScriptedHandler.Json("{}"));
+        var render = new ScriptedHandler("test.render", QueueClass.Render, _ => ScriptedHandler.Json("{}"));
+
+        // Bu grafta böyle bir aşama YOK.
+        var qc = new ScriptedHandler("test.qc", QueueClass.Search,
+            _ => ScriptedHandler.Json("""{"retry":{"decision":"Rerun","nodes":["seo.generate"]}}"""));
+
+        var engine = new WorkflowEngine(db, new JobQueue(db),
+            new NodeRegistry().Register(script).Register(visual).Register(render).Register(qc));
+
+        var versionId = await CreateWorkflowAsync(db, Graph());
+        var run = await engine.StartRunAsync(versionId, null, null, CancellationToken.None);
+
+        await DrainAsync(engine);
+
+        var stored = await db.Runs.AsNoTracking().SingleAsync(r => r.Id == run.Value, CancellationToken.None);
+
+        Assert.Equal(RunState.Failed, stored.State);
+        Assert.Contains("retry.unknown_target", stored.ErrorJson, StringComparison.Ordinal);
+    }
+
+    /// Kimlik ÖNCE eşleşiyor: kimliği başka bir node'un tipiyle aynı
+    /// olan bir graf, yanlış hedefi koşturmamalı.
+    [Fact]
+    public void HedefCozumu_KimligiTipeTercihEdiyor()
+    {
+        var graph = new WorkflowGraph
+        {
+            Key = "k",
+            Name = "n",
+            Nodes =
+            [
+                new() { Id = "a", Type = "tip.x" },
+                new() { Id = "tip.x", Type = "tip.y" },
+            ],
+            Edges = [],
+        };
+
+        Assert.Equal(["tip.x"], graph.ResolveTargets(["tip.x"]));
+    }
+
+    /// Bir tip BİRDEN ÇOK node eşleştirebiliyor: iki görsel node'u
+    /// olan bir grafta yalnızca ilkini koşmak, ikinci görseli eski
+    /// hâliyle bırakırdı.
+    [Fact]
+    public void HedefCozumu_AyniTiptekiTumNodelariKapsiyor()
+    {
+        var graph = new WorkflowGraph
+        {
+            Key = "k",
+            Name = "n",
+            Nodes =
+            [
+                new() { Id = "gorsel1", Type = "visual.resolve" },
+                new() { Id = "gorsel2", Type = "visual.resolve" },
+                new() { Id = "render", Type = "media.render" },
+            ],
+            Edges = [],
+        };
+
+        Assert.Equal(["gorsel1", "gorsel2"], graph.ResolveTargets(["visual.resolve"]));
+
+        // Tekrar eden hedefler node'u iki kez kuyruğa atmıyor.
+        Assert.Equal(["render"], graph.ResolveTargets(["render", "media.render"]));
     }
 
     /// Sözleşme: motor node TİPİNE değil ÇIKTIYA bakıyor.

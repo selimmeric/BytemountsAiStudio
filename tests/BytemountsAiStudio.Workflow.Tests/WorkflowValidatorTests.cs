@@ -137,10 +137,15 @@ public sealed class WorkflowValidatorTests
     }
 
     [Fact]
-    public void SeedGrafi_Gecerlidir()
+    public void DogrusalGraf_Gecerlidir()
     {
-        // Depodaki gerçek `shorts-fake` grafı doğrulamadan geçmeli; geçmezse
-        // Faz 0'ın iskeleti kendi kuralına uymuyor demektir.
+        // Tipik doğrusal bir hattın doğrulamadan geçtiğini gösteriyor.
+        //
+        // Burası bir zamanlar "depodaki gerçek graf" iddiasındaydı ama
+        // gerçek grafı değil, buraya elle yazılmış bir kopyasını
+        // doğruluyordu: graf bozulsa test yine geçerdi. Gerçek tohum
+        // grafının testi artık `Nodes.Tests/SeedGraphTests` içinde ve
+        // sabitin kendisini okuyor.
         var json = """
             {
               "schema_version": 1,

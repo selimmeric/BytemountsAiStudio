@@ -36,7 +36,9 @@ public static class DatabaseSeeder
             { "id": "visuals",  "type": "visual.resolve",   "config": { "order": ["fake-stock", "fake-imagegen"] } },
             { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
             { "id": "claims",   "type": "claim.check",      "config": {} },
-            { "id": "seo",      "type": "seo.generate",     "config": {} }
+            { "id": "seo",      "type": "seo.generate",     "config": {} },
+            { "id": "qc",       "type": "qc.mechanical",    "config": {} },
+            { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
           ],
           "edges": [
             { "from": "topic",    "to": "research" },
@@ -46,7 +48,9 @@ public static class DatabaseSeeder
             { "from": "tts",      "to": "visuals" },
             { "from": "visuals",  "to": "timeline" },
             { "from": "timeline", "to": "render" },
-            { "from": "render",   "to": "seo" }
+            { "from": "render",   "to": "seo" },
+            { "from": "seo",      "to": "qc" },
+            { "from": "qc",       "to": "onay" }
           ]
         }
         """;

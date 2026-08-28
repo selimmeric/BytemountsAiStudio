@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Nodes\BytemountsAiStudio.Nodes.csproj" />
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Persistence\BytemountsAiStudio.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Quality\BytemountsAiStudio.Quality.csproj" />
   </ItemGroup>
 
 </Project>

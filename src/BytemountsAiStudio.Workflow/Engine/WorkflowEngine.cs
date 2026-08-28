@@ -285,11 +285,46 @@ public sealed class WorkflowEngine(
         // aynı desen.
         if (RerunRequest.From(outcome.Value) is { } rerun)
         {
+            // HEDEF ADLARI GRAFA ÇEVRİLİYOR.
+            //
+            // QC planlayıcısı boru hattı AŞAMALARINI adlandırıyor
+            // (`media.render`); graf ise node'lara keyfi kimlikler
+            // veriyor (`render`). Çeviri olmadan hedef hiçbir node'a
+            // denk gelmiyordu.
+            var targets = graph.ResolveTargets(rerun.Nodes);
+
+            if (targets.Count == 0)
+            {
+                // HİÇBİR HEDEF BULUNAMADI: bu run devam ETMEMELİ.
+                //
+                // Devam etseydi sonuç şu olurdu: QC "video bozuk"
+                // dedi, düzeltme hiçbir şey koşmadı, run başarıyla
+                // tamamlandı ve bozuk video yayınlandı. Sessiz başarı
+                // burada mümkün olan en kötü davranış.
+                //
+                // KALICI hata: aynı grafla yeniden denemek aynı
+                // boşluğu üretiyor. Düzeltilecek şey iş akışının
+                // kaydı, o da bir insanın işi.
+                var error = Error.Permanent("retry.unknown_target",
+                    $"Yeniden koşma hedefi grafta yok: {string.Join(", ", rerun.Nodes)}. "
+                    + "İş akışı kaydı QC'nin hedeflediği aşamayı içermiyor.");
+
+                await LogAsync(run.Id, node.Id, "error", error.Message, cancellationToken)
+                    .ConfigureAwait(false);
+
+                await FailRunAsync(run, null, error, cancellationToken).ConfigureAwait(false);
+
+                await _queue.CompleteAsync(handlerLease.Id, cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+                return Result.Success();
+            }
+
             // TUR ARTIYOR: `node_executions` eşsizliği tura bağlı ve
             // artırmadan aynı node ikinci kez yazılamazdı.
             run.RetryLoop++;
 
-            await EnqueueNodesAsync(run, graph, rerun.Nodes, cancellationToken).ConfigureAwait(false);
+            await EnqueueNodesAsync(run, graph, targets, cancellationToken).ConfigureAwait(false);
 
             await LogAsync(run.Id, node.Id, "warn",
                 $"Hedefli yeniden koşma (tur {run.RetryLoop}): {rerun.Reason}", cancellationToken)

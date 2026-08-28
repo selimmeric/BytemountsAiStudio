@@ -41,6 +41,45 @@ public sealed record WorkflowGraph
     public WorkflowNode? Node(string id)
         => Nodes.FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.Ordinal));
 
+    /// Bir yeniden koşma hedefini graftaki node kimliklerine çevirir.
+    ///
+    /// HEM KİMLİK HEM TİP eşleşiyor ve bu bir kolaylık değil,
+    /// zorunluluk: QC planlayıcısı kullanıcının node'lara verdiği
+    /// keyfi kimlikleri (`yaz`, `gorsel`) bilemez, yalnızca boru
+    /// hattı AŞAMALARINI (`media.render`) bilir. Motor grafı biliyor,
+    /// çeviri buraya ait.
+    ///
+    /// Bir tip BİRDEN ÇOK node eşleştirebilir — iki görsel node'u olan
+    /// bir grafta "görselden itibaren yeniden koş" ikisini de
+    /// kapsamalı; yalnızca ilkini almak, ikinci görseli eski hâliyle
+    /// bırakırdı.
+    public IReadOnlyList<string> ResolveTargets(IEnumerable<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        var resolved = new List<string>();
+
+        foreach (var name in names)
+        {
+            // KİMLİK ÖNCE: grafta bu adda bir node varsa kastedilen
+            // odur. Tersi sırada, kimliği başka bir node'un tipiyle
+            // aynı olan bir node yanlış hedefi koştururdu.
+            var matches = Nodes.Where(n => string.Equals(n.Id, name, StringComparison.Ordinal)).ToList();
+
+            if (matches.Count == 0)
+            {
+                matches = Nodes.Where(n => string.Equals(n.Type, name, StringComparison.Ordinal)).ToList();
+            }
+
+            foreach (var match in matches.Where(m => !resolved.Contains(m.Id, StringComparer.Ordinal)))
+            {
+                resolved.Add(match.Id);
+            }
+        }
+
+        return resolved;
+    }
+
     /// Bir node'un beslendiği node'lar. Tetikleme kararı buna bakar:
     /// tüm girdiler tamamlanmadan node çalışmaz.
     public IReadOnlyList<string> Predecessors(string nodeId)
