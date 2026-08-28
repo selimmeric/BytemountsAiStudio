@@ -489,3 +489,108 @@ public sealed class Setting
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+/// Bir deney (P5-02).
+///
+/// TEK DEĞİŞKEN: `Dimension` neyin değiştiğini söylüyor (kapak,
+/// başlık, istem sürümü). Aynı anda iki şey değiştiren bir deney
+/// kazandığında hangisinin kazandırdığı bilinemez — ve bir sonraki
+/// videoda yanlış olanı taşımak mümkün.
+public sealed class Experiment : EntityBase
+{
+    public Guid? ChannelId { get; set; }
+
+    public Channel? Channel { get; set; }
+
+    /// Neyin değiştiği: `thumbnail`, `title`, `prompt`.
+    public required string Dimension { get; set; }
+
+    public required string Name { get; set; }
+
+    /// Görmek istediğimiz MUTLAK fark (0,02 = iki puan).
+    ///
+    /// Deney BAŞLARKEN yazılıyor, sonuca bakılırken değil. Sonradan
+    /// gevşetmek, "anlamlı olana kadar eşiği indir" demek olurdu.
+    public double MinimumDetectableEffect { get; set; } = 0.02;
+
+    /// Varyant başına gereken deneme — başlangıçta hesaplanıp
+    /// SAKLANIYOR.
+    ///
+    /// Her bakışta yeniden hesaplamak, taban oran değiştikçe hedefin
+    /// de kaymasi demekti: hedefi kaydırarak "yeterli veri"ye
+    /// ulaşmak, kapıyı olduğu yere taşımak.
+    public int RequiredPerVariant { get; set; }
+
+    public string State { get; set; } = "Running";
+
+    public string? Outcome { get; set; }
+
+    public string? Reason { get; set; }
+
+    public DateTimeOffset? DecidedAt { get; set; }
+}
+
+/// Bir deneyin varyantı.
+public sealed class ExperimentVariant : EntityBase
+{
+    public Guid ExperimentId { get; set; }
+
+    public Experiment? Experiment { get; set; }
+
+    public required string Name { get; set; }
+
+    /// Kontrol varyantı — karşılaştırmanın temeli.
+    public bool IsControl { get; set; }
+
+    /// Bu varyantın node ayarlarına kattığı fark.
+    public string ConfigJson { get; set; } = "{}";
+}
+
+/// Hangi run hangi varyantı aldı.
+///
+/// AYRI BİR TABLO, `runs` üzerinde bir kolon değil: bir run birden
+/// fazla deneye katılabiliyor (kapak deneyi ve başlık deneyi aynı
+/// anda koşabilir, çünkü farklı boyutlar).
+public sealed class ExperimentAssignment : EntityBase
+{
+    public Guid ExperimentId { get; set; }
+
+    public Experiment? Experiment { get; set; }
+
+    public Guid VariantId { get; set; }
+
+    public ExperimentVariant? Variant { get; set; }
+
+    public Guid RunId { get; set; }
+
+    public Run? Run { get; set; }
+}
+
+/// Yayınlanmış bir videonun günlük ölçümü (P5-01/P5-02).
+///
+/// ZAMAN SERİSİ, tek satır değil: bir videonun ilk gün ile yedinci
+/// gün performansı farklı ve "hangi kapak daha iyi" sorusu ancak aynı
+/// yaştaki videoları karşılaştırarak cevaplanıyor. Tek bir toplam
+/// tutmak, bir haftalık videoyla bir aylık videoyu yan yana koymak
+/// olurdu.
+public sealed class PublicationMetric : EntityBase
+{
+    public Guid RunId { get; set; }
+
+    public Run? Run { get; set; }
+
+    /// Yayından sonraki kaçıncı gün (0 = yayın günü).
+    public int DayOffset { get; set; }
+
+    public int Impressions { get; set; }
+
+    public int Clicks { get; set; }
+
+    public int Views { get; set; }
+
+    public long WatchSeconds { get; set; }
+
+    /// Ölçümün alındığı an — aynı günün iki kez çekilmesini ayırt
+    /// etmek için.
+    public DateTimeOffset MeasuredAt { get; set; } = DateTimeOffset.UtcNow;
+}

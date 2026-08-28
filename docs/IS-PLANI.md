@@ -416,7 +416,16 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 ## Faz 5 — Öğrenen sistem
 
 - [ ] **P5-01** `4p` — YouTube Analytics günlük çekim + `publication_metrics` zaman serisi
-- [ ] **P5-02** `5p` — Deney çerçevesi: tek değişkenli varyantlar, minimum örneklem, sonuç testi
+- [x] **P5-02** `5p` — Deney çerçevesi: tek değişkenli varyantlar, minimum örneklem, sonuç testi
+  - *Bitti:* ✔ 29 Ağu 2026 — İki oran z-testi, hesaplanan örneklem, deterministik atama ve gerekçeli karar. 32 test.
+  - ***"Yeterli veri yok" ile "fark yok" ayrı sonuçlar*** — ve bu, çerçevenin var olma sebebi. Üç videodan sonra "fark yok" demek denemeyi bırakmak demek; oysa henüz hiçbir şey ölçülmemiş. Örneklem yetmiyorsa teste hiç girilmiyor: testi koşturup "anlamlı değil" demek teknik olarak doğru ama **yanlış anlaşılır**.
+  - *"Varyant daha kötü" de ayrı bir sonuç:* "fark yok" denemeye devam etmeyi düşündürür, "daha kötü" o varyantı kapatmayı gerektirir.
+  - *Örneklem hesaplanıyor, uydurulmuyor.* "Otuz video yeter" demek, ne kadar küçük bir farkı görebileceğini bilmemek ve göremediği bir farkı "fark yok" diye raporlamak demek. %4 tabandan iki puanlık bir artışı α=0,05 ve %80 güçle görmek **varyant başına ~1.500 gösterim** istiyor; dört kat küçük bir farkı görmek beş kattan fazla örneklem istiyor. Bu takas açıkta duruyor.
+  - *İstatistik bilinen değerlerle sınanıyor* (Φ(1,96)=0,975, probit(0,975)=1,960): yaklaşım fonksiyonları sessizce yanlış olabiliyor ve yanlış bir p-değeri yanlış bir strateji kararı demek. Ayrıca **yüz gösterimde %4 ile %6 arasındaki farkın anlamlı sayılmadığı** ölçülüyor — o fark madenî para atışıyla üretilebilir.
+  - *Tek değişken kuralı KOD, niyet beyanı değil:* iki boyutta ayrışan bir deney reddediliyor ve hangi boyutlar olduğu yazılıyor. Aynı kanalda aynı boyutta iki açık deney veritabanı kısıtıyla engelleniyor.
+  - *Atama deterministik* (`sha256(run_id + deney_id)`): rastgele üreteç, hedefli yeniden koşmada (P2-07) aynı run'ın farklı varyanta düşmesi ve **iki varyantta birden sayılması** demekti. Bin run'da dağılım %45–55 aralığında ölçüldü.
+  - *Ölçüm sabit bir yaştan okunuyor* (7. gün): bir haftalık videoyla bir günlük videoyu karşılaştırmak, varyantı değil **yaşı** ölçmek demek. Aynı günün iki kez yazılması veritabanı kısıtıyla engelleniyor — iki kez toplanan bir gün bütün oranları bozardı.
+  - *Kalan:* Gerçek performans verisi **YouTube Analytics'e bağlı** (P5-01, anahtar bekliyor). Çerçeve elle girilen ölçümlerle uçtan uca test edildi; boru hattı hazır, veri kaynağı engelli.
 - [ ] **P5-03** `4p` — Thumbnail A/B + başlık A/B
 - [ ] **P5-04** `4p` — Konu skorlama ağırlıklarının gerçek performansla kalibrasyonu
 - [ ] **P5-05** `3p` — Prompt varyant performans raporu

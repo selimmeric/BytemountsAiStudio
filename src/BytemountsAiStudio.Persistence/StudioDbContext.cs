@@ -63,6 +63,16 @@ public class StudioDbContext : DbContext
 
     public DbSet<Setting> Settings => Set<Setting>();
 
+    // ---- öğrenme döngüsü (Faz 5) ----
+
+    public DbSet<Experiment> Experiments => Set<Experiment>();
+
+    public DbSet<ExperimentVariant> ExperimentVariants => Set<ExperimentVariant>();
+
+    public DbSet<ExperimentAssignment> ExperimentAssignments => Set<ExperimentAssignment>();
+
+    public DbSet<PublicationMetric> PublicationMetrics => Set<PublicationMetric>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
         => ApplyModel(modelBuilder);
 
@@ -273,6 +283,71 @@ public class StudioDbContext : DbContext
             // tamamen kaybettirirdi.
             e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ---- öğrenme döngüsü (Faz 5) ----
+
+        b.Entity<Experiment>(e =>
+        {
+            e.Property(x => x.Dimension).HasMaxLength(64);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.State).HasMaxLength(32);
+            e.Property(x => x.Outcome).HasMaxLength(32);
+            e.Property(x => x.Reason).HasMaxLength(1000);
+
+            // AYNI KANALDA AYNI BOYUTTA İKİ AÇIK DENEY OLAMAZ.
+            //
+            // İki kapak deneyi aynı anda koşarsa bir videoya iki
+            // farklı kapak atanmak zorunda ve ikisinin sonucu
+            // birbirine karışır — tam da "tek değişken" kuralının
+            // engellediği şey, deney SEVİYESİNDE.
+            e.HasIndex(x => new { x.ChannelId, x.Dimension, x.State })
+                .HasFilter("state = 'Running'")
+                .IsUnique();
+        });
+
+        b.Entity<ExperimentVariant>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.ConfigJson).HasColumnType("jsonb");
+
+            e.HasOne(x => x.Experiment).WithMany()
+                .HasForeignKey(x => x.ExperimentId).OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(x => new { x.ExperimentId, x.Name }).IsUnique();
+        });
+
+        b.Entity<ExperimentAssignment>(e =>
+        {
+            e.HasOne(x => x.Experiment).WithMany()
+                .HasForeignKey(x => x.ExperimentId).OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Variant).WithMany()
+                .HasForeignKey(x => x.VariantId).OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Run).WithMany()
+                .HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+
+            // BİR RUN BİR DENEYE BİR KEZ ATANIYOR.
+            //
+            // İkinci bir atama, aynı videonun iki varyantta birden
+            // sayılması demek — ve o video her iki tarafın da
+            // ortalamasını kaydırır.
+            e.HasIndex(x => new { x.ExperimentId, x.RunId }).IsUnique();
+        });
+
+        b.Entity<PublicationMetric>(e =>
+        {
+            e.HasOne(x => x.Run).WithMany()
+                .HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+
+            // AYNI GÜN İKİ KEZ YAZILAMAZ.
+            //
+            // Günlük çekim iki kez koşarsa (yeniden deneme, iki
+            // worker) aynı günün sayıları iki kez toplanır ve bütün
+            // oranlar bozulur. Kısıt veritabanında, çünkü uygulama
+            // katmanındaki kontrol yarış koşulunda kaçırır.
+            e.HasIndex(x => new { x.RunId, x.DayOffset }).IsUnique();
         });
 
         b.Entity<Setting>(e =>
