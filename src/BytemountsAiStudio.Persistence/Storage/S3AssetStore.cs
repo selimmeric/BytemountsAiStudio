@@ -154,14 +154,24 @@ public sealed class S3AssetStore : IStorageProvider
 
         try
         {
-            await using var upload = File.OpenRead(temporary);
-
+            // AKIS DEGIL, DOSYA YOLU VERILIYOR.
+            //
+            // `InputStream` ile yuklerken CI'daki MinIO surumu
+            // "the provided 'x-amz-content-sha256' header does not
+            // match what was computed" ile reddetti; yerel surum
+            // kabul ediyordu. SDK akisi once ozet icin, sonra
+            // gondermek icin okuyor ve konum yonetimi surume gore
+            // ayrisabiliyor.
+            //
+            // Dosya yolu verildiginde ozet ile gonderilen icerigin
+            // ayni okumadan geldigi SDK'nin garantisi. Icerik zaten
+            // diskte, yani bu ayni zamanda daha az is.
             await _client.PutObjectAsync(
                 new PutObjectRequest
                 {
                     BucketName = _bucket,
                     Key = objectKey,
-                    InputStream = upload,
+                    FilePath = temporary,
                     ContentType = metadata.MimeType,
                 },
                 cancellationToken).ConfigureAwait(false);
