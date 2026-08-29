@@ -106,9 +106,10 @@ public sealed class TopicPool(StudioDbContext db)
         // varsayılan ağırlıkları kullanırdı ve kanalın ayarı hiçbir
         // yerde işe yaramazdı. Bu depoda aynı hata ses ve yazı tipi
         // ayarlarında bir kez yapıldı (P3-01).
-        var weights = await WeightsAsync(channelId, cancellationToken).ConfigureAwait(false);
+        var (weights, thresholds) = await PolicyAsync(channelId, cancellationToken)
+            .ConfigureAwait(false);
 
-        var decision = TopicPolicy.Decide(score, similarity, weights);
+        var decision = TopicPolicy.Decide(score, similarity, weights, thresholds);
 
         db.Topics.Add(new Topic
         {
@@ -135,7 +136,7 @@ public sealed class TopicPool(StudioDbContext db)
                 TopicDecision.Reject => TopicState.Rejected,
                 _ => TopicState.New,
             },
-            RejectedReason = decision == TopicDecision.Reject ? RejectReason(score, similarity, weights) : null,
+            RejectedReason = decision == TopicDecision.Reject ? RejectReason(score, similarity, weights, thresholds) : null,
             Embedding = embedding is { Count: > 0 }
                 ? new Vector(embedding.ToArray().AsMemory())
                 : null,
@@ -222,11 +223,18 @@ public sealed class TopicPool(StudioDbContext db)
     ///
     /// Kanal yoksa varsayılan: kanalsız konular (genel havuz) da
     /// skorlanıyor ve onlar için tek makul taban bugünkü ağırlıklar.
-    private async Task<ScoreWeights> WeightsAsync(Guid? channelId, CancellationToken cancellationToken)
+    /// AĞIRLIK VE EŞİK TEK OKUMADA.
+    ///
+    /// Ayrı ayrı okunsalardı aynı kanal için iki sorgu olurdu ve daha
+    /// kötüsü: biri eklenip diğeri unutulabilirdi. İkisi aynı kararın
+    /// iki yarısı (`TopicPolicy.Decide`) ve birlikte dönmeleri o bağı
+    /// koda yazıyor.
+    private async Task<(ScoreWeights Weights, TopicThresholds Thresholds)> PolicyAsync(
+        Guid? channelId, CancellationToken cancellationToken)
     {
         if (channelId is null)
         {
-            return ScoreWeights.Default;
+            return (ScoreWeights.Default, TopicThresholds.Default);
         }
 
         var settingsJson = await db.Channels.AsNoTracking()
@@ -235,7 +243,9 @@ public sealed class TopicPool(StudioDbContext db)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return ChannelSettings.Parse(settingsJson).ScoreWeights;
+        var settings = ChannelSettings.Parse(settingsJson);
+
+        return (settings.ScoreWeights, settings.TopicThresholds);
     }
 
     /// Reddin GEREKÇESİ — hangi kural devreye girdi.
@@ -243,24 +253,32 @@ public sealed class TopicPool(StudioDbContext db)
     /// "Skor düşük" yetmez: risk vetosu mu, tekrar mı, yoksa gerçekten
     /// düşük skor mu? Üçü farklı düzeltme gerektiriyor.
     internal static string RejectReason(
-        TopicScore score, double? similarity, ScoreWeights? weights = null)
+        TopicScore score, double? similarity, ScoreWeights? weights = null,
+        TopicThresholds? thresholds = null)
     {
         if (!score.IsValid)
         {
             return "Skor boyutları geçersiz aralıkta.";
         }
 
-        if (score.Risk >= TopicPolicy.RiskVeto)
+        // GEREKÇE DE KANALIN EŞİKLERİNİ SÖYLÜYOR.
+        //
+        // Sabit sayı yazsaydı, eşiğini değiştirmiş bir kanalda gerekçe
+        // metni gerçekte uygulanandan BAŞKA bir sayı gösterirdi —
+        // yanlış bir açıklama, açıklama olmamasından kötü.
+        var limits = thresholds ?? TopicThresholds.Default;
+
+        if (score.Risk >= limits.RiskVeto)
         {
-            return $"Risk skoru {score.Risk}, veto eşiği {TopicPolicy.RiskVeto}.";
+            return $"Risk skoru {score.Risk}, veto eşiği {limits.RiskVeto}.";
         }
 
-        if (similarity >= TopicPolicy.SimilarityThreshold)
+        if (similarity >= limits.Similarity)
         {
             return $"Daha önce yayınlanan bir konuya çok benziyor (benzerlik {similarity:0.###}).";
         }
 
         return $"Toplam skor {score.Weighted(weights ?? ScoreWeights.Default):0.#}, "
-            + $"red eşiği {TopicPolicy.RejectThreshold}.";
+            + $"red eşiği {limits.Reject}.";
     }
 }

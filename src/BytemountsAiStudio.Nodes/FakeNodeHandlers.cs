@@ -882,10 +882,18 @@ public sealed class TimelineCompileHandler(
         // liste kullanıyordu. Bir kanalın altyazı karakterini
         // değiştirmek imkânsızdı — üstelik dile göre farklı yazı tipi
         // gerekebiliyor (Arapça, Japonca).
-        var fonts = channels is not null && context.ChannelId is { } timelineChannel
-            ? (await channels.SettingsAsync(timelineChannel, cancellationToken)
-                .ConfigureAwait(false))?.FontStack
+        //
+        // ALTYAZI STİLİ VE MÜZİK SEVİYELERİ DE KANALDAN (P3-01): ikisi
+        // de `TimelineBuilder` içinde sabitti. İki kanal aynı graftan
+        // koşunca altyazılar piksel piksel aynı çıkıyordu ve müziği
+        // biraz öne çıkarmak isteyen bir kanalın tek seçeneği müziği
+        // tamamen kapatmaktı. TEK ÇAĞRI ile okunuyorlar: ayrı ayrı
+        // okumak, aynı kanal için üç sorgu demekti.
+        var settings = channels is not null && context.ChannelId is { } timelineChannel
+            ? await channels.SettingsAsync(timelineChannel, cancellationToken).ConfigureAwait(false)
             : null;
+
+        var fonts = settings?.FontStack;
 
         // TUVAL GRAFTAN (P3-03): kısa video dikey, uzun video yatay.
         //
@@ -896,7 +904,8 @@ public sealed class TimelineCompileHandler(
         var aspect = NodeJson.Text(context.Config, "aspect");
         var canvas = Canvas.ForAspect(aspect);
 
-        var build = TimelineBuilder.Build(context.RunContext, fonts, canvas);
+        var build = TimelineBuilder.Build(
+            context.RunContext, fonts, canvas, settings?.Captions, settings?.Music);
         if (build.IsFailure)
         {
             return Result.Failure<JsonElement>(build.Error);

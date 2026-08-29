@@ -30,6 +30,22 @@ public static class TimelineBuilder
     /// üretiyor.
     public static Result<TimelineDocument> Build(
         JsonElement runContext, IReadOnlyList<string>? fontStack, Canvas? canvasOverride)
+        => Build(runContext, fontStack, canvasOverride, null, null);
+
+    /// `captions` ve `music` kanaldan geliyor (P3-01).
+    ///
+    /// ***ÖNCEDEN İKİSİ DE `TimelineBuilder` İÇİNDE SABİTTİ:*** iki
+    /// kanal aynı graftan koşunca altyazılar piksel piksel aynı
+    /// çıkıyordu ve müziği biraz öne çıkarmak isteyen bir kanalın tek
+    /// seçeneği müziği tamamen kapatmaktı. `TextStyle`'ın kendi yorumu
+    /// "bir kanalın altyazı stilini değiştirmek tek satır olsun" diyordu
+    /// ve o satır hiçbir yerde yoktu.
+    public static Result<TimelineDocument> Build(
+        JsonElement runContext,
+        IReadOnlyList<string>? fontStack,
+        Canvas? canvasOverride,
+        CaptionStyle? captions,
+        MusicLevels? music)
     {
         if (!runContext.TryGetProperty("tts", out var tts)
             || !tts.TryGetProperty("segments", out var segmentsJson))
@@ -148,28 +164,14 @@ public static class TimelineBuilder
             RightToLeft = language.IsRightToLeft,
             Duration = total,
             FontStack = fontStack ?? ["Inter", "Noto Sans", "Segoe UI", "Arial"],
-            Audio = new AudioTrack { VoiceSegments = segments, Music = MusicFrom(runContext) },
+            Audio = new AudioTrack { VoiceSegments = segments, Music = MusicFrom(runContext, music ?? MusicLevels.Default) },
             Scenes = scenes,
             Captions = cues.Count > 0
                 ? new CaptionTrack { StyleRef = "caption", Cues = cues }
                 : null,
             Styles = new Dictionary<string, TextStyle>(StringComparer.Ordinal)
             {
-                ["caption"] = new()
-                {
-                    FontFamily = "Inter",
-                    SizePercent = 5.5,
-                    Bold = true,
-                    Color = "#FFFFFF",
-                    HighlightColor = "#FFD400",
-                    StrokeColor = "#000000",
-                    StrokeWidth = 8,
-                    BoxColor = "#000000",
-                    BoxOpacity = 0.35,
-                    Position = Anchor.BottomCenter,
-                    OffsetPercent = 22,
-                    MaxLines = 2,
-                },
+                ["caption"] = StyleFrom(captions ?? CaptionStyle.Default),
             },
             // ÖN AYAR TUVALDEN (P3-02): burada sabit `"shorts-1080x1920"`
             // yazıyordu ve 1920×1080 çıkan uzun videoda da öyle
@@ -378,7 +380,47 @@ public static class TimelineBuilder
         return starts;
     }
 
+    /// Kanal ayarını çizim katmanının stiline çevirir.
+    ///
+    /// ÇEVİRİ BURADA, `Core` İÇİNDE DEĞİL: `Anchor` çizim katmanının
+    /// tipi ve `Core` oraya bakmıyor. Ayar tarafında konum bir DİZGE ve
+    /// geçerli değerler `CaptionStyle.Positions` içinde doğrulanıyor —
+    /// yani buraya tanınmayan bir dizge gelmiyor.
+    internal static TextStyle StyleFrom(CaptionStyle style)
+        => new()
+        {
+            // ***`FontFamily` ARTIK OKUNUYOR.***
+            //
+            // Alan yazılıyor ve hiçbir yerde okunmuyordu: çizim
+            // `timeline.FontStack` kullanıyor. Boş bırakıldığında
+            // zincirin ilk yazı tipi geçerli; dolduğunda çizim onu
+            // zincirin BAŞINA alıyor (`CaptionRenderer`).
+            FontFamily = style.FontFamily ?? string.Empty,
+            SizePercent = style.SizePercent,
+            Bold = style.Bold,
+            Color = style.Color,
+            HighlightColor = style.HighlightColor,
+            StrokeColor = style.StrokeColor,
+            StrokeWidth = style.StrokeWidth,
+            BoxColor = style.BoxColor,
+            BoxOpacity = style.BoxOpacity,
+            Position = style.Position switch
+            {
+                "top_left" => Anchor.TopLeft,
+                "top_right" => Anchor.TopRight,
+                "bottom_left" => Anchor.BottomLeft,
+                "bottom_right" => Anchor.BottomRight,
+                "center" => Anchor.Center,
+                _ => Anchor.BottomCenter,
+            },
+            OffsetPercent = style.OffsetPercent,
+            MaxLines = style.MaxLines,
+        };
+
     internal static MusicBed? MusicFrom(JsonElement runContext)
+        => MusicFrom(runContext, MusicLevels.Default);
+
+    internal static MusicBed? MusicFrom(JsonElement runContext, MusicLevels levels)
     {
         if (!runContext.TryGetProperty("music", out var music)
             || music.ValueKind != JsonValueKind.Object)
@@ -428,13 +470,21 @@ public static class TimelineBuilder
         {
             Asset = reference.Value,
             License = license,
+            // SEVİYELER KANALDAN (P3-01): önceden yalnızca kayıt
+            // varsayılanıydı ve müziği biraz öne çıkarmak isteyen bir
+            // kanalın tek seçeneği müziği tamamen KAPATMAKTI.
+            GainDb = levels.GainDb,
+            FadeIn = new Ms(levels.FadeInMs),
+            FadeOut = new Ms(levels.FadeOutMs),
+
             // DUCKING VARSAYILAN OLARAK AÇIK.
             //
             // Kapalı olsaydı müzik konuşmanın üstüne biner ve bunu
             // ancak videoyu dinleyen biri fark ederdi — mekanik QC
             // ses seviyesine bakıyor ama "hangi ses" sorusuna cevap
-            // veremiyor.
-            Ducking = new DuckingSpec(),
+            // veremiyor. Kapatmak artık MÜMKÜN ama açık bir karar:
+            // `music.ducking: false`.
+            Ducking = levels.Ducking ? new DuckingSpec { TargetGainDb = levels.DuckingDb } : null,
         };
     }
 }

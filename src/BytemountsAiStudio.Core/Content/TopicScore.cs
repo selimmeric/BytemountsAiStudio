@@ -132,34 +132,47 @@ public static class TopicPolicy
     public const int RiskVeto = 70;
 
     public static TopicDecision Decide(
-        TopicScore score, double? highestSimilarity = null, ScoreWeights? weights = null)
+        TopicScore score,
+        double? highestSimilarity = null,
+        ScoreWeights? weights = null,
+        TopicThresholds? thresholds = null)
     {
         ArgumentNullException.ThrowIfNull(score);
 
         weights ??= ScoreWeights.Default;
+
+        // ***EŞİKLER DE KANALDAN GELEBİLİYOR.***
+        //
+        // Ağırlıklar zaten kanal ayarına taşınmıştı, eşikler koda
+        // gömülüydü ve ikisi BİRBİRİNE BAĞLI: ağırlıkları kaydıran bir
+        // kanalda toplam skor dağılımı da kayıyor ve 65 eşiği başka bir
+        // anlama geliyor — havuz ya hiçbir konuyu kabul etmiyor ya
+        // hepsini. Yarısı ayarlanabilir bir kararın diğer yarısı da
+        // ayarlanabilir olmalı.
+        thresholds ??= TopicThresholds.Default;
 
         if (!score.IsValid)
         {
             return TopicDecision.Reject;
         }
 
-        if (score.Risk >= RiskVeto)
+        if (score.Risk >= thresholds.RiskVeto)
         {
             return TopicDecision.Reject;
         }
 
         // Tekrar REDDEDILIYOR, beklemeye alınmıyor: bir konu daha önce
         // yayınlandıysa bekleyerek tekrar olmaktan çıkmıyor.
-        if (highestSimilarity >= SimilarityThreshold)
+        if (highestSimilarity >= thresholds.Similarity)
         {
             return TopicDecision.Reject;
         }
 
         var overall = score.Weighted(weights);
 
-        return overall >= AcceptThreshold
+        return overall >= thresholds.Accept
             ? TopicDecision.Accept
-            : overall >= RejectThreshold
+            : overall >= thresholds.Reject
                 ? TopicDecision.Hold
                 : TopicDecision.Reject;
     }
@@ -197,5 +210,73 @@ public static class TopicPolicy
         }
 
         return dot / (Math.Sqrt(normA) * Math.Sqrt(normB));
+    }
+}
+
+/// Konu havuzu eşikleri — kanal başına ayarlanabilir (P1-08).
+///
+/// ***EŞİKLER VE AĞIRLIKLAR AYRILAMAZ.*** Ağırlıklar kanal ayarına
+/// taşınmıştı (`score_weights`), eşikler koda gömülü kalmıştı. Ağırlığı
+/// kaydıran bir kanalda toplam skorun dağılımı da kayıyor ve 65 eşiği
+/// başka bir anlama geliyor: havuz ya hiçbir konuyu kabul etmiyor ya
+/// hepsini kabul ediyor. Kararın yarısını ayarlanabilir yapıp diğer
+/// yarısını sabitlemek, ayarı çalışır göstermeden bırakmaktı.
+///
+/// `similarity` özellikle dile ve alana duyarlı: dar bir alanda
+/// (yalnızca tarih içeren bir kanal) gömme vektörleri doğal olarak
+/// birbirine yakın ve 0,88 farklı konuları "tekrar" sayabiliyor.
+public sealed record TopicThresholds
+{
+    /// Bu skorun üstü doğrudan kuyruğa.
+    public double Accept { get; init; } = TopicPolicy.AcceptThreshold;
+
+    /// Bu skorun altı reddediliyor.
+    public double Reject { get; init; } = TopicPolicy.RejectThreshold;
+
+    /// Bu benzerliğin üstündeki konu TEKRAR sayılıyor.
+    public double Similarity { get; init; } = TopicPolicy.SimilarityThreshold;
+
+    /// Riskin tek başına reddettirdiği eşik.
+    public int RiskVeto { get; init; } = TopicPolicy.RiskVeto;
+
+    public static TopicThresholds Default { get; } = new();
+
+    /// `topic_thresholds` bloğunu okur.
+    ///
+    /// KABUL EŞİĞİ RED EŞİĞİNİN ALTINA İNEMİYOR: inseydi "beklet"
+    /// aralığı ters çevrilir ve karar tablosu anlamsızlaşırdı — kabul
+    /// edilen bir skor aynı anda reddedilmiş de olurdu.
+    public static TopicThresholds Read(System.Text.Json.JsonElement root, List<string> warnings)
+    {
+        ArgumentNullException.ThrowIfNull(warnings);
+
+        if (!root.TryGetProperty("topic_thresholds", out var block)
+            || block.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            return Default;
+        }
+
+        var accept = SettingsJson.Double(block, "accept", warnings, Default.Accept, min: 0, max: 100);
+        var reject = SettingsJson.Double(block, "reject", warnings, Default.Reject, min: 0, max: 100);
+
+        if (accept < reject)
+        {
+            warnings.Add(
+                $"`topic_thresholds.accept` ({accept}) red eşiğinin ({reject}) altında; "
+                + "varsayılanlar kullanılıyor");
+
+            accept = Default.Accept;
+            reject = Default.Reject;
+        }
+
+        return new TopicThresholds
+        {
+            Accept = accept,
+            Reject = reject,
+            Similarity = SettingsJson.Double(block, "similarity", warnings,
+                Default.Similarity, min: 0.5, max: 1.0),
+            RiskVeto = (int)SettingsJson.Double(block, "risk_veto", warnings,
+                Default.RiskVeto, min: 1, max: 100),
+        };
     }
 }

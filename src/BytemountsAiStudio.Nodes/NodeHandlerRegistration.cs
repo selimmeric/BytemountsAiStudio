@@ -55,9 +55,19 @@ public static class NodeHandlerRegistration
         ITopicUniqueness uniqueness,
         IChannelPolicy channels,
         ProviderPipeline? pipeline,
-        string ffmpegPath = "ffmpeg",
-        string ffprobePath = "ffprobe")
+        string? ffmpegPath = null,
+        string? ffprobePath = null)
     {
+        // FFMPEG YOLU ORTAMDAN DA GELEBILIYOR (`BMAI_FFMPEG`).
+        //
+        // Once yalnizca parametreydi ve hicbir host onu VERMIYORDU:
+        // hepsi `PATH`'teki "ffmpeg"e dusuyordu. Windows'ta ffmpeg
+        // `PATH`'te degilse render her kosuda dusuyor ve tek cozum
+        // MAKINENIN `PATH`'ini degistirmek oluyordu; ayni makinede iki
+        // farkli ffmpeg surumu kullanmak imkansizdi.
+        ffmpegPath = Media.Rendering.MediaTools.Ffmpeg(ffmpegPath);
+        ffprobePath = Media.Rendering.MediaTools.Ffprobe(ffprobePath);
+
         var fakeLlm = new FakeLlmProvider
         {
             // SAHTE MAKALE, GEÇERLİ BİÇİMDE (P6-04). Denetim başlık,
@@ -205,7 +215,7 @@ public static class NodeHandlerRegistration
             // kontrolünün her koşuda "ölçülmedi" diye düşmesiydi — ve o
             // BLOKLAYICI bir kontrol, yani hiçbir video otomatik
             // geçemiyordu.
-            .Register(new ThumbnailRenderHandler(storage))
+            .Register(new ThumbnailRenderHandler(storage, channels))
             .Register(new QualityCheckHandler(storage))
             // SEMANTİK QC GÖRME MODELİ OLMADAN KAYITLI.
             //
@@ -243,9 +253,19 @@ public static class NodeHandlerRegistration
         ITopicUniqueness uniqueness,
         IChannelPolicy channels,
         ProviderPipeline? pipeline,
-        string ffmpegPath = "ffmpeg",
-        string ffprobePath = "ffprobe")
+        string? ffmpegPath = null,
+        string? ffprobePath = null)
     {
+        // FFMPEG YOLU ORTAMDAN DA GELEBILIYOR (`BMAI_FFMPEG`).
+        //
+        // Once yalnizca parametreydi ve hicbir host onu VERMIYORDU:
+        // hepsi `PATH`'teki "ffmpeg"e dusuyordu. Windows'ta ffmpeg
+        // `PATH`'te degilse render her kosuda dusuyor ve tek cozum
+        // MAKINENIN `PATH`'ini degistirmek oluyordu; ayni makinede iki
+        // farkli ffmpeg surumu kullanmak imkansizdi.
+        ffmpegPath = Media.Rendering.MediaTools.Ffmpeg(ffmpegPath);
+        ffprobePath = Media.Rendering.MediaTools.Ffprobe(ffprobePath);
+
         // Yerel LLM TEK YERDE kuruluyor.
         //
         // Dort ayri yerde `new OllamaLlmProvider(http)` yazmak, ortam
@@ -362,7 +382,7 @@ public static class NodeHandlerRegistration
             // kontrolünün her koşuda "ölçülmedi" diye düşmesiydi — ve o
             // BLOKLAYICI bir kontrol, yani hiçbir video otomatik
             // geçemiyordu.
-            .Register(new ThumbnailRenderHandler(storage))
+            .Register(new ThumbnailRenderHandler(storage, channels))
             // QC HER İKİ hatta da: skoru üreten tek yer burası ve
             // olmadan onay kapısı hep "skor yok" görüyor, yani
             // seçici onay hiç devreye giremiyor (P2-08).

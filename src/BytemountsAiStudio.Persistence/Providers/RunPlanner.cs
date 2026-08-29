@@ -43,11 +43,32 @@ public sealed class RunPlanner(
 {
     /// Bir kanalda aynı anda kaç run.
     ///
-    /// BİR: paralel run'lar bütçeyi QC'nin sorunu yakalamasından daha
-    /// hızlı harcıyor. Aynı kusuru taşıyan beş videoyu aynı anda
-    /// üretmek yerine, birincisi QC'den geçsin diye beklemek —
-    /// hedefli retry (P2-07) da ancak böyle bir şey öğretiyor.
-    public const int MaxConcurrentRunsPerChannel = 1;
+    /// VARSAYILAN BİR: paralel run'lar bütçeyi QC'nin sorunu
+    /// yakalamasından daha hızlı harcıyor. Aynı kusuru taşıyan beş
+    /// videoyu aynı anda üretmek yerine, birincisi QC'den geçsin diye
+    /// beklemek — hedefli retry (P2-07) da ancak böyle bir şey
+    /// öğretiyor.
+    ///
+    /// ***AMA SABİT DEĞİL, ÇÜNKÜ HEDEF SABİT DEĞİL.*** Günde 10 video
+    /// hedefleyen bir kanal videoları yalnızca SERİ üretebiliyordu: bir
+    /// run bitmeden ikincisi başlamıyordu ve `WaitingApproval`
+    /// durumundaki bir run bile sayılıyordu — yani insan onayını
+    /// bekleyen TEK video bütün kanalı durduruyordu. On altı çekirdekli
+    /// bir makinede `BMAI_CONCURRENCY_RENDER=4` verilse bile kanal
+    /// başına tek run olduğu için eşzamanlılık kullanılamıyordu.
+    ///
+    /// Bir kanalın günlük hedefi ile eşzamanlılığı ayrı ayarlar:
+    /// hedefi büyütmek riski otomatik büyütmemeli.
+    public const int DefaultMaxConcurrentRunsPerChannel = 1;
+
+    public const string ConcurrencyVariable = "BMAI_RUNS_PER_CHANNEL";
+
+    public static int MaxConcurrentRunsPerChannel
+        => int.TryParse(Environment.GetEnvironmentVariable(ConcurrencyVariable),
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0
+                ? value
+                : DefaultMaxConcurrentRunsPerChannel;
 
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 

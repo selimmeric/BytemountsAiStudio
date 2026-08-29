@@ -106,6 +106,28 @@ public sealed record OllamaOptions
             options = options with { EmbeddingModel = embedding };
         }
 
+        // ***ZAMAN AŞIMI DA AYARLANABİLİR OLMAK ZORUNDA.***
+        //
+        // Adres ve model adları okunuyordu, süre okunmuyordu — ve ikisi
+        // BİRBİRİNE BAĞLI: bu dosyanın kendi notu `BMAI_OLLAMA_MODEL_STRONG`
+        // ile 14B model açılabileceğini söylüyor, 14B model ilk çağrıda
+        // diske bağlı olarak beş dakikadan uzun sürede yükleniyor. O
+        // durumda her istek zaman aşımına uğruyor, model yüklenmeyi
+        // bitirmeden istek iptal ediliyor ve döngü kendini tekrar
+        // ediyordu: kullanıcı modeli ayarlayabiliyor ama o modelin
+        // çalışabilmesi için gereken süreyi ayarlayamıyordu.
+        //
+        // SIFIR VE NEGATİF REDDEDİLİYOR: sıfır saniyelik zaman aşımı
+        // her isteği anında iptal ederdi ve bunu bir yazım hatasıyla
+        // elde etmek mümkün olurdu.
+        if (read("BMAI_OLLAMA_TIMEOUT") is { Length: > 0 } timeout
+            && int.TryParse(timeout, System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var seconds)
+            && seconds > 0)
+        {
+            options = options with { Timeout = TimeSpan.FromSeconds(seconds) };
+        }
+
         return options;
     }
 }

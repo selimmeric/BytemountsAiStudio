@@ -45,6 +45,24 @@ public sealed record ChannelSettings
     /// çizilemezdi.
     public IReadOnlyList<string>? FontStack { get; init; }
 
+    /// Konu havuzu eşikleri (P1-08).
+    ///
+    /// Ağırlıklarla BİRLİKTE ayarlanabilir olmak zorunda: ağırlığı
+    /// kaydıran bir kanalda skor dağılımı da kayıyor ve sabit bir eşik
+    /// başka bir anlama geliyor.
+    public Content.TopicThresholds TopicThresholds { get; init; } = Content.TopicThresholds.Default;
+
+    /// Altyazı görünümü (P3-01).
+    ///
+    /// AYRI BİR BLOK, düz alanlar değil: on iki alanın hepsini kanal
+    /// ayarının köküne dökmek, hangi ayarın neyi etkilediğini
+    /// okunamaz hâle getirirdi. `caption_style` bloğu bir arada
+    /// duruyor ve blok yoksa varsayılan geçerli.
+    public Content.CaptionStyle Captions { get; init; } = Content.CaptionStyle.Default;
+
+    /// Müzik seviyeleri (P3-01).
+    public Content.MusicLevels Music { get; init; } = Content.MusicLevels.Default;
+
     /// Onay rejimi (P2-08).
     public ChannelMode? Mode { get; init; }
 
@@ -124,6 +142,9 @@ public sealed record ChannelSettings
             WorkflowKey = Text(root, "workflow_key"),
             VoiceId = ReadVoiceId(root),
             FontStack = ReadFontStack(root, warnings),
+            Captions = Content.CaptionStyle.Read(root, warnings),
+            TopicThresholds = Content.TopicThresholds.Read(root, warnings),
+            Music = Content.MusicLevels.Read(root, warnings),
             ScoreWeights = ScoreWeights.Read(root, warnings),
             DefaultVariants = ReadDefaultVariants(root, warnings),
             Warnings = warnings,

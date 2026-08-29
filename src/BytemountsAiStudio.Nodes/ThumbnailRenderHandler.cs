@@ -24,8 +24,17 @@ namespace BytemountsAiStudio.Nodes;
 /// SEO node'unun çıktısı. Önce koşsaydı kapakta konu adı yazardı —
 /// başlıkla kapak arasındaki tutarsızlık, izleyicinin tıkladığı şeyle
 /// gördüğü şeyin farklı olması demek.
-public sealed class ThumbnailRenderHandler(IStorageProvider storage) : INodeHandler
+public sealed class ThumbnailRenderHandler(
+    IStorageProvider storage, IChannelPolicy? channels = null) : INodeHandler
 {
+    /// Kapak yazı tipi zinciri — kanal ayarı yoksa.
+    ///
+    /// Timeline'daki varsayılanla AYNI liste olmak zorunda değil ve
+    /// aynı: iki farklı varsayılan, ayar yazmayan bir kanalda kapak ile
+    /// altyazının farklı yazı tipiyle çıkması demekti.
+    public static IReadOnlyList<string> DefaultFonts { get; } =
+        ["Inter", "Noto Sans", "Segoe UI", "Arial"];
+
     public string NodeType => "thumbnail.render";
 
     /// Ağa çıkmıyor, model çağırmıyor: en hafif sınıf.
@@ -82,8 +91,20 @@ public sealed class ThumbnailRenderHandler(IStorageProvider storage) : INodeHand
         // yazamadığını söylüyor.
         var drawn = ThumbnailVariant.ApplyCase(title, language, style.Uppercase);
 
-        var renderer = new ThumbnailRenderer(
-            ["Inter", "Noto Sans", "Segoe UI", "Arial"]);
+        // ***YAZI TİPİ ZİNCİRİ KANALDAN (P3-01).***
+        //
+        // Burada SABİTTİ ve timeline aynı değeri kanaldan okuyordu:
+        // `font_stack: ["Noto Sans Arabic", ...]` yazan bir kanalda
+        // altyazılar değişiyor, KAPAK DEĞİŞMİYORDU. Arapça ya da
+        // Japonca bir kanalda kapaktaki başlık tofu (kutu) karakterlerle
+        // çiziliyordu — ve kapak, kanalın arama sonuçlarında görünen tek
+        // görseli.
+        var fonts = channels is not null && context.ChannelId is { } thumbnailChannel
+            ? (await channels.SettingsAsync(thumbnailChannel, cancellationToken)
+                .ConfigureAwait(false))?.FontStack
+            : null;
+
+        var renderer = new ThumbnailRenderer(fonts ?? DefaultFonts);
 
         var rendered = renderer.Render(new ThumbnailRequest
         {

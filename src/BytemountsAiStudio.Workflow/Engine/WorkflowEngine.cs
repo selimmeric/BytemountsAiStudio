@@ -891,19 +891,61 @@ public sealed class WorkflowEngine(
     /// §8.1: kiralama süresi işin gerçek süresine yakın olmalı. Render için
     /// dakikalar, LLM için saniyeler. Hepsine aynı süreyi vermek ya çöken
     /// render'ı saatlerce takılı bırakır ya da uzun işi ortasında kaybettirir.
-    private static TimeSpan LeaseDurationFor(QueueClass queue) => queue switch
+    ///
+    /// ***SAYILAR ARTIK KUYRUK BAŞINA EZİLEBİLİYOR*** (`BMAI_LEASE_RENDER=120`).
+    ///
+    /// Eşzamanlılık zaten ezilebiliyordu (`BMAI_CONCURRENCY_RENDER`) ve
+    /// asimetri sorunu büyütüyordu: aynı makinede dört render koşturmak
+    /// her birini yavaşlatıyor, ama kiralama süresi sabit kaldığı için
+    /// yavaşlayan render'lar süresi dolmuş sayılabiliyordu. Atış (P0-06)
+    /// bunu büyük ölçüde çözdü; yine de makineye göre süre vermek
+    /// mümkün olmalı — atış da bir veritabanı kesintisinde
+    /// kaçırılabiliyor.
+    internal static TimeSpan LeaseDurationFor(QueueClass queue)
     {
-        QueueClass.Render => TimeSpan.FromMinutes(60),
-        QueueClass.Upload => TimeSpan.FromMinutes(30),
-        QueueClass.Align => TimeSpan.FromMinutes(15),
-        QueueClass.Tts or QueueClass.ImageGeneration => TimeSpan.FromMinutes(5),
-        _ => TimeSpan.FromMinutes(3),
-    };
+        var minutes = queue switch
+        {
+            QueueClass.Render => 60,
+            QueueClass.Upload => 30,
+            QueueClass.Align => 15,
+            QueueClass.Tts or QueueClass.ImageGeneration => 5,
+            _ => 3,
+        };
 
-    private static int MaxAttemptsFor(QueueClass queue) => queue switch
+        return TimeSpan.FromMinutes(PerQueue("BMAI_LEASE_", queue, minutes));
+    }
+
+    /// Deneme sayısı da kuyruk başına ezilebiliyor (`BMAI_ATTEMPTS_LLM=5`).
+    ///
+    /// Render için iki: bir render iki kez düştüyse üçüncü denemenin
+    /// farklı sonuçlanma ihtimali düşük ve her deneme dakikalar
+    /// harcıyor. Yükleme için beş: ağ hatası gerçekten geçici ve
+    /// yüklenecek video zaten üretilmiş — vazgeçmek en pahalı seçenek.
+    internal static int MaxAttemptsFor(QueueClass queue)
     {
-        QueueClass.Upload => 5,
-        QueueClass.Render or QueueClass.Align or QueueClass.ImageGeneration => 2,
-        _ => 3,
-    };
+        var attempts = queue switch
+        {
+            QueueClass.Upload => 5,
+            QueueClass.Render or QueueClass.Align or QueueClass.ImageGeneration => 2,
+            _ => 3,
+        };
+
+        return PerQueue("BMAI_ATTEMPTS_", queue, attempts);
+    }
+
+    /// `<ÖNEK><KUYRUK>` biçimindeki ortam değişkenini okur.
+    ///
+    /// Kuyruk adı BÜYÜK HARFE `InvariantCulture` ile çevriliyor:
+    /// Türkçe kültürde `"Llm".ToUpper()` "LLM" değil "LLM" veriyor ama
+    /// `"Align"` gibi `i` içeren bir ad "ALİGN" olurdu ve değişken adı
+    /// hiçbir zaman eşleşmezdi. Bu depoda aynı tuzağa birkaç kez
+    /// düşüldü; kuyruk adları bugün `i` içermiyor ama içerecekleri gün
+    /// hata sessiz olurdu.
+    private static int PerQueue(string prefix, QueueClass queue, int fallback)
+        => int.TryParse(
+            Environment.GetEnvironmentVariable(prefix + queue.ToString().ToUpperInvariant()),
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0
+                ? value
+                : fallback;
 }

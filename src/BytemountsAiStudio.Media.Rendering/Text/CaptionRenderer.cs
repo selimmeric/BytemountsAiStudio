@@ -126,8 +126,26 @@ public sealed class CaptionRenderer(IReadOnlyList<string> fontStack)
         // `TextStyle.Bold` timeline'da true olduğu hâlde çizim ince
         // yüzle yapılıyordu: ayar vardı, etkisi yoktu. Kapak üretimi
         // yazılırken aynı hatanın izi sürülüp buraya kadar geldi.
+        // ***`style.FontFamily` ARTIK OKUNUYOR.***
+        //
+        // Alan `TextStyle` içinde yazılıyor ve HİÇBİR YERDE
+        // OKUNMUYORDU: çizim yalnızca belge düzeyindeki `FontStack`'e
+        // bakıyordu. Yani timeline JSON'unda yazı tipi adını
+        // değiştiren biri hiçbir fark görmüyordu — bu depoda tekrar
+        // eden "kaydediliyor, okunmuyor" sınıfının bir örneği daha.
+        //
+        // ZİNCİRİN BAŞINA EKLENİYOR, ZİNCİRİ DEĞİŞTİRMİYOR: tek bir
+        // yazı tipi adı bir yedek zinciri değil. İstenen yüz sistemde
+        // yoksa ya da metindeki karakterleri kapsamıyorsa (Arapça,
+        // Japonca) çizim zincirin geri kalanına düşüyor. Zinciri
+        // tamamen değiştirmek, o kanalda hiçbir altyazının
+        // çizilememesi demek olabilirdi.
+        var fonts = string.IsNullOrWhiteSpace(style.FontFamily)
+            ? fontStack
+            : new[] { style.FontFamily }.Concat(fontStack).ToList();
+
         using var typeface = FontResolver.Resolve(
-            fontStack, string.Concat(words), style.Bold, _fonts.Value);
+            fonts, string.Concat(words), style.Bold, _fonts.Value);
         using var font = new SKFont(typeface, fontSize);
 
         // Kelimeler tek tek ölçülüp yerleştiriliyor: vurgulanan kelimenin

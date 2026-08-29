@@ -117,4 +117,37 @@ public sealed class OllamaOptionsTests
         Assert.Equal(new Uri("https://ollama.example.com"), options.BaseAddress);
         Assert.Equal("llama3.1:70b", options.Models[ModelTier.Standard]);
     }
+
+    /// ***ZAMAN AŞIMI DA OKUNUYOR.***
+    ///
+    /// Adres ve model adları okunuyordu, süre okunmuyordu — ve ikisi
+    /// birbirine bağlı: bu dosyanın sınadığı `BMAI_OLLAMA_MODEL_STRONG`
+    /// ile 14B model açılabiliyor, 14B model ilk çağrıda beş dakikadan
+    /// uzun sürede yükleniyor ve her istek zaman aşımına uğruyordu.
+    /// Kullanıcı modeli ayarlayabiliyor ama o modelin çalışabilmesi
+    /// için gereken süreyi ayarlayamıyordu.
+    [Fact]
+    public void ZamanAsimi_OrtamdanOkunuyor()
+    {
+        var options = OllamaOptions.From(name =>
+            name == "BMAI_OLLAMA_TIMEOUT" ? "900" : null);
+
+        Assert.Equal(TimeSpan.FromMinutes(15), options.Timeout);
+    }
+
+    /// SIFIR VE NEGATIF REDDEDILIYOR.
+    ///
+    /// Sıfır saniyelik zaman aşımı her isteği anında iptal ederdi ve
+    /// bunu bir yazım hatasıyla elde etmek mümkün olurdu.
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-30")]
+    [InlineData("bes dakika")]
+    public void GecersizZamanAsimi_VarsayilanKaliyor(string raw)
+    {
+        var options = OllamaOptions.From(name =>
+            name == "BMAI_OLLAMA_TIMEOUT" ? raw : null);
+
+        Assert.Equal(TimeSpan.FromMinutes(5), options.Timeout);
+    }
 }
