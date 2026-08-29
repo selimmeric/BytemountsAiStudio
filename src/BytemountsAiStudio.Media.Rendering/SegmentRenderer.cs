@@ -51,6 +51,16 @@ public sealed class SegmentRenderer(
         TimelineDocument timeline,
         IReadOnlyDictionary<string, string> resolvedPaths,
         string outputPath,
+        // ***ALTYAZI KATMANLARI: SEGMENTLERE DEGIL, BIRLESTIRILMIS
+        // VIDEOYA BINIYOR.*** Segmentler altyazisiz kaliyor ve
+        // onbellekte oyle duruyorlar -- retry'da bir altyazi
+        // degisirse sahneler yeniden kodlanmadan yalnizca bindirme
+        // tekrarlaniyor. Kazanc tam da burada.
+        //
+        // Parametre sonradan eklendi ve sebebi bir hata: bu yol
+        // altyaziyi HIC BINMIYORDU ve uzun video grafinin VARSAYILANI
+        // bu yol. Her uzun video altyazisiz cikiyordu.
+        IReadOnlyList<RenderPlanner.TimedLayer>? overlays = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(timeline);
@@ -113,7 +123,8 @@ public sealed class SegmentRenderer(
         try
         {
             var final = await MuxAudioAsync(
-                timeline, resolvedPaths, concatenated, outputPath, cancellationToken).ConfigureAwait(false);
+                timeline, resolvedPaths, concatenated, outputPath, overlays, cancellationToken)
+                .ConfigureAwait(false);
 
             if (final.IsFailure)
             {
@@ -231,9 +242,10 @@ public sealed class SegmentRenderer(
         IReadOnlyDictionary<string, string> resolvedPaths,
         string videoPath,
         string outputPath,
+        IReadOnlyList<RenderPlanner.TimedLayer>? overlays,
         CancellationToken cancellationToken)
     {
-        var plan = RenderPlanner.PlanOverVideo(timeline, resolvedPaths, videoPath);
+        var plan = RenderPlanner.PlanOverVideo(timeline, resolvedPaths, videoPath, overlays);
 
         if (!plan.IsSuccess)
         {

@@ -1319,8 +1319,16 @@ public sealed class MediaRenderHandler(
         {
             var cache = Path.Combine(outputDirectory, "segment-onbellek");
 
+            // ***ALTYAZI KATMANLARI DA GECIYOR.***
+            //
+            // Gecmiyordu ve uzun video grafi bu yolu VARSAYILAN olarak
+            // kullaniyor: her uzun video ALTYAZISIZ cikiyordu.
+            // Timeline'da altyazi vardi, `caption_count` dogru sayiyi
+            // yaziyordu, sure ve cozunurluk dogruydu -- eksik olan
+            // yalnizca goruntunun uzerindeki yaziydi ve mekanik QC
+            // piksele bakmiyor.
             var segmented = await new SegmentRenderer(cache, ffmpegPath, ffprobePath)
-                .RenderAsync(timeline, paths, outputPath, cancellationToken)
+                .RenderAsync(timeline, paths, outputPath, overlays, cancellationToken)
                 .ConfigureAwait(false);
 
             if (segmented.IsFailure)

@@ -33,10 +33,97 @@ public static class RenderPlanner
     /// kurmak, ducking ve müzik mantığının iki yerde yaşaması ve
     /// zamanla ayrışması demekti — ve o ayrışmanın belirtisi, sesin
     /// yalnızca bir render yolunda doğru çıkması olurdu.
+    /// Zamanlanmis katmanlari (altyazi kareleri) video zincirine bindirir.
+    ///
+    /// ***ORTAK METOT OLMAK ZORUNDA: iki render yolu var.*** Tek
+    /// gecisli plan bunu cagiriyordu, birlestirme sonrasi plan
+    /// (`PlanOverVideo`) CAGIRMIYORDU -- ve uzun video grafinin
+    /// VARSAYILAN yolu o. Sonucu: her uzun video ALTYAZISIZ
+    /// cikiyordu. Timeline'da altyazi vardi, `caption_count` dogru
+    /// sayiyi yaziyordu, sure ve cozunurluk dogruydu; eksik olan sey
+    /// yalnizca goruntunun uzerindeki yaziydi ve mekanik QC piksele
+    /// bakmiyor.
+    private static StreamRef ApplyOverlays(
+        TimelineDocument timeline,
+        IReadOnlyList<TimedLayer>? overlays,
+        List<InputDecl> inputs,
+        List<FilterNode> nodes,
+        StreamRef videoTail,
+        double fps)
+    {
+        if (overlays is not { Count: > 0 })
+        {
+            return videoTail;
+        }
+
+        var totalSeconds = timeline.Duration.TotalSeconds;
+
+        for (var i = 0; i < overlays.Count; i++)
+        {
+            var layer = overlays[i];
+            var inputId = $"ovl{i}";
+
+            // KATMAN YALNIZCA KENDI PENCERESI KADAR URETILIYOR.
+            //
+            // Eskiden her katman VIDEONUN TAMAMI boyunca donguye
+            // aliniyor ve ne zaman gorunecegini yalnizca `enable`
+            // belirliyordu. 48 saniyelik bir videoda 97 altyazi
+            // icin 97 x 1.440 = 140.000 kare uretiliyordu -- her
+            // biri bir saniyeden kisa gorunen katmanlar icin.
+            //
+            // Olculdu: tek render 31,5 GB bellek ve 280 saniye.
+            // Uc render ayni makinede kosunca 64 GB RAM tukendi.
+            //
+            // Eski yorum "girdiyi kendi araligina kirpmak
+            // overlay'in zaman eksenini kaydirirdi" diyordu ve
+            // DOGRUYDU; eksik olan sey `-itsoffset` idi.
+            var windowSeconds = Math.Max(
+                1.0 / fps, layer.Range.Duration.TotalSeconds);
+
+            inputs.Add(new InputDecl
+            {
+                Id = inputId,
+                Path = layer.Path,
+                Kind = InputKind.Image,
+                Loop = true,
+                DurationSeconds = windowSeconds,
+                OffsetSeconds = layer.Range.Start.TotalSeconds,
+                FrameRate = fps,
+            });
+
+            var next = new StreamRef($"ovlout{i}", MediaKind.Video);
+
+            nodes.Add(FilterNode.Overlay(
+                videoTail,
+                new StreamRef(inputId, MediaKind.Video),
+                next,
+                enable: (layer.Range.Start.TotalSeconds, layer.Range.End.TotalSeconds)));
+
+            videoTail = next;
+        }
+
+        return videoTail;
+    }
+
+    /// ***`overlays` PARAMETRESI SONRADAN EKLENDI VE SEBEBI BIR HATA.***
+    ///
+    /// Bu plan birlestirilmis videoya sesi biniyor ve ALTYAZIYI HIC
+    /// BINMIYORDU. Uzun video grafi `segmented: true` kullaniyor, yani
+    /// bu YOL ONUN VARSAYILANI: her uzun video altyazisiz cikiyordu.
+    ///
+    /// Timeline'da altyazi vardi, node ciktisi `caption_count` ile
+    /// dogru sayiyi yaziyordu, sure ve cozunurluk dogruydu. Eksik olan
+    /// tek sey goruntunun uzerindeki yaziydi ve mekanik QC piksele
+    /// bakmiyor -- yani hicbir kontrol bunu yakalayamazdi.
+    ///
+    /// Ustelik tek gecisli yoldaki yorum "birlestirmeden sonra
+    /// bindirmek bu sorunu tamamen ortadan kaldiriyor" diyerek tam da
+    /// bu noktayi tarif ediyordu; katman burada uygulanmiyordu.
     public static Result PlanOverVideo(
         TimelineDocument timeline,
         IReadOnlyDictionary<string, string> resolvedPaths,
-        string videoPath)
+        string videoPath,
+        IReadOnlyList<TimedLayer>? overlays = null)
     {
         ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(resolvedPaths);
@@ -56,8 +143,15 @@ public static class RenderPlanner
         // Biçim yine de uygulanıyor: birleştirilmiş dosya doğru piksel
         // biçiminde olsa bile, olduğunu VARSAYMAK bazı cihazlarda hiç
         // açılmayan bir video demekti.
-        nodes.Add(FilterNode.Format(
-            new StreamRef("prerendered", MediaKind.Video), videoOut, timeline.Output.PixelFormat));
+        // ALTYAZI KATMANLARI BURADA BINIYOR: birlestirmeden SONRA,
+        // yani segmentler bunlari hic gormuyor ve onbellekte
+        // altyazisiz duruyorlar. Retry'da sahne yeniden kodlanmadan
+        // altyazi degistirilebiliyor -- kazanc da burada.
+        var videoTail = ApplyOverlays(
+            timeline, overlays, inputs, nodes,
+            new StreamRef("prerendered", MediaKind.Video), timeline.Canvas.Fps);
+
+        nodes.Add(FilterNode.Format(videoTail, videoOut, timeline.Output.PixelFormat));
 
         var audioOut = BuildAudio(timeline, resolvedPaths, inputs, nodes, issues);
 
@@ -262,54 +356,7 @@ public static class RenderPlanner
         // Sahne bazinda bindirmek daha "dogru" gorunurdu ama altyazi sahne
         // sinirini asabiliyor; birlestirmeden sonra bindirmek bu sorunu
         // tamamen ortadan kaldiriyor.
-        if (overlays is { Count: > 0 })
-        {
-            var totalSeconds = timeline.Duration.TotalSeconds;
-
-            for (var i = 0; i < overlays.Count; i++)
-            {
-                var layer = overlays[i];
-                var inputId = $"ovl{i}";
-
-                // KATMAN YALNIZCA KENDI PENCERESI KADAR URETILIYOR.
-                //
-                // Eskiden her katman VIDEONUN TAMAMI boyunca donguye
-                // aliniyor ve ne zaman gorunecegini yalnizca `enable`
-                // belirliyordu. 48 saniyelik bir videoda 97 altyazi
-                // icin 97 x 1.440 = 140.000 kare uretiliyordu -- her
-                // biri bir saniyeden kisa gorunen katmanlar icin.
-                //
-                // Olculdu: tek render 31,5 GB bellek ve 280 saniye.
-                // Uc render ayni makinede kosunca 64 GB RAM tukendi.
-                //
-                // Eski yorum "girdiyi kendi araligina kirpmak
-                // overlay'in zaman eksenini kaydirirdi" diyordu ve
-                // DOGRUYDU; eksik olan sey `-itsoffset` idi.
-                var windowSeconds = Math.Max(
-                    1.0 / fps, layer.Range.Duration.TotalSeconds);
-
-                inputs.Add(new InputDecl
-                {
-                    Id = inputId,
-                    Path = layer.Path,
-                    Kind = InputKind.Image,
-                    Loop = true,
-                    DurationSeconds = windowSeconds,
-                    OffsetSeconds = layer.Range.Start.TotalSeconds,
-                    FrameRate = fps,
-                });
-
-                var next = new StreamRef($"ovlout{i}", MediaKind.Video);
-
-                nodes.Add(FilterNode.Overlay(
-                    videoTail,
-                    new StreamRef(inputId, MediaKind.Video),
-                    next,
-                    enable: (layer.Range.Start.TotalSeconds, layer.Range.End.TotalSeconds)));
-
-                videoTail = next;
-            }
-        }
+        videoTail = ApplyOverlays(timeline, overlays, inputs, nodes, videoTail, fps);
 
         // KALICI KATMANLAR (filigran) EN ÜSTTE.
         //

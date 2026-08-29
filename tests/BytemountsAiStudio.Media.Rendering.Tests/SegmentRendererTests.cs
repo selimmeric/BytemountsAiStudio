@@ -136,7 +136,7 @@ public sealed class SegmentRendererTests : IDisposable
         var (first, paths) = Build("red", "green", "blue");
 
         var run1 = await renderer.RenderAsync(
-            first, paths, Path.Combine(_root, "ilk.mp4"), CancellationToken.None);
+            first, paths, Path.Combine(_root, "ilk.mp4"), null, CancellationToken.None);
 
         Assert.True(run1.IsSuccess, run1.IsFailure ? run1.Error.Message : string.Empty);
         Assert.Equal(3, run1.Value.Rendered);
@@ -146,7 +146,7 @@ public sealed class SegmentRendererTests : IDisposable
         var (second, paths2) = Build("red", "yellow", "blue");
 
         var run2 = await renderer.RenderAsync(
-            second, paths2, Path.Combine(_root, "ikinci.mp4"), CancellationToken.None);
+            second, paths2, Path.Combine(_root, "ikinci.mp4"), null, CancellationToken.None);
 
         Assert.True(run2.IsSuccess, run2.IsFailure ? run2.Error.Message : string.Empty);
 
@@ -166,10 +166,10 @@ public sealed class SegmentRendererTests : IDisposable
 
         var (timeline, paths) = Build("red", "green");
 
-        await renderer.RenderAsync(timeline, paths, Path.Combine(_root, "a.mp4"), CancellationToken.None);
+        await renderer.RenderAsync(timeline, paths, Path.Combine(_root, "a.mp4"), null, CancellationToken.None);
 
         var again = await renderer.RenderAsync(
-            timeline, paths, Path.Combine(_root, "b.mp4"), CancellationToken.None);
+            timeline, paths, Path.Combine(_root, "b.mp4"), null, CancellationToken.None);
 
         Assert.True(again.IsSuccess, again.IsFailure ? again.Error.Message : string.Empty);
         Assert.Equal(0, again.Value.Rendered);
@@ -192,7 +192,7 @@ public sealed class SegmentRendererTests : IDisposable
         var (timeline, paths) = Build("red", "green", "blue");
         var output = Path.Combine(_root, "sesli.mp4");
 
-        var result = await renderer.RenderAsync(timeline, paths, output, CancellationToken.None);
+        var result = await renderer.RenderAsync(timeline, paths, output, null, CancellationToken.None);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
         Assert.True(File.Exists(output));
@@ -249,7 +249,7 @@ public sealed class SegmentRendererTests : IDisposable
 
         var result = await renderer.RenderAsync(
             timeline, new Dictionary<string, string>(StringComparer.Ordinal),
-            Path.Combine(_root, "yok.mp4"), CancellationToken.None);
+            Path.Combine(_root, "yok.mp4"), null, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("segment.no_scenes", result.Error.Code);
