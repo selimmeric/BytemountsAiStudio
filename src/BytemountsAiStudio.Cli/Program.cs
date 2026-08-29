@@ -267,7 +267,18 @@ static async Task<int> CollectMetricsAsync(StudioDbContext db)
 {
     using var http = new HttpClient();
 
-    var collector = new MetricsCollector(db, new YouTubeAnalyticsProvider(http));
+    // KIMLIK SIFRELI DEPODAN: `bmai credential set youtube-analytics`
+    // ile girilen anahtar buradan ulasiyor. Onceden yalnizca ortam
+    // degiskeni okunuyordu -- depoya yazilan anahtar olu veriydi.
+    var catalog = ProviderCatalog.Load(PipelineSelection.CatalogPath());
+
+    var credentials = catalog.IsSuccess
+        ? DatabaseCredentialSource.Load(
+            new CredentialStore(db, KeyRing.Create()), catalog.Value, null)
+        : null;
+
+    var collector = new MetricsCollector(
+        db, new YouTubeAnalyticsProvider(http, credentials: credentials));
     var summary = await collector.CollectAsync(CancellationToken.None).ConfigureAwait(false);
 
     if (summary.IsFailure)

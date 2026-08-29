@@ -145,6 +145,21 @@ builder.Services.AddHostedService<StorageReadyService>();
 // bolumlemenin sessizce islevsizlesmesi demek.
 builder.Services.AddHostedService<PartitionService>();
 
+// ***OLCUM CEKIMI GUNDE BIR (P5-01).***
+//
+// `MetricsCollector` yazilmis ve YALNIZCA CLI'den cagrilabiliyordu:
+// worker'in alti arka plan servisinin hicbiri olcum toplamiyordu.
+// Planda P5-01'in adi "YouTube Analytics GUNLUK CEKIM" ve gunluk
+// cekimin tetigi hic yoktu -- biri her gun elle komut calistirmadikca
+// deney sonuclari asla gelmiyordu, yani ogrenme dongusu kapanmiyordu.
+//
+// ZAMANLAYICI GIBI KAPATILABILIR DEGIL ve olmasi da gerekmiyor:
+// olculecek yayin yoksa hicbir API cagrisi yapilmiyor. Anahtarsiz bir
+// kurulumda bu servis gunde bir kez bos donuyor ve tek satir bile log
+// yazmiyor.
+
+builder.Services.AddHostedService<MetricsService>();
+
 builder.Services.AddHostedService<QueueWorker>();
 
 // ---- ZAMANLAYICI (P2-01/02/12) ----
