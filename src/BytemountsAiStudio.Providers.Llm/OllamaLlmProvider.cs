@@ -45,6 +45,23 @@ public sealed record OllamaOptions
     /// Yerel model ilk çağrıda belleğe yükleniyor; bu birkaç dakika sürebilir.
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// ***MODELİ EKRAN KARTINA HİÇ YÜKLEME (`num_gpu: 0`).***
+    ///
+    /// Bu makinede ekran kartı, model yüklenirken sistemi düşürüyor —
+    /// yani yerel modelin sorunu modelin kendisi değil, GPU yolu.
+    /// `num_gpu: 0` Ollama'ya katmanların TAMAMINI CPU'da tutmasını
+    /// söylüyor: kart hiç açılmıyor.
+    ///
+    /// BEDELİ HIZ ve bu kabul edilebilir bir takas: 0,5B–1B bir model
+    /// CPU'da saniyeler mertebesinde cevap veriyor ve fabrikanın
+    /// hızını belirleyen şey zaten render. Alternatif — hiç yerel model
+    /// olmaması — senaryo üretimini tamamen durduruyor.
+    ///
+    /// VARSAYILAN KAPALI: çalışan bir kartı olan makinede modeli CPU'ya
+    /// hapsetmek, on kat yavaşlatmak demek. Bu bir DONANIM
+    /// yapılandırması ve donanımı bilen taraf onu açmalı.
+    public bool CpuOnly { get; init; }
+
     /// Ortam değişkenlerinden yapılandırma.
     ///
     /// Filodaki her makine aynı ikiliyi koşuyor; farklı olan yalnızca
@@ -120,6 +137,19 @@ public sealed record OllamaOptions
         // SIFIR VE NEGATİF REDDEDİLİYOR: sıfır saniyelik zaman aşımı
         // her isteği anında iptal ederdi ve bunu bir yazım hatasıyla
         // elde etmek mümkün olurdu.
+        // ***`BMAI_OLLAMA_CPU=1` — MODELİ KARTA HİÇ YÜKLEME.***
+        //
+        // Bu makinede kart, model yüklenirken sistemi düşürüyor.
+        // Ortam değişkeni olması şart: aynı ikili farklı makinelerde
+        // koşuyor ve bu bir DONANIM gerçeği, bir kod kararı değil.
+        if (read("BMAI_OLLAMA_CPU") is { Length: > 0 } cpu
+            && (string.Equals(cpu, "1", StringComparison.Ordinal)
+                || string.Equals(cpu, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(cpu, "on", StringComparison.OrdinalIgnoreCase)))
+        {
+            options = options with { CpuOnly = true };
+        }
+
         if (read("BMAI_OLLAMA_TIMEOUT") is { Length: > 0 } timeout
             && int.TryParse(timeout, System.Globalization.NumberStyles.Integer,
                 System.Globalization.CultureInfo.InvariantCulture, out var seconds)
@@ -206,6 +236,11 @@ public sealed class OllamaLlmProvider(HttpClient http, OllamaOptions? options = 
                 Temperature = request.Temperature,
                 NumPredict = request.MaxOutputTokens,
                 Seed = request.Seed,
+
+                // KART HİÇ AÇILMIYOR: `null` bırakmak "Ollama karar
+                // versin" demek ve Ollama varsayılan olarak kartı
+                // kullanıyor. Sıfır yazmak açık bir talimat.
+                NumGpu = _options.CpuOnly ? 0 : null,
             },
             // Zorunlu araç varsa çıktı şemaya kilitleniyor.
             Format = request.ForcedTool is { } tool
@@ -346,6 +381,14 @@ public sealed class OllamaLlmProvider(HttpClient http, OllamaOptions? options = 
         public int? NumPredict { get; init; }
 
         public int? Seed { get; init; }
+
+        /// Kaç katman ekran kartına yüklensin. Sıfır = hiçbiri.
+        ///
+        /// `null` ise ALAN HİÇ GÖNDERİLMİYOR (`JsonIgnoreCondition`
+        /// serileştiricide tanımlı) ve Ollama kendi varsayılanını
+        /// kullanıyor — yani kartı.
+        [JsonPropertyName("num_gpu")]
+        public int? NumGpu { get; init; }
     }
 
     private sealed record OllamaChatResponse

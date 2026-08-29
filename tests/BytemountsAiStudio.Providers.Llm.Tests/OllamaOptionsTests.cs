@@ -150,4 +150,34 @@ public sealed class OllamaOptionsTests
 
         Assert.Equal(TimeSpan.FromMinutes(5), options.Timeout);
     }
+
+    /* ---- CPU kipi ---- */
+
+    /// ***`BMAI_OLLAMA_CPU` MODELİ KARTA HİÇ YÜKLEMİYOR.***
+    ///
+    /// Bu makinede ekran kartı, model yüklenirken sistemi düşürüyor —
+    /// yani yerel modelin sorunu modelin kendisi değil, GPU yolu.
+    /// `num_gpu: 0` katmanların tamamını CPU'da tutuyor: kart hiç
+    /// açılmıyor. Bedeli hız ve bu kabul edilebilir bir takas —
+    /// alternatif, senaryo üretiminin tamamen durması.
+    [Theory]
+    [InlineData("1")]
+    [InlineData("true")]
+    [InlineData("on")]
+    [InlineData("ON")]
+    public void CpuKipi_Aciliyor(string raw)
+        => Assert.True(OllamaOptions.From(n => n == "BMAI_OLLAMA_CPU" ? raw : null).CpuOnly);
+
+    /// ***VARSAYILAN KAPALI.***
+    ///
+    /// Çalışan bir kartı olan makinede modeli CPU'ya hapsetmek, on kat
+    /// yavaşlatmak demek. Bu bir DONANIM yapılandırması ve donanımı
+    /// bilen taraf onu açmalı.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("0")]
+    [InlineData("hayir")]
+    public void VarsayilanVeAnlamsizDeger_Kapali(string? raw)
+        => Assert.False(OllamaOptions.From(n => n == "BMAI_OLLAMA_CPU" ? raw : null).CpuOnly);
 }

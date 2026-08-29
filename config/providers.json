@@ -21,7 +21,7 @@
       "endpoint_env": "BMAI_OLLAMA_URL",
       "quality": "orta",
       "setup": "ollama pull qwen2.5:7b-instruct && ollama pull paraphrase-multilingual",
-      "notes": "Yerel calisir, sinirsiz, ag gerektirmez. Adres UZAK OLABILIR: zayif makineler (2 GB ekran karti) hicbir model kosturamiyor ve BMAI_OLLAMA_URL ile guclu makineye ya da disaridaki bir servise baglaniyor. Bkz. docs/DONANIM-VE-MODEL.md.",
+      "notes": "Yerel calisir, sinirsiz, ag gerektirmez. Adres UZAK OLABILIR: zayif makineler (2 GB ekran karti) hicbir model kosturamiyor ve BMAI_OLLAMA_URL ile guclu makineye ya da disaridaki bir servise baglaniyor. BMAI_OLLAMA_CPU=1 modeli KARTA HIC YUKLEMIYOR (num_gpu: 0) -- karti model yuklenirken sistemi dusuren makineler icin; bedeli hiz. BMAI_OLLAMA_TIMEOUT ile sure ayarlanabiliyor (14B model ilk cagrida bes dakikayi asabiliyor). Bkz. docs/DONANIM-VE-MODEL.md.",
       "models": [
         {
           "name": "qwen2.5:7b-instruct",

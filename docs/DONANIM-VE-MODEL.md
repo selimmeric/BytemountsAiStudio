@@ -100,6 +100,31 @@ değişkenleri. Üç senaryonun hiçbiri kod değişikliği gerektirmiyor.
 | `BMAI_OLLAMA_MODEL_STANDARD` | `qwen2.5:7b-instruct` | Araştırma planı, iddia çıkarma |
 | `BMAI_OLLAMA_MODEL_STRONG` | `qwen2.5:7b-instruct` | Senaryo — anahtar gelince ücretli sağlayıcıya geçecek |
 | `BMAI_OLLAMA_EMBEDDING` | `paraphrase-multilingual` | Konu tekilliği (768 boyut, çok dilli) |
+| `BMAI_OLLAMA_TIMEOUT` | `300` (saniye) | Model yükleme süresi — 14B model ilk çağrıda beşi aşabiliyor |
+| `BMAI_OLLAMA_CPU` | kapalı | **Modeli ekran kartına hiç yükleme** (`num_gpu: 0`) |
+
+### Senaryo D — ekran kartı sorunlu makine
+
+**Bu senaryo bu depoda gerçek bir olaydan doğdu:** model yüklenirken
+makine mavi ekran verdi. Sorun modelin kendisi değil, **GPU yolu**.
+
+```
+BMAI_OLLAMA_CPU=1
+BMAI_OLLAMA_MODEL_CHEAP=qwen2.5:0.5b-instruct
+BMAI_OLLAMA_MODEL_STANDARD=qwen2.5:0.5b-instruct
+BMAI_OLLAMA_MODEL_STRONG=qwen2.5:1.5b-instruct
+```
+
+`num_gpu: 0` katmanların **tamamını** CPU'da tutuyor — kart hiç
+açılmıyor. Bedeli hız ve bu kabul edilebilir bir takas: 0,5B bir model
+CPU'da saniyeler mertebesinde cevap veriyor ve fabrikanın hızını
+belirleyen şey zaten render. Alternatif — hiç yerel model olmaması —
+senaryo üretimini tamamen durduruyor.
+
+**Kalite düşüyor ve bu gizlenmiyor:** 0,5B bir model 7B'nin yazdığı
+senaryoyu yazmıyor. Bu kip, kartı olmayan bir makinede hattın
+*çalışmasını* sağlıyor; *iyi* çalışmasını değil.
+
 
 ### Senaryo A — ana makine (model bizde)
 
