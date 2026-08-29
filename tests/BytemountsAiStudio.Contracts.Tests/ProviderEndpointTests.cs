@@ -76,6 +76,18 @@ public sealed class ProviderEndpointTests
                 Open.ToolsSidecarOptions.DefaultEndpoint.ToString(),
                 Open.ToolsSidecarOptions.EndpointVariable),
 
+            ["youtube"] = (
+                Open.YouTubeOptions.DefaultEndpoint.ToString(),
+                Open.YouTubeOptions.EndpointVariable),
+
+            ["tiktok"] = (
+                Open.TikTokOptions.DefaultEndpoint.ToString(),
+                Open.TikTokOptions.EndpointVariable),
+
+            ["instagram"] = (
+                Open.InstagramOptions.DefaultEndpoint.ToString(),
+                Open.InstagramOptions.EndpointVariable),
+
             ["wikipedia"] = (
                 Open.WikipediaProvider.DefaultApiTemplate,
                 Open.WikipediaProvider.ApiVariable),

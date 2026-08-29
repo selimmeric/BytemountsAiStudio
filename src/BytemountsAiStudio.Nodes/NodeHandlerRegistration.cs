@@ -189,7 +189,13 @@ public static class NodeHandlerRegistration
             // semantik kontrolün hiç var olmadığı bir hat demekti ve
             // model geldiğinde de kimse eklemeyi hatırlamazdı.
             .Register(new SemanticQualityHandler(storage))
-            .Register(new ApprovalGateHandler(channels));
+            .Register(new ApprovalGateHandler(channels))
+
+            // YAYIN NODE'U: boru hattının ucu. Sahte yayıncı gerçek bir
+            // kimlik üretiyor ve idempotency'yi hatırlıyor, yani "aynı
+            // videoyu iki kez yayınlama" kuralı sahte hatta da
+            // sınanabiliyor.
+            .Register(new PublishHandler([new Providers.Fake.FakePublisher()]));
     }
 
     /// ANAHTARSIZ GERÇEK hat (ADR-015).
@@ -322,7 +328,13 @@ public static class NodeHandlerRegistration
             // Onay kapısı HER İKİ hatta da kayıtlı: sahte hatta
             // kayıtlı olmasaydı onay içeren bir graf sahte koşuda
             // "bilinmeyen node tipi" diye reddedilirdi.
-            .Register(new ApprovalGateHandler(channels));
+            .Register(new ApprovalGateHandler(channels))
+
+            // YAYIN NODE'U: boru hattının ucu. Sahte yayıncı gerçek bir
+            // kimlik üretiyor ve idempotency'yi hatırlıyor, yani "aynı
+            // videoyu iki kez yayınlama" kuralı sahte hatta da
+            // sınanabiliyor.
+            .Register(new PublishHandler([new Providers.Fake.FakePublisher()]));
     }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
@@ -346,6 +358,7 @@ public static class NodeHandlerRegistration
         "qc.mechanical",
         "qc.semantic",
         "human.approval",
+        "publish.upload",
     };
 
     /// Sahte ama BİÇİMİ GEÇERLİ makale (P6-04).
