@@ -253,9 +253,12 @@ public static class NodeHandlerRegistration
         ITopicUniqueness uniqueness,
         IChannelPolicy channels,
         ProviderPipeline? pipeline,
+        IQuotaPool quota,
         string? ffmpegPath = null,
         string? ffprobePath = null)
     {
+        ArgumentNullException.ThrowIfNull(quota);
+
         // FFMPEG YOLU ORTAMDAN DA GELEBILIYOR (`BMAI_FFMPEG`).
         //
         // Once yalnizca parametreydi ve hicbir host onu VERMIYORDU:
@@ -403,9 +406,29 @@ public static class NodeHandlerRegistration
             // kimlik üretiyor ve idempotency'yi hatırlıyor, yani "aynı
             // videoyu iki kez yayınlama" kuralı sahte hatta da
             // sınanabiliyor.
+            // ***GERÇEK YAYINCILAR BURADA (P1-24/25, P6-01/02).***
+            //
+            // YouTube, TikTok ve Instagram adaptörleri yazılmış,
+            // testlenmiş ve HİÇBİR YERDE KURULMUYORDU: gerçek hat da
+            // sahte yayıncıyla yayınlıyordu, yani boru hattının UCU
+            // hiçbir platforma bağlı değildi.
+            //
+            // SAHTE YAYINCI DA LİSTEDE ve bu kasıtlı: seçim graftaki
+            // `platform` alanından yapılıyor, dolayısıyla `"fake"`
+            // yazan bir graf anahtarsız makinede uçtan uca koşabiliyor.
+            // Sessiz bir yedek değil, AÇIK bir seçim.
+            //
+            // ANAHTAR YOKSA YAYIN KALICI HATAYLA DÜŞÜYOR ("kimlik
+            // eksik") ve bu doğru: yayınlanmamış bir videoyu
+            // "yayınlandı" saymaktansa açık bir hata vermek gerekiyor.
             .Register(new PublishHandler(
-                [new Providers.Fake.FakePublisher().Wrap(pipeline)],
-                new Providers.Fake.UnlimitedQuotaPool()));
+                [
+                    new YouTubePublisher(http).Wrap(pipeline),
+                    new TikTokPublisher(http).Wrap(pipeline),
+                    new InstagramPublisher(http).Wrap(pipeline),
+                    new Providers.Fake.FakePublisher().Wrap(pipeline),
+                ],
+                quota));
     }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.

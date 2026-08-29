@@ -137,6 +137,15 @@ public sealed class PublishHandler(IReadOnlyList<IPublisher> publishers, IQuotaP
             {
                 IdempotencyKey = context.IdempotencyKey,
                 CorrelationId = context.CorrelationId,
+
+                // ***SEÇİLEN HESAP YAYINCIYA ULAŞIYOR.***
+                //
+                // Ulaşmasaydı havuz "proje-07" seçip defterine yazar,
+                // yükleme ise ortamdaki TEK jetonla giderdi: kota
+                // sayılmayan bir projeden harcanır, defterde
+                // kullanılmayan bir proje dolardı. On yedi projelik bir
+                // havuzda bu, kotanın hiç yönetilmemesi demek.
+                Account = reservation.Value.Account,
             },
             cancellationToken).ConfigureAwait(false);
 

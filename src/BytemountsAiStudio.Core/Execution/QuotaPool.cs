@@ -47,14 +47,30 @@ public static class QuotaPool
 {
     /// Havuzdan bir hesap seçer.
     ///
-    /// ***EN ÇOK KALANI SEÇİLİYOR, SIRAYLA DEĞİL.***
+    /// ***EN ÇOK KALANI SEÇİLİYOR ve gerekçesi HASAR YARIÇAPI.***
     ///
-    /// Sırayla (round-robin) dağıtmak "adil" görünüyor ve kapasiteyi
-    /// MAHSUR BIRAKIYOR: her hesapta 1.500 birim kalmışken 1.600'lük
-    /// bir iş hiçbirine sığmıyor — toplamda binlerce birim boşta
-    /// dururken sistem "kota bitti" diyor. En çok kalanı seçmek,
-    /// harcamayı bir hesapta yoğunlaştırıp diğerlerini büyük işlere
-    /// bütün bırakıyor.
+    /// En çok kalanı seçmek, EN AZ YÜKLÜ hesabı seçmek demek: harcama
+    /// havuza YAYILIYOR. Kazandırdığı iki şey var. Birincisi, bir
+    /// Google projesi askıya alındığında (yeni projeler kötüye kullanım
+    /// taramasına gerçekten takılıyor) o gün üretilenin yalnızca 1/N'i
+    /// kaybediliyor, hepsi değil. İkincisi, tek bir projeden art arda
+    /// on yedi yükleme, projeyi otomatik incelemeye sokan desenin ta
+    /// kendisi.
+    ///
+    /// ***İLK YAZIMDAKİ GEREKÇE TERSTİ ve düzeltildi.*** "Sırayla
+    /// dağıtmak kapasiteyi mahsur bırakır, en çok kalanı seçmek
+    /// harcamayı yoğunlaştırır" diyordu. Yanlış: en çok kalanı seçmek
+    /// tam da sırayla dağıtmakla aynı şeyi yapıyor. Somut örnek — iki
+    /// hesap, her biri 10.000 ve maliyet hep 1.600: seçim a, b, a, b…
+    /// diye alterniyor ve on yüklemeden sonra ikisi de 2.000 kalanda,
+    /// yani 3.000 birimlik bir iş HİÇBİRİNE sığmıyor. Yoğunlaştıran
+    /// politika "sığan en dolu hesap" (best-fit) olurdu.
+    ///
+    /// Politika yine de EN ÇOK KALAN kalıyor: bu hattaki her yayın aynı
+    /// maliyette (1.600) ve eşit maliyetlerde iki politikanın toplam
+    /// kapasitesi AYNI — parçalanma bir sorun değil. Yanlış bir gerekçe
+    /// bırakmak, ileride doğru kararın yanlış sebeple geri alınması
+    /// demekti.
     ///
     /// EŞİTLİKTE AD SIRASI: aynı kalanı olan iki hesap arasında
     /// rastgele seçim, aynı girdiye farklı cevap vermek ve bir hatayı

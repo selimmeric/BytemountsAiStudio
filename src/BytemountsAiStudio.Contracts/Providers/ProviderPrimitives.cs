@@ -23,6 +23,19 @@ public sealed record ProviderContext
     /// İçeriğin dili. Ses seçimi, arama sorgusu dili ve metin normalizasyonu buna bağlı.
     public LanguageTag? Language { get; init; }
 
+    /// Bu çağrının hangi hesaptan gideceği (P4-04).
+    ///
+    /// ***BU ALAN OLMADAN KOTA HAVUZU YARIM KALIYORDU.*** Havuz
+    /// "proje-07" seçiyor, defter o hesabın kotasını düşüyor ve yükleme
+    /// ortamdaki TEK jetonla gidiyordu: kota SAYILMAYAN bir projeden
+    /// harcanıyor, defterde ise KULLANILMAYAN bir proje doluyordu. On
+    /// yedi projelik bir havuzda bu, kotanın hiç yönetilmemesi demek.
+    ///
+    /// `null` ya da `default` HESABI TEK HESAPLI KURULUM: sağlayıcı
+    /// varsayılan değişken adlarını okuyor ve bugüne kadarki davranış
+    /// aynen sürüyor.
+    public string? Account { get; init; }
+
     public static ProviderContext ForTest(string key = "test") => new()
     {
         IdempotencyKey = key,

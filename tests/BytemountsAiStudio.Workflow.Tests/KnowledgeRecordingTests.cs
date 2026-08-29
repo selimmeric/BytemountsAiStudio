@@ -3,6 +3,7 @@ using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Persistence.Entities;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.TestSupport;
+using BytemountsAiStudio.Workflow.Definition;
 using BytemountsAiStudio.Workflow.Engine;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,14 +67,34 @@ public sealed class KnowledgeRecordingTests(DatabaseFixture fixture) : IAsyncLif
             Name = "Bilgi testi",
         };
 
+        // ***GRAF NESNEDEN ÜRETİLİYOR, ELLE YAZILMIYOR.***
+        //
+        // İlk yazımda JSON elle yazılmıştı ve CI'da "Workflow grafı
+        // okunamadı" diye düştü: şemanın istediği alanlar (`key`,
+        // `name`) eksikti. Yerelde veritabanı olmadığı için
+        // görülmemişti. Nesneden üretmek, şema değiştiğinde testin de
+        // değişmesini derleyicinin garanti etmesi demek.
+        var graph = new WorkflowGraph
+        {
+            Key = "bilgi-testi",
+            Name = "Bilgi testi",
+            Nodes =
+            [
+                new()
+                {
+                    Id = "research.deep",
+                    Type = "research.deep",
+                    Config = JsonDocument.Parse("{}").RootElement.Clone(),
+                },
+            ],
+            Edges = [],
+        };
+
         var version = new Persistence.Entities.WorkflowVersion
         {
             Workflow = workflow,
             Version = 1,
-            GraphJson = """
-                {"schema_version":1,"nodes":[{"id":"research.deep","type":"research.deep","config":{}}],
-                 "edges":[]}
-                """,
+            GraphJson = graph.ToJson(),
         };
 
         db.Workflows.Add(workflow);

@@ -606,7 +606,9 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     var registry = open
         ? NodeHandlerRegistration.BuildOpenRegistry(
             storage, http, outputDirectory, uniqueness: uniqueness, channels: channelPolicy,
-            pipeline: pipeline)
+            pipeline: pipeline,
+            // GERCEK KOTA HAVUZU (P4-04).
+            quota: new QuotaPoolService(db))
         : NodeHandlerRegistration.BuildFakeRegistry(
             storage, outputDirectory, uniqueness: uniqueness, channels: channelPolicy,
             pipeline: pipeline);

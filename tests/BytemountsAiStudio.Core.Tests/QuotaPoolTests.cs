@@ -17,11 +17,17 @@ public sealed class QuotaPoolTests
 
     /* ---- seçim ---- */
 
-    /// ***EN ÇOK KALANI SEÇİLİYOR.***
+    /// ***EN ÇOK KALANI SEÇİLİYOR — gerekçesi HASAR YARIÇAPI.***
     ///
-    /// BU DOSYANIN EN ÖNEMLİ TESTİ. Sırayla dağıtmak "adil" görünüyor
-    /// ve kapasiteyi MAHSUR BIRAKIYOR: harcamayı yaymak, hiçbir
-    /// hesapta büyük bir iş için yer bırakmamak demek.
+    /// BU DOSYANIN EN ÖNEMLİ TESTİ. En çok kalanı seçmek EN AZ YÜKLÜ
+    /// hesabı seçmek demek: harcama havuza yayılıyor. Bir Google
+    /// projesi askıya alındığında o gün üretilenin yalnızca 1/N'i
+    /// kaybediliyor; ayrıca tek projeden art arda on yedi yükleme,
+    /// projeyi otomatik incelemeye sokan desenin ta kendisi.
+    ///
+    /// İLK YAZIMDAKİ GEREKÇE TERSTİ ("sırayla dağıtmak kapasiteyi
+    /// mahsur bırakır") ve düzeltildi: en çok kalanı seçmek tam da
+    /// sırayla dağıtmakla aynı şeyi yapıyor.
     [Fact]
     public void EnCokKalan_Seciliyor()
     {
@@ -72,6 +78,12 @@ public sealed class QuotaPoolTests
     /// Üç hesapta 1.500'er birim "toplam 4.500" görünüyor ama
     /// 1.600'lük bir iş hiçbirine sığmıyor. Toplamı tek havuz gibi
     /// bölmek, olmayan bir kapasiteyi raporlamak olurdu.
+    ///
+    /// ***BU DURUM SEÇİM POLİTİKASININ ÇÖZDÜĞÜ BİR ŞEY DEĞİL*** ve
+    /// öyleymiş gibi okunmamalı: en çok kalanı seçmek parçalanmayı
+    /// önlemiyor. Eşit maliyetli bu hatta parçalanma zaten oluşmuyor;
+    /// test, oluşsaydı `Capacity`'nin YALAN SÖYLEMEYECEĞİNİ
+    /// gösteriyor.
     [Fact]
     public void Parcalanma_KapasiteSifir()
     {

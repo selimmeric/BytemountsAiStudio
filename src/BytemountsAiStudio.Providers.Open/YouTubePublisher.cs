@@ -91,8 +91,11 @@ public sealed class YouTubePublisher(
         PublishRequest request, ProviderContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(context);
 
-        var token = await TokenAsync(cancellationToken).ConfigureAwait(false);
+        // HESAP BAĞLAMDAN: kota havuzunun seçtiği proje burada
+        // gerçekleşiyor (P4-04).
+        var token = await TokenAsync(cancellationToken, context.Account).ConfigureAwait(false);
 
         if (token.IsFailure)
         {
@@ -462,16 +465,17 @@ public sealed class YouTubePublisher(
     /// YENİLEME BURADA ÇÜNKÜ JETON BİR SAAT ÖMÜRLÜ. Gece koşan bir
     /// fabrikada "jeton süresi doldu" hatası, sabaha kadar hiçbir
     /// videonun yayınlanmaması demek.
-    internal async Task<Result<string>> TokenAsync(CancellationToken cancellationToken)
+    internal async Task<Result<string>> TokenAsync(
+        CancellationToken cancellationToken, string? account = null)
     {
-        if (Read(_options.AccessTokenVariable) is { Length: > 0 } direct)
+        if (ReadFor(_options.AccessTokenVariable, account) is { Length: > 0 } direct)
         {
             return Result.Success(direct);
         }
 
-        var refresh = Read(_options.RefreshTokenVariable);
-        var clientId = Read(_options.ClientIdVariable);
-        var secret = Read(_options.ClientSecretVariable);
+        var refresh = ReadFor(_options.RefreshTokenVariable, account);
+        var clientId = ReadFor(_options.ClientIdVariable, account);
+        var secret = ReadFor(_options.ClientSecretVariable, account);
 
         if (refresh is null || clientId is null || secret is null)
         {
@@ -582,6 +586,32 @@ public sealed class YouTubePublisher(
 
     private string? Read(string name)
         => credentials?.Get(name) ?? Environment.GetEnvironmentVariable(name);
+
+    /// Hesaba göre değişken adı (P4-04).
+    ///
+    /// ***KOTA HAVUZUNUN SEÇTİĞİ HESAP BURADA GERÇEKLEŞİYOR.*** Havuz
+    /// bir hesap seçip defterine yazıyor; yükleme o hesabın kimliğiyle
+    /// gitmezse kota sayılmayan bir projeden harcanır ve defterde
+    /// kullanılmayan bir proje dolar.
+    ///
+    /// KURAL: varsayılan hesap için `YOUTUBE_REFRESH_TOKEN`,
+    /// `proje-02` hesabı için `YOUTUBE_REFRESH_TOKEN_PROJE_02`.
+    /// Büyük harf çevirisi `InvariantCulture` ile: Türkçe kültürde
+    /// `"i"` → `"İ"` olur ve değişken adı hiçbir zaman eşleşmezdi —
+    /// bu depoda birkaç kez ödenmiş bir hata.
+    ///
+    /// ***HESABA ÖZEL DEĞİŞKEN YOKSA VARSAYILANA DÜŞÜLÜYOR.*** Tek
+    /// hesaplı kurulumlarda (bugünkü hâl) hiçbir şey değişmiyor;
+    /// düşülmeseydi havuza ikinci bir hesap eklemek, birincinin de
+    /// çalışmayı bırakması demekti.
+    public static string VariableFor(string name, string? account)
+        => string.IsNullOrWhiteSpace(account)
+           || string.Equals(account, Credentials.DefaultAccount, StringComparison.Ordinal)
+            ? name
+            : name + "_" + account.ToUpperInvariant().Replace('-', '_');
+
+    private string? ReadFor(string name, string? account)
+        => Read(VariableFor(name, account)) ?? Read(name);
 
     private static string Trim(string text, int limit)
         => text.Length <= limit ? text : text[..limit];

@@ -70,7 +70,11 @@ builder.Services.AddScoped<NodeRegistry>(services =>
         // kesici. Zincir tek yerde kuruluyor (`PipelineSelection`) ki
         // API, Worker ve CLI aynı davranışı göstersin.
         PipelineSelection.BuildFrom(
-            db, reason => Console.Error.WriteLine($"UYARI: {reason}")));
+            db, reason => Console.Error.WriteLine($"UYARI: {reason}")),
+        // GERÇEK KOTA HAVUZU (P4-04): hesaplar kimlik kayıtlarından
+        // geliyor ve rezervasyon atomik. Sınırsız havuz vermek, on
+        // yedi projelik bir kurulumda kotanın hiç sayılmaması demekti.
+        new QuotaPoolService(db));
 });
 
 // Somut sinif DEGIL arayuz: ADR-004'un "motor arayuz arkasinda"
