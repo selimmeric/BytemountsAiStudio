@@ -115,7 +115,13 @@ public sealed class InstagramPublisher(
             // sebebini söylemiyor.
             return Error.Permanent("instagram.no_public_url",
                 "Instagram videoyu ÇEKİYOR, yükleme kabul etmiyor: `VideoUrl` dolu olmalı "
-                + "ve adres dışarıdan erişilebilir olmalı.");
+                + "ve adres dışarıdan erişilebilir olmalı. "
+                // ***HATA NE YAPILACAĞINI SÖYLÜYOR.*** Önce yalnızca
+                // "adres olmalı" diyordu ve o adresin nereden geldiği
+                // hiçbir yerde yazmıyordu: alan render çıktısında
+                // ÜRETİLMİYORDU bile.
+                + "Render çıktısının `public_url` alanı `BMAI_PUBLIC_BASE_URL` "
+                + "ayarlandığında doluyor; bu bir dağıtım kararı, kod bunu üretemez.");
         }
 
         if (request.Visibility != Visibility.Public)

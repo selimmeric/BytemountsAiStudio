@@ -159,6 +159,22 @@ sunucuya yönlendirmek ya da bir aynaya bağlanmak için:
 | `BMAI_SEQ` | (yok) | Seq log toplayıcısının adresi |
 | `BMAI_PROMPTS` | (yok) | İstem fixture'larının dizini — değerlendirme ekranı buna bakıyor |
 
+## Yayın
+
+| Değişken | Varsayılan | Ne işe yarıyor |
+|---|---|---|
+| `BMAI_PUBLIC_BASE_URL` | (yok) | Çıktı dosyalarının **dışarıdan erişilebilir** adres öneki |
+
+**Instagram bunu zorunlu istiyor.** Instagram videoyu *çekiyor*,
+yükleme kabul etmiyor: yerel dosya yolu işe yaramıyor. Render çıktısının
+`public_url` alanı bu değişken ayarlandığında doluyor; ayarlanmadığında
+`null` kalıyor ve yayıncı bunu açıkça söylüyor.
+
+**Kod bunu üretemez, bir dağıtım kararıdır:** çıktı dosyası bir kabın
+içinde ya da bir diskte duruyor ve internetten erişilebilir olup
+olmadığını yalnızca kurulum bilir. Sessizce boş bir adres göndermek,
+hatayı Meta tarafında "medya indirilemedi" diye görmek demekti.
+
 ---
 
 ## Anahtarlar

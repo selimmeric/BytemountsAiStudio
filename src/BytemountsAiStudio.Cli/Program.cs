@@ -41,6 +41,7 @@ return command switch
     "ogrenme" => await RunLearningAsync(args).ConfigureAwait(false),
     "turev" => await RunDerivationAsync(args).ConfigureAwait(false),
     "kota" => await RunQuotaAsync(args).ConfigureAwait(false),
+    "saklama" => await RunRetentionAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
 };
@@ -80,6 +81,9 @@ static int Help()
           bmai kota [--saglayici youtube]
                                         havuzdaki hesaplar, bugunku kalan
                                         ve kac yayin sigdigi
+          bmai saklama [--sil]          suresi dolmus ara urunler
+                                        VARSAYILAN KURU KOSU: yalnizca
+                                        ne silinecegini soyler
           bmai prompt list              istem surumlerini goster
           bmai prompt eval              fixture'lari kosar (model cagirmaz)
           bmai fetch <url>              sayfayi ceker (robots.txt kontrollu)
@@ -106,10 +110,25 @@ static int Help()
           bmai version                  surum
           bmai help                     bu yardim
 
-        Ortam degiskenleri:
+        Ortam degiskenleri (en cok kullanilanlar -- TAMAMI: docs/AYARLAR.md):
           BMAI_CONNECTION               PostgreSQL baglantisi
           BMAI_STORAGE                  varlik deposu kok dizini
+          BMAI_OUTPUT                   render ciktilarinin dizini
           BMAI_KEYRING_PATH             sifreleme anahtar halkasinin yeri
+          BMAI_PIPELINE                 acik | sahte -- hangi saglayicilar
+                                        (bu komutta OKUNMUYOR: `run` sahte,
+                                        `real` gercek -- komut acik secim)
+          BMAI_PROVIDERS                saglayici katalogunun yolu
+          BMAI_FFMPEG / BMAI_FFPROBE    ikili yollari (PATH'te degilse)
+          BMAI_RETENTION_DAYS           ara urun saklama suresi (30)
+          BMAI_PUBLIC_BASE_URL          cikti dosyalarinin disaridan
+                                        erisilebilir adres oneki
+                                        (Instagram bunu ZORUNLU istiyor)
+
+        ***52 ortam degiskeninin 19'u uzun sure hicbir belgede yoktu.***
+        Varligindan haberi olmadigin bir parametre, parametre degildir:
+        tamami artik docs/AYARLAR.md icinde, varsayilanlariyla ve neden
+        o varsayilan oldugu yaziliyla.
         """);
     return 0;
 }
@@ -369,6 +388,52 @@ static async Task<int> DecideAsync(StudioDbContext db, bool apply)
 ///
 /// "Bugun kac video yayinlanabilir" sorusunun cevabi, kota bittikten
 /// SONRA ogrenilecek bir sey olmamali.
+/// Saklama supurucusu -- KURU KOSU VARSAYILAN.
+///
+/// ***`dryRun` PARAMETRESI YALNIZCA TEST KODUNDAN CAGRILABILIYORDU.***
+/// Uretimde `PartitionService` acilista ve her 24 saatte dogrudan
+/// GERCEK silmeyi kosuyordu; supurucunun kendi yorumunda kalin harfle
+/// vaat edilen "once ne silinecegini gorelim" adiminin hicbir yolu
+/// yoktu.
+///
+/// KURU KOSU VARSAYILAN, SILME ACIK ISTEK: bu komut elle calisiyor ve
+/// elle calisan bir silme komutunun varsayilani silmek olmamali.
+/// `--sil` yazmak bilincli bir hareket.
+static async Task<int> RunRetentionAsync(string[] args)
+{
+    var delete = args.Contains("--sil", StringComparer.Ordinal);
+
+    await using var db = CreateContext();
+
+    var storage = StorageSelection.Build(db, StorageRoot());
+    var sweeper = new RetentionSweeper(db, storage);
+
+    var result = await sweeper
+        .SweepAsync(CancellationToken.None, dryRun: !delete)
+        .ConfigureAwait(false);
+
+    Console.WriteLine(delete ? "SAKLAMA SUPURUCUSU -- GERCEK SILME" : "SAKLAMA SUPURUCUSU -- KURU KOSU");
+    Console.WriteLine($"  Saklama suresi : {RetentionSweeper.Age().TotalDays:0} gun");
+    Console.WriteLine($"  Incelenen      : {result.Examined}");
+    Console.WriteLine($"  {(delete ? "Silinen" : "Silinecek")}        : {result.Deleted}");
+    Console.WriteLine($"  Yer            : {result.BytesFreed / (1024.0 * 1024.0):0.#} MB");
+
+    if (result.Failed > 0)
+    {
+        // SILINEMEYEN SAYISI AYRI: depodan silinemeyen bir varlik
+        // satirini da koruyor ve bir sonraki turda yeniden deneniyor.
+        Console.WriteLine($"  Silinemeyen    : {result.Failed}");
+    }
+
+    if (!delete && result.Deleted > 0)
+    {
+        Console.WriteLine();
+        Console.WriteLine("  Gercekten silmek icin: bmai saklama --sil");
+    }
+
+    return 0;
+}
+
 static async Task<int> RunQuotaAsync(string[] args)
 {
     var provider = Option(args, "--saglayici", "youtube");
@@ -513,7 +578,16 @@ static async Task<int> RunPipelineAsync(string[] args)
     // Depo acilista hazirlaniyor (P4-02): kova yoksa olusturuluyor.
     // Ilk yazmaya birakmak, hatayi uretimin ortasinda gormek demekti.
     await StorageSelection.EnsureReadyAsync(storage, CancellationToken.None);
-    var pipeline = new FakeShortsPipeline(storage);
+    // ***`BMAI_FFMPEG` BU GIRISTE DE OKUNUYOR.***
+    //
+    // Duzeltme dort giristen ucunu kapsamisti ve `bmai pipeline`
+    // atlanmisti: degiskeni ayarlayan bir gelistirici `bmai run` ile
+    // calisirken `bmai pipeline` ile `probe.ffprobe_missing` aliyor ve
+    // farki ancak kod okuyarak anlayabiliyordu.
+    var pipeline = new FakeShortsPipeline(
+        storage,
+        ffmpegPath: BytemountsAiStudio.Media.Rendering.MediaTools.Ffmpeg(),
+        ffprobePath: BytemountsAiStudio.Media.Rendering.MediaTools.Ffprobe());
 
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"konu      : {topic}"));
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"dil       : {language.Value}"));

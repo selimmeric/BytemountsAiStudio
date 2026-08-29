@@ -1009,6 +1009,36 @@ public sealed class MediaRenderHandler(
     string ffmpegPath = "ffmpeg",
     string ffprobePath = "ffprobe") : INodeHandler
 {
+    /// ***DIŞARIDAN ERİŞİLEBİLİR ADRES (P6-02).***
+    ///
+    /// `render.public_url` alanı `PublishHandler` içinde OKUNUYORDU ve
+    /// hiçbir yerde YAZILMIYORDU. Sonucu: Instagram anahtarı gelse
+    /// bile her yayın `instagram.no_public_url` kalıcı hatasıyla
+    /// düşerdi — Instagram videoyu **çekiyor**, yükleme kabul
+    /// etmiyor.
+    ///
+    /// ***KOD BUNU UYDURAMAZ, BİR DAĞITIM KARARIDIR.*** Çıktı dosyası
+    /// bir kabın içinde ya da bir diskte duruyor; internetten
+    /// erişilebilir olup olmadığını yalnızca kurulum bilir.
+    /// `BMAI_PUBLIC_BASE_URL` verilmediğinde alan `null` kalıyor ve
+    /// yayıncı bunu AÇIKÇA söylüyor — sessizce boş bir adres
+    /// göndermek, hatayı Meta tarafında "medya indirilemedi" diye
+    /// görmek demekti.
+    ///
+    /// YALNIZCA DOSYA ADI EKLENİYOR: tam yol kabın iç dizin yapısını
+    /// dışarı sızdırırdı ve o yapı adreste hiçbir işe yaramıyor.
+    internal static string? PublicUrl(string outputPath)
+    {
+        var baseUrl = Environment.GetEnvironmentVariable("BMAI_PUBLIC_BASE_URL");
+
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(outputPath))
+        {
+            return null;
+        }
+
+        return baseUrl.TrimEnd('/') + "/" + Path.GetFileName(outputPath);
+    }
+
     /// Podcast (yalnızca ses) çıktısı (P6-05).
     private async Task<Result<JsonElement>> RenderPodcastAsync(
         NodeContext context,
@@ -1069,6 +1099,7 @@ public sealed class MediaRenderHandler(
         return Result.Success(NodeJson.From(new
         {
             output_path = render.Value.OutputPath,
+            public_url = PublicUrl(render.Value.OutputPath),
             preset = "podcast-m4a",
             podcast = true,
             duration_seconds = probe.Value.DurationSeconds,
@@ -1326,6 +1357,7 @@ public sealed class MediaRenderHandler(
             return Result.Success(NodeJson.From(new
             {
                 output_path = segmented.Value.OutputPath,
+                public_url = PublicUrl(segmented.Value.OutputPath),
                 width = segmentProbe.Value.Width,
                 height = segmentProbe.Value.Height,
                 duration_seconds = segmentProbe.Value.DurationSeconds,
@@ -1379,6 +1411,7 @@ public sealed class MediaRenderHandler(
         return Result.Success(NodeJson.From(new
         {
             output_path = render.Value.OutputPath,
+            public_url = PublicUrl(render.Value.OutputPath),
             preset = timeline.Output.Preset,
             rendition = derived is not null,
             width = probe.Width,
