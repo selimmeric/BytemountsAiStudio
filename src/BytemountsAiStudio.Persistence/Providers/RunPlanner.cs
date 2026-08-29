@@ -151,17 +151,35 @@ public sealed class RunPlanner(
         // başlanmıyor: videoyu üretip yükleyememek, harcanan her şeyi
         // ertesi güne taşımak ve o gün yeniden ödemek demek.
         var cost = QuotaLedger.CostOf(withThumbnail: true, withPlaylist: false);
+        var quotaPool = new QuotaPoolService(db, _time);
 
-        var capacity = await new QuotaPoolService(db, _time)
-            .CapacityAsync("youtube", channel.Id, cost, cancellationToken)
+        var accounts = await quotaPool.AccountsAsync("youtube", channel.Id, cancellationToken)
             .ConfigureAwait(false);
 
-        // KAPASİTE YAYIN SAYISI, BİRİM DEĞİL: `Reserve` birim
-        // bekliyor, o yüzden geri çevriliyor. Havuzun toplamını
-        // doğrudan vermek, parçalanmış bir havuzda olmayan bir
-        // kapasiteyi raporlamak olurdu (`QuotaPool.Capacity`).
-        var quota = QuotaLedger.Reserve(
-            spentToday: 0, cost, now, dailyLimit: capacity * cost);
+        // ***HESAP YOKLUĞU KOTA BİTMESİ DEĞİL — VE BURASI O AYRIMIN
+        // EN ÇOK ÖNEM TAŞIDIĞI YER.***
+        //
+        // Hiç YouTube hesabı tanımlanmamış bir kurulumda havuz sıfır
+        // kapasite bildiriyor ve bu DOĞRU: sıfır hesabın kotası
+        // sıfırdır. Ama "kota bitti" diye üretimi durdurmak yanlış
+        // olurdu — anahtarsız hat (`platform: fake`) ve henüz yayına
+        // bağlanmamış bir kurulum hiçbir zaman video üretemezdi.
+        //
+        // Hesap varsa kota GERÇEK bir sınır ve gerçek defterden
+        // okunuyor.
+        var quota = accounts.Count == 0
+            ? QuotaLedger.Reserve(spentToday: 0, cost, now)
+            : QuotaLedger.Reserve(
+                spentToday: 0, cost, now,
+
+                // KAPASİTE YAYIN SAYISI, BİRİM DEĞİL: `Reserve` birim
+                // bekliyor, o yüzden geri çevriliyor. Havuzun toplam
+                // kalanını doğrudan vermek, parçalanmış bir havuzda
+                // OLMAYAN bir kapasiteyi raporlamak olurdu
+                // (`QuotaPool.Capacity` bunu zaten sayıyor).
+                dailyLimit: await quotaPool
+                    .CapacityAsync("youtube", channel.Id, cost, cancellationToken)
+                    .ConfigureAwait(false) * cost);
 
         var schedule = PublishSchedule.Decide(
             settings.Pacing,

@@ -85,12 +85,12 @@
       "key": "pollinations-text",
       "role": "llm",
       "display_name": "Pollinations Text",
-      "enabled": false,
+      "enabled": true,
       "requires_key": false,
       "cost": "ucretsiz",
-      "endpoint": "https://text.pollinations.ai/",
+      "endpoint": "https://text.pollinations.ai/openai/",
       "quality": "orta",
-      "notes": "Ollama'ya ag ustunden alternatif. Yerel model yoksa yedek.",
+      "notes": "ANAHTARSIZ ve GPU istemiyor: anahtarsiz hattin BIRINCIL LLM'i. Ollama yedek. OpenAI uyumlu uc (/openai). POLLINATIONS_TOKEN verilirse daha yuksek hiz siniri taniniyor. Gorme modeli de ayni uctan (P2-06).",
       "limits": {
         "requests_per_minute": 10
       },
@@ -480,6 +480,7 @@
   "_routing_comment": "Sirali yedekleme: ilk calisani kullanilir. Anahtar geldiginde ucretli saglayici basa alinir.",
   "routing": {
     "llm": [
+      "pollinations-text",
       "ollama"
     ],
     "search": [

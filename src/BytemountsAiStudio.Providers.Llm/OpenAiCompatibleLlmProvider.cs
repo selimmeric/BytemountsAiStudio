@@ -23,6 +23,21 @@ public sealed record OpenAiCompatibleOptions
 
     public string? EmbeddingModel { get; init; }
 
+    /// Görme modeli (P2-06). `null` ise sağlayıcı görme sunmuyor.
+    public string? VisionModel { get; init; }
+
+    /// ***ANAHTAR ZORUNLU MU.***
+    ///
+    /// Varsayılan EVET ve istisna olması gereken şey `false`: ücretli
+    /// bir sağlayıcıya yanlışlıkla anahtarsız istek atmak, 401
+    /// döngüsünde kota harcamak demek.
+    ///
+    /// `false` olduğunda anahtar YİNE OKUNUYOR: varsa gönderiliyor.
+    /// Pollinations anahtarsız çalışıyor ama jeton verildiğinde daha
+    /// yüksek hız sınırı tanıyor — "anahtarsız" ile "anahtar
+    /// kullanılmaz" farklı şeyler.
+    public bool KeyRequired { get; init; } = true;
+
     public int ContextWindowTokens { get; init; } = 128_000;
 
     /// OpenRouter kendini tanıtan iki başlık istiyor; diğerlerinde boş.
@@ -58,6 +73,57 @@ public sealed record OpenAiCompatibleOptions
         // modele geri dönmek imkânsız olurdu ve ADR-015'in altı
         // oyulurdu.
         EmbeddingModel = "text-embedding-3-small",
+    };
+
+    public const string PollinationsEndpoint = "https://text.pollinations.ai/openai/";
+
+    public const string PollinationsEndpointVariable = "BMAI_POLLINATIONS_TEXT_URL";
+
+    /// ***POLLINATIONS: ANAHTARSIZ, ÜCRETSİZ, GPU İSTEMEYEN METİN VE
+    /// GÖRME MODELİ (ADR-015).***
+    ///
+    /// Katalogda `pollinations-text` satırı VARDI ve karşılığında
+    /// HİÇBİR KOD YOKTU: anahtarsız hattın tek LLM'i Ollama'ydı, yani
+    /// yerel bir GPU. GPU'su olmayan (ya da GPU'sunu kullanamayan) bir
+    /// makinede anahtarsız hat senaryo üretemiyordu — "anahtarsız
+    /// çalışır" iddiası pratikte "yerel modeli olan makinede çalışır"
+    /// demekti.
+    ///
+    /// OpenAI uyumlu kabloyu konuşuyor, o yüzden ayrı bir sınıf değil
+    /// ayrı bir YAPILANDIRMA: aynı ayrıştırma ve hata sınıflandırma
+    /// mantığı geçerli.
+    ///
+    /// SINIRI DÜŞÜK (dakikada 10, katalogda yazılı) ve bu bir kusur
+    /// değil bir GERÇEK: ücretsiz servis. Hız sınırı zincirde
+    /// uygulanıyor (P0-17), yani sınır aşıldığında iş DÜŞMÜYOR,
+    /// erteleniyor.
+    public static OpenAiCompatibleOptions Pollinations() => new()
+    {
+        Key = "pollinations-text",
+        BaseAddress = Endpoints.Resolve(PollinationsEndpointVariable, PollinationsEndpoint),
+
+        // Anahtar İSTEĞE BAĞLI: tanımlıysa gönderiliyor ve daha yüksek
+        // sınır tanınıyor.
+        KeyEnvironmentVariable = "POLLINATIONS_TOKEN",
+        KeyRequired = false,
+
+        Models = new Dictionary<ModelTier, string>
+        {
+            [ModelTier.Cheap] = "openai-fast",
+            [ModelTier.Standard] = "openai",
+            [ModelTier.Strong] = "openai-large",
+        },
+
+        // GÖMME SUNMUYOR: `null` bırakmak, çağrıldığında açık bir hata
+        // vermesini sağlıyor. Boş bir model adıyla göndermek
+        // anlaşılmaz bir 404 üretirdi.
+        EmbeddingModel = null,
+
+        // GÖRME MODELİ (P2-06): semantik QC'nin "bu görsel bu cümleyi
+        // destekliyor mu" sorusunu soran yer. Anahtarsız bir görme
+        // modeli, 6 GB'lık yerel bir modeli karta yüklemeden semantik
+        // kontrolün ÖLÇÜLEBİLMESİ demek.
+        VisionModel = "openai",
     };
 
     /// OpenRouter: tek anahtarla onlarca modele erişim. Ücretsiz
@@ -286,7 +352,7 @@ public sealed class OpenAiCompatibleLlmProvider(
         }
     }
 
-    private Result<string> ResolveKey()
+    private Result<string?> ResolveKey()
     {
         var value = credentials is not null
             ? credentials.Get(options.KeyEnvironmentVariable)
@@ -294,6 +360,15 @@ public sealed class OpenAiCompatibleLlmProvider(
 
         if (string.IsNullOrWhiteSpace(value))
         {
+            // ANAHTAR ZORUNLU DEĞİLSE YOKLUĞU HATA DEĞİL: Pollinations
+            // anahtarsız çalışıyor. `null` dönmek, `Authorization`
+            // başlığının HİÇ eklenmemesi demek — boş bir "Bearer "
+            // başlığı bazı sunucularda 401 üretiyor.
+            if (!options.KeyRequired)
+            {
+                return Result.Success<string?>(null);
+            }
+
             // KİMLİK hatası KALICI ama ayrı bir kod taşıyor: katmanlı
             // sağlayıcı bunu görünce yedeğe DÜŞÜYOR (P1-03), çünkü
             // "bu anahtar yok" isteğin değil yapılandırmanın kusuru.
@@ -301,11 +376,11 @@ public sealed class OpenAiCompatibleLlmProvider(
                 $"{options.Key} için anahtar yok ({options.KeyEnvironmentVariable} tanımlı değil).");
         }
 
-        return Result.Success(value);
+        return Result.Success<string?>(value);
     }
 
     private async Task<Result<T>> PostAsync<T>(
-        string path, object body, string apiKey, CancellationToken cancellationToken)
+        string path, object body, string? apiKey, CancellationToken cancellationToken)
     {
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         source.CancelAfter(options.Timeout);
@@ -315,7 +390,10 @@ public sealed class OpenAiCompatibleLlmProvider(
             Content = JsonContent.Create(body, options: Json),
         };
 
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        if (apiKey is { Length: > 0 })
+        {
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
 
         foreach (var (name, value) in options.ExtraHeaders)
         {

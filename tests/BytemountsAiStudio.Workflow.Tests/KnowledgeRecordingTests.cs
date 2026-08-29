@@ -177,7 +177,7 @@ public sealed class KnowledgeRecordingTests(DatabaseFixture fixture) : IAsyncLif
             ],
              "claims":[
               {"text":"Bir iddia.","verdict":"supported","reason":"Kaynak destekliyor.",
-               "source_url":"https://tr.wikipedia.org/wiki/Test"}
+               "source":"https://tr.wikipedia.org/wiki/Test"}
             ]}
             """);
 
@@ -190,6 +190,12 @@ public sealed class KnowledgeRecordingTests(DatabaseFixture fixture) : IAsyncLif
         // Kaynaklar iddialardan ÖNCE yazılıyor: ters sırada eşleştirme
         // boş kalırdı ve "bu iddia hangi kaynaktan geldi" sorusu
         // cevapsız olurdu.
+        //
+        // ALAN ADI `source`, `source_url` DEĞİL — ilk yazımda yanlıştı
+        // ve test CI'da bu satırda düştü. `ClaimCheckHandler`'ın
+        // ürettiği ada uymak zorunlu: test kendi uydurduğu bir şemayı
+        // sınasaydı, gerçek çıktının eşleşip eşleşmediğini hiç
+        // söylemezdi.
         var claim = await check.Claims.AsNoTracking().FirstAsync();
 
         Assert.NotNull(claim.SourceId);

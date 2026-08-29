@@ -280,8 +280,30 @@ public static class NodeHandlerRegistration
         // isi iki kez saymak olurdu. Disarida oldugunda "bir senaryo
         // uretildi" tek satir, hangi saglayicinin urettigi ise o
         // satirin icinde.
-        var llm = TieredLlmProvider.Single(
-            new OllamaLlmProvider(http, OllamaOptions.FromEnvironment())).Wrap(pipeline);
+        // ***ANAHTARSIZ HATTIN LLM'İ ARTIK GPU İSTEMİYOR.***
+        //
+        // Önceden tek seçenek Ollama'ydı, yani YEREL BİR GPU. GPU'su
+        // olmayan (ya da GPU'sunu kullanamayan) bir makinede anahtarsız
+        // hat senaryo üretemiyordu: "anahtarsız çalışır" iddiası
+        // pratikte "yerel modeli olan makinede çalışır" demekti.
+        // Katalogda `pollinations-text` satırı VARDI ve karşılığında
+        // hiçbir kod yoktu.
+        //
+        // SIRA ÖNEMLİ: önce Pollinations (anahtarsız, bulut, GPU
+        // istemiyor), düşerse Ollama (çevrimdışı, yerel). Tersi
+        // olsaydı Ollama'sı olmayan her makinede her senaryo çağrısı
+        // önce bağlantı hatası verip sonra buluta düşerdi — çalışırdı
+        // ama her çağrıda bir zaman aşımı ödeyerek.
+        //
+        // Katman başına iki sağlayıcı: yedeğe düşüş `ProviderRouter`
+        // içinde ve hangi sağlayıcının ürettiği çıktıya yazılıyor.
+        var llm = new TieredLlmProvider(
+            new Dictionary<ModelTier, IReadOnlyList<ILlmProvider>>
+            {
+                [ModelTier.Cheap] = Chain(http, ModelTier.Cheap),
+                [ModelTier.Standard] = Chain(http, ModelTier.Standard),
+                [ModelTier.Strong] = Chain(http, ModelTier.Strong),
+            }).Wrap(pipeline);
 
         // Araclar yan-servisi (P1-04). Kapali olabilir ve bu NORMAL:
         // ilk cagri Kaynak hatasi donuyor, TTS isleyicisi karakter
@@ -390,13 +412,23 @@ public static class NodeHandlerRegistration
             // olmadan onay kapısı hep "skor yok" görüyor, yani
             // seçici onay hiç devreye giremiyor (P2-08).
             .Register(new QualityCheckHandler(storage))
-            // SEMANTİK QC GÖRME MODELİ OLMADAN KAYITLI.
+            // ***SEMANTİK QC ARTIK GERÇEK BİR GÖRME MODELİYLE (P2-06).***
             //
-            // Model yokken kontroller "ölçülemedi" diye DÜŞÜYOR ve
-            // video insana gidiyor — sessizce geçmiyor. Kaydetmemek,
-            // semantik kontrolün hiç var olmadığı bir hat demekti ve
-            // model geldiğinde de kimse eklemeyi hatırlamazdı.
-            .Register(new SemanticQualityHandler(storage))
+            // Uzun süre model YOKTU ve kontroller "ölçülemedi" diye
+            // düşüyordu — doğru davranış ama pahalı: hiçbir video
+            // otomatik geçemiyordu, yani otonomi bu kontrolde
+            // duruyordu. Sebep de yazılıydı: 6 GB'lık bir görme
+            // modelini karta yüklemek bu makinede mümkün değil.
+            //
+            // Anahtarsız bir görme modeli bunu GPU'suz çözüyor. Model
+            // erişilemezse davranış DEĞİŞMİYOR: kontrol yine
+            // "ölçülemedi" diye düşüyor ve video insana gidiyor —
+            // sessizce geçmiyor.
+            .Register(new SemanticQualityHandler(
+                storage,
+                new OpenAiCompatibleVisionProvider(
+                    http, OpenAiCompatibleOptions.Pollinations()).Wrap(pipeline),
+                llm))
             // Onay kapısı HER İKİ hatta da kayıtlı: sahte hatta
             // kayıtlı olmasaydı onay içeren bir graf sahte koşuda
             // "bilinmeyen node tipi" diye reddedilirdi.
@@ -430,6 +462,18 @@ public static class NodeHandlerRegistration
                 ],
                 quota));
     }
+
+    /// Anahtarsız LLM zinciri: önce bulut, sonra yerel.
+    ///
+    /// TEK YERDE çünkü üç katman aynı sırayı kullanmak zorunda. Ayrı
+    /// ayrı yazılsaydı biri güncellenip diğeri unutulur ve `Strong`
+    /// katmanı sessizce başka bir sağlayıcıya giderdi — çıktıda
+    /// görünürdü ama kimse bakmazdı.
+    private static IReadOnlyList<ILlmProvider> Chain(HttpClient http, ModelTier tier)
+        => [
+            new OpenAiCompatibleLlmProvider(http, OpenAiCompatibleOptions.Pollinations()),
+            new OllamaLlmProvider(http, OllamaOptions.FromEnvironment()),
+        ];
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
     /// Depolama gerektirmediği için konfigürasyon aşamasında kullanılabilir.
