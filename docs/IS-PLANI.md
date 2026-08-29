@@ -208,6 +208,10 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [ ] **P1-30** `2p` — 🏁 **Faz 1 kabul:** her iki dilde birer gerçek Shorts yayında, video başına gerçek maliyet ölçülmüş
   - *Bitti:* İki video linki + maliyet raporu
+  - ***Tek eksik anahtar — 29 Ağu 2026.*** Kabul kriterinin istediği her şey hazır ve sınandı: iki dilde kanal (P1-26), uçtan uca üretim, kapak, SEO, QC, onay, **yayın node'u** (`publish.upload`) ve **YouTube yayıncısı** (sürdürülebilir yükleme, OAuth yenileme, çökme kurtarma — 13 test). Maliyet ölçümü `provider_calls` üzerinden zaten koşuyor.
+  - *Yapılamayan tek şey gerçek bir yükleme:* Production modu onayı ve OAuth anahtarı yok. Bu kriter **tanımı gereği** gerçek bir yayın istiyor; sahte bir yayınla `[x]` işaretlemek, kabul kriterinin sorduğu soruyu cevaplamamak olurdu.
+  - *Anahtar geldiğinde yapılacak:* `bmai credential set youtube` → `blog-makale` dışındaki bir grafa `publish.upload` node'u ekle → iki dilde birer koşu → `bmai ogrenme cek` ile yedinci gün ölçümü. Kod tarafında değişiklik gerekmiyor.
+
 
 ---
 
@@ -396,6 +400,11 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     **Replika bir optimizasyon, doğruluk koşulu değil**: `BMAI_CONNECTION_READ` boşsa okuma bağlamı birincile bağlanıyor. Kayıt yapmamak seçenek değildi — o zaman replikası olmayan bir kurulumda her uç açılışta çözülemeyen bağımlılık hatası verirdi. 6 test
   - *Bu iş AYNI AYRIŞMANIN ÜÇÜNCÜ ÖRNEĞİNİ ortaya çıkardı:* API kendi `AddDbContext` çağrısını yazıyordu ve `AddStudioPersistence`'ı hiç çağırmıyordu — yani bugün birleştirilen kayıt noktası API'yi kapsamıyordu. Sonucu, okuma bağlamının API'de hiç kayıtlı olmaması ve üç ucun `Body was inferred` ile düşmesiydi; çalışırken görüldü. Aynı hata bugün iki kez daha çıktı (Worker'da yürütme stratejisi ayrışması, node kaydında eksik sağlayıcılar).
 - [ ] **P4-07** `3p` — NVENC değerlendirmesi (kalite ölçümüyle)
+  - ***Bilerek yapılmadı — 29 Ağu 2026.*** Bu makinede ekran kartını çalıştırmak **mavi ekrana** yol açtı ve sahibi GPU'ya dokunulmamasını istedi. Donanım kararı, yazılım kararından önce gelir: kararsız bir kartta ölçülen bir kalite karşılaştırması, ölçtüğü şeyi değil kartın o anki durumunu raporlardı.
+  - *Değerlendirme koşmadan yazılmadı, ve bu bilinçli:* koşulmayan bir ölçüm koşumu, bu depodaki en pahalı hata sınıfının ta kendisi olurdu — "yazıldı ama hiç çalışmadı", üstelik `[x]` işaretiyle.
+  - *Kararın gerektirdiği ölçüm belli:* aynı timeline'ı `libx264` ve `h264_nvenc` ile kodlayıp **süre** ve **VMAF** karşılaştırmak. NVENC daha hızlı ama aynı bit hızında daha düşük kalite veriyor; "hızlandı" demek, kalite kaybını ölçmeden verilmiş bir karar olurdu. Faz 4 kabulünde render **45,6 sn/video** ile darboğazdı, yani kazanç gerçek — ama bedeli ölçülmeden alınmamalı.
+  - *Ön koşul:* temiz NVIDIA sürücü kurulumu, Dell BIOS/yonga seti güncellemesi, PCIe Link State Power Management → Off. Kart hâlâ kararsızsa garanti.
+
 - [x] **P4-08** `3p` — Temporal spike + `IWorkflowEngine` arkasında karar
   - *Bitti:* ✔ 29 Ağu 2026 — **Karar: geçilmiyor.** Gerekçe ve kararı değiştirecek koşullar: [ADR-016](ADR-016-TEMPORAL.md)
   - *Ölçüm kararı verdi:* ADR-004'te Temporal'ı gündeme getiren ölçek 1.000 video/gündü; mevcut motor **tek makinede 1.625/gün** yapıyor (P4-09), sıfır düşen koşu. **Ve darboğaz orkestrasyon değil**: video başına 45,6 sn render. Temporal iş akışlarını yönetiyor, ffmpeg'i hızlandırmıyor — bugün bulunan iki performans kusuru da render tarafındaydı.
