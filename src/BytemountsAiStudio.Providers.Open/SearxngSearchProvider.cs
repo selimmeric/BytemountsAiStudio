@@ -18,7 +18,14 @@ namespace BytemountsAiStudio.Providers.Open;
 /// motorların bizi kesip kesmediği.
 public sealed class SearxngSearchProvider(HttpClient http, Uri? baseAddress = null) : ISearchProvider
 {
-    private readonly Uri _base = baseAddress ?? new Uri("http://localhost:8888");
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    public static Uri DefaultEndpoint { get; } = new("http://localhost:8888");
+
+    public const string EndpointVariable = "BMAI_SEARXNG_URL";
+
+    private readonly Uri _base = baseAddress
+        ?? Endpoints.Resolve(EndpointVariable, "http://localhost:8888");
 
     private static readonly JsonSerializerOptions Json = new()
     {

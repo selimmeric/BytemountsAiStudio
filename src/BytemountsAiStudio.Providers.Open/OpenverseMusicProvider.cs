@@ -22,9 +22,19 @@ namespace BytemountsAiStudio.Providers.Open;
 /// Bu yüzden `license_type=commercial,modification` filtresi kodun
 /// içinde sabit ve dönen her sonuç ayrıca doğrulanıyor — görsel
 /// sağlayıcıyla aynı gerekçe (P1-17a).
-public sealed class OpenverseMusicProvider(HttpClient http) : IMusicProvider
+public sealed class OpenverseMusicProvider(HttpClient http, Uri? endpoint = null) : IMusicProvider
 {
-    private const string SearchAddress = "https://api.openverse.org/v1/audio/";
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: `BMAI_OPENVERSE_AUDIO_URL` ile eziliyor.
+    public static Uri DefaultEndpoint { get; } = new("https://api.openverse.org/v1/audio/");
+
+    /// Adresin okunduğu ortam değişkeni.
+    public const string EndpointVariable = "BMAI_OPENVERSE_AUDIO_URL";
+
+    private readonly string SearchAddress =
+        (endpoint ?? Endpoints.Resolve(EndpointVariable, "https://api.openverse.org/v1/audio/")).ToString();
 
     private const string UserAgent = "BytemountsAiStudio/0.1 (icerik uretim arastirmasi)";
 

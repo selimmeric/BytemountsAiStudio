@@ -16,7 +16,10 @@ public sealed record OllamaOptions
     /// kartı) hiç model koşturamıyor; onlar güçlü makinedeki Ollama'ya
     /// ya da dışarıdaki bir servise bağlanıyor. Adres koda gömülü
     /// olsaydı bu dağıtım hiç mümkün olmazdı.
-    public Uri BaseAddress { get; init; } = new("http://localhost:11434");
+    /// Kodda sabit DEĞİL, VARSAYILAN: zayıf bir makinede
+    /// `BMAI_OLLAMA_URL` güçlü makineyi gösteriyor.
+    public Uri BaseAddress { get; init; } =
+        Endpoints.Resolve("BMAI_OLLAMA_URL", "http://localhost:11434");
 
     /// Katman → model eşlemesi. ADR-015: hacimli işler yerel modele düşüyor.
     ///
@@ -49,6 +52,12 @@ public sealed record OllamaOptions
     /// gösteriyor, güçlü makinede tanımsız kalıp localhost'a düşüyor,
     /// ve dışarıdan servis alındığında o servisin adresini gösteriyor.
     /// Üç durum da KOD DEĞİŞİKLİĞİ GEREKTİRMİYOR.
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    public static Uri DefaultEndpoint { get; } = new("http://localhost:11434");
+
+    public const string EndpointVariable = "BMAI_OLLAMA_URL";
+
     public static OllamaOptions FromEnvironment() => From(Environment.GetEnvironmentVariable);
 
     /// Okuma islevi disaridan veriliyor: yapilandirma mantigi, surec

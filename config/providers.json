@@ -25,7 +25,11 @@
       "models": [
         {
           "name": "qwen2.5:7b-instruct",
-          "tiers": ["cheap", "standard", "strong"],
+          "tiers": [
+            "cheap",
+            "standard",
+            "strong"
+          ],
           "vram_gb": 5.5,
           "context": 32768,
           "default": true,
@@ -41,7 +45,9 @@
         },
         {
           "name": "qwen2.5:14b-instruct",
-          "tiers": ["strong"],
+          "tiers": [
+            "strong"
+          ],
           "vram_gb": 10,
           "context": 32768,
           "default": false,
@@ -67,7 +73,7 @@
       "enabled": false,
       "requires_key": false,
       "cost": "degisken",
-      "endpoint": null,
+      "endpoint": "http://localhost:11434",
       "endpoint_env": "BMAI_OLLAMA_URL",
       "quality": "modele bagli",
       "notes": "AYNI istemci, farkli adres. Model bizde yoksa disaridan servis aliniyor; o zaman modelin bizim VRAM'imize sigma zorunlulugu ortadan kalkiyor. Ayri bir kayit olmasinin sebebi belgeleme: kod tarafinda ollama kaydiyla ayni.",
@@ -82,12 +88,13 @@
       "enabled": false,
       "requires_key": false,
       "cost": "ucretsiz",
-      "endpoint": "https://text.pollinations.ai",
+      "endpoint": "https://text.pollinations.ai/",
       "quality": "orta",
       "notes": "Ollama'ya ag ustunden alternatif. Yerel model yoksa yedek.",
       "limits": {
         "requests_per_minute": 10
-      }
+      },
+      "endpoint_env": "BMAI_POLLINATIONS_TEXT_URL"
     },
     {
       "key": "openai",
@@ -101,7 +108,9 @@
       "notes": "Senaryo (strong katman) icin hedeflenen saglayici. ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-02b); anahtar yalnizca canli dogrulama icin gerekiyor. Gomme 768 boyut isteniyor (ADR-003) - varsayilan 1536 semaya yazilamazdi.",
       "limits": {
         "requests_per_minute": 500
-      }
+      },
+      "endpoint": "https://api.openai.com/v1/",
+      "endpoint_env": "BMAI_OPENAI_URL"
     },
     {
       "key": "openrouter",
@@ -111,12 +120,13 @@
       "requires_key": true,
       "key_env": "OPENROUTER_API_KEY",
       "cost": "degisken (ucretsiz katmani var)",
-      "endpoint": "https://openrouter.ai/api/v1",
+      "endpoint": "https://openrouter.ai/api/v1/",
       "quality": "modele bagli",
       "notes": "Tek anahtarla onlarca model. OpenAI ile AYNI kabloyu konustugu icin ayni adaptor kullaniliyor (P1-02b); fark yalnizca adres, anahtar ve model adi. EMBEDDING SUNMUYOR - cagrilirsa kalici hata donuyor, yonlendirme baska saglayiciya gitmeli.",
       "limits": {
         "requests_per_minute": 200
-      }
+      },
+      "endpoint_env": "BMAI_OPENROUTER_URL"
     },
     {
       "key": "gemini",
@@ -130,7 +140,9 @@
       "notes": "Comert ucretsiz kotasi var; anahtar almak ucretsiz. ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-02b). Kablosu OpenAI'dan gercekten farkli: sistem istemi ayri alanda, zorlanmis arac tool_config.function_calling_config ile ve anahtar x-goog-api-key basliginda (sorgu dizisi vekil loglarina duz metin yaziliyor). 429 KAYNAK hatasi sayiliyor, gecici degil - ucretsiz katmanda bu genelde gunluk kota.",
       "limits": {
         "requests_per_minute": 15
-      }
+      },
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/",
+      "endpoint_env": "BMAI_GEMINI_URL"
     },
     {
       "key": "wikipedia",
@@ -139,12 +151,13 @@
       "enabled": true,
       "requires_key": false,
       "cost": "ucretsiz",
-      "endpoint": "https://{lang}.wikipedia.org/w/api.php",
+      "endpoint": "https://{language}.wikipedia.org/w/api.php",
       "quality": "yuksek",
       "notes": "Ansiklopedik icerigin ilk duragi. Tanimlayici User-Agent zorunlu. Hem arama hem tam metin.",
       "limits": {
         "requests_per_second": 10
-      }
+      },
+      "endpoint_env": "BMAI_WIKIPEDIA_API_URL"
     },
     {
       "key": "wikidata",
@@ -158,7 +171,8 @@
       "notes": "METIN degil OLGU donduruyor: tarih, koordinat, nufus birer alan olarak geliyor. Wikipedia'da model tarihi metinden CIKARIYOR, burada cikarim adimi hic yok - sayilar ve tarihler kisa videoda en cok yanlis cikan seyler.",
       "limits": {
         "requests_per_second": 10
-      }
+      },
+      "endpoint_env": "BMAI_WIKIDATA_URL"
     },
     {
       "key": "searxng",
@@ -173,7 +187,8 @@
       "notes": "Meta arama motoru. Genel web aramasi icin anahtarsiz en saglam yol.",
       "limits": {
         "requests_per_minute": 60
-      }
+      },
+      "endpoint_env": "BMAI_SEARXNG_URL"
     },
     {
       "key": "duckduckgo-ia",
@@ -182,12 +197,13 @@
       "enabled": true,
       "requires_key": false,
       "cost": "ucretsiz",
-      "endpoint": "https://api.duckduckgo.com",
+      "endpoint": "https://api.duckduckgo.com/",
       "quality": "dusuk",
       "notes": "Web aramasi DEGIL: DuckDuckGo'nun bu is icin actigi belgelenmis uc nokta, yalnizca 'aninda cevap' donduruyor. Sonuc sayfasini kazimak kullanim sartlarina aykiri. Yonlendirmede son sirada; anahtarsiz bir yedek olarak degeri var.",
       "limits": {
         "requests_per_minute": 30
-      }
+      },
+      "endpoint_env": "BMAI_DUCKDUCKGO_URL"
     },
     {
       "key": "brave-search",
@@ -201,7 +217,9 @@
       "notes": "Anahtar almak ucretsiz. Gercek web aramasi gerektiginde ilk tercih.",
       "limits": {
         "requests_per_month": 2000
-      }
+      },
+      "endpoint": "https://api.search.brave.com/res/v1/web/search",
+      "endpoint_env": "BMAI_BRAVE_URL"
     },
     {
       "key": "openverse",
@@ -215,7 +233,8 @@
       "notes": "LISANS FILTRESI KODA GOMULU: yalnizca ticari kullanima ve degistirmeye izin veren lisanslar. Varsayilan sonuclar by-nc-nd geliyor ve NoDerivatives kurali Ken Burns hareketini bile ihlal eder.",
       "limits": {
         "requests_per_hour": 100
-      }
+      },
+      "endpoint_env": "BMAI_OPENVERSE_IMAGE_URL"
     },
     {
       "key": "wikimedia-commons",
@@ -229,7 +248,8 @@
       "notes": "Tarihi ve cografi konularda guclu. Lisanslar dosya bazinda degisiyor, her birinin ayrica kontrolu gerekiyor.",
       "limits": {
         "requests_per_second": 10
-      }
+      },
+      "endpoint_env": "BMAI_COMMONS_URL"
     },
     {
       "key": "pexels",
@@ -243,7 +263,9 @@
       "notes": "ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-17); anahtar yalnizca canli dogrulama icin. Openverse'e gore fark KALITE: sonuclar elle kuratorlenmis. Lisans kaydi her sonucla saklaniyor (S2.3/14) - Pexels atif zorunlu kilmiyor ama kurallar degisebiliyor ve o gun ne yazdigi ancak alindigi anda saklanmissa var. Dikey videoda orientation=portrait isteniyor: yatay bir kareyi 9:16'ya kirpmak karenin cogunu atmak demek. Kota 429 + X-Ratelimit-Reset ile KAYNAK hatasi.",
       "limits": {
         "requests_per_hour": 200
-      }
+      },
+      "endpoint": "https://api.pexels.com/v1/search",
+      "endpoint_env": "BMAI_PEXELS_URL"
     },
     {
       "key": "pollinations",
@@ -257,7 +279,8 @@
       "notes": "Anahtarsiz AI gorsel. Uretim suresi ongorulemez (gorsel basina 20-40 sn). Tohum verilirse ayni prompt ayni gorseli veriyor.",
       "limits": {
         "requests_per_minute": 10
-      }
+      },
+      "endpoint_env": "BMAI_POLLINATIONS_URL"
     },
     {
       "key": "flux",
@@ -271,7 +294,9 @@
       "notes": "Kalite ve hiz farki buyuk. Butce acildiginda ilk yukseltilecek kalem. ADAPTOR YAZILDI ve stub HTTP ile sinandi (P1-14). TEK CAGRIDA hem ses hem KELIME ZAMANLAMASI veriyor (with-timestamps ucu) - asil degeri bu: kullanildiginda ASR hizalama adimi HIC calismiyor (P1-15). Kota bitince de 401 donuyor ve tek ayirt edici govdedeki quota_exceeded; o durumda KAYNAK hatasi.",
       "limits": {
         "requests_per_minute": 60
-      }
+      },
+      "endpoint": "https://api.bfl.ai/v1/",
+      "endpoint_env": "BMAI_FLUX_URL"
     },
     {
       "key": "windows-speech",
@@ -318,7 +343,8 @@
       ],
       "limits": {
         "requests_per_minute": null
-      }
+      },
+      "endpoint": "http://localhost:8099"
     },
     {
       "key": "tools-sidecar",
@@ -357,7 +383,8 @@
       "notes": "Anahtarsiz arka plan muzigi (P2-09). Lisans kurali gorsellerden DAHA SERT: Content ID muzigi otomatik taniyor ve bir talep kanalin gelirini goturuyor. `by-sa` KABUL EDILMIYOR - ShareAlike, arka plan muzigi videonun tamamini turev haline getirdigi icin kanalin kendi icerigini de o lisansa baglardi. Secim atif ISTEMEYENI (cc0/pdm) tercih ediyor. Terimler TEK KELIME: Openverse terimleri VE ile birlestiriyor ve uc kelimelik sorgular sifir sonuc veriyor.",
       "limits": {
         "requests_per_minute": null
-      }
+      },
+      "endpoint_env": "BMAI_OPENVERSE_AUDIO_URL"
     },
     {
       "key": "elevenlabs",
@@ -371,7 +398,9 @@
       "notes": "Ses kalitesi farki en cok hissedilen kalem. Karakter zamanlamasi da donduruyor - ASR yedegini gereksiz kilar.",
       "limits": {
         "requests_per_minute": 120
-      }
+      },
+      "endpoint": "https://api.elevenlabs.io/v1/",
+      "endpoint_env": "BMAI_ELEVENLABS_URL"
     },
     {
       "key": "whisperx",
@@ -385,7 +414,9 @@
       "notes": "Kelime seviyesi hizalama. TTS zamanlama vermediginde devreye girer.",
       "limits": {
         "requests_per_minute": null
-      }
+      },
+      "endpoint": "http://localhost:8099",
+      "endpoint_env": "BMAI_TOOLS_URL"
     },
     {
       "key": "youtube",
@@ -399,7 +430,37 @@
       "limits": {
         "quota_units_per_day": 10000,
         "quota_units_per_publish": 1600
-      }
+      },
+      "endpoint": "https://www.googleapis.com/upload/youtube/v3/videos",
+      "endpoint_env": "BMAI_YOUTUBE_URL"
+    },
+    {
+      "key": "tiktok",
+      "role": "publish",
+      "display_name": "TikTok Content Posting API",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "TIKTOK_ACCESS_TOKEN",
+      "cost": "ucretsiz",
+      "endpoint": "https://open.tiktokapis.com/v2/",
+      "endpoint_env": "BMAI_TIKTOK_URL",
+      "platform": "tiktok",
+      "setup": "TikTok for Developers > uygulama olustur > video.publish kapsami > erisim jetonu",
+      "notes": "Adres ve butun uc noktalar parametrik; anahtar gelince enabled=true yeterli. Yukleme UC ADIMLI: init -> parca yukleme -> durum yoklama. Sandbox hesaplari yalnizca SELF_ONLY yayinlayabiliyor."
+    },
+    {
+      "key": "instagram",
+      "role": "publish",
+      "display_name": "Instagram Reels (Graph API)",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "INSTAGRAM_ACCESS_TOKEN",
+      "cost": "ucretsiz",
+      "endpoint": "https://graph.facebook.com/v21.0/",
+      "endpoint_env": "BMAI_INSTAGRAM_URL",
+      "platform": "instagram",
+      "setup": "Meta for Developers > Instagram Graph API > Business hesap + Sayfa baglantisi",
+      "notes": "IKI ADIMLI: once konteyner olusturuluyor, HAZIR olana kadar yoklaniyor, sonra yayinlaniyor. Video URL ILE veriliyor -- dosya yuklenmiyor, yani varlik depolayan yerin disaridan erisilebilir olmasi gerekiyor."
     }
   ],
   "_routing_comment": "Sirali yedekleme: ilk calisani kullanilir. Anahtar geldiginde ucretli saglayici basa alinir.",

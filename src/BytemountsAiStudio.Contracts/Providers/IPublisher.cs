@@ -56,6 +56,16 @@ public sealed record PublishRequest
 {
     public required string VideoPath { get; init; }
 
+    /// Videonun DIŞARIDAN ERİŞİLEBİLİR adresi.
+    ///
+    /// Bazı platformlar dosya kabul etmiyor, ÇEKİYOR: Instagram Graph
+    /// API'ye `video_url` veriliyor ve Meta o adresi kendi
+    /// sunucularından indiriyor. Yerel bir dosya yolu orada işe
+    /// yaramıyor ve hata Meta tarafında, anlaşılmaz bir kodla
+    /// dönüyor — bu yüzden alan burada ve eksikliği yayından ÖNCE
+    /// yakalanıyor.
+    public Uri? VideoUrl { get; init; }
+
     public required PublishMetadata Metadata { get; init; }
 
     public AssetRef? Thumbnail { get; init; }

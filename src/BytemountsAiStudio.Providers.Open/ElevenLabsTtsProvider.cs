@@ -12,7 +12,14 @@ namespace BytemountsAiStudio.Providers.Open;
 
 public sealed record ElevenLabsOptions
 {
-    public Uri BaseAddress { get; init; } = new("https://api.elevenlabs.io/v1/");
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    public static Uri DefaultEndpoint { get; } = new("https://api.elevenlabs.io/v1/");
+
+    public const string EndpointVariable = "BMAI_ELEVENLABS_URL";
+
+    public Uri BaseAddress { get; init; } =
+        Endpoints.Resolve(EndpointVariable, "https://api.elevenlabs.io/v1/");
 
     public string KeyEnvironmentVariable { get; init; } = "ELEVENLABS_API_KEY";
 

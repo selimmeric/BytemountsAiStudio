@@ -18,7 +18,10 @@ namespace BytemountsAiStudio.Providers.Open;
 /// koşuyor, diğerleri ağ üstünden çağırıyor.
 public sealed record ToolsSidecarOptions
 {
-    public Uri BaseAddress { get; init; } = new("http://localhost:8099");
+    /// Kodda sabit DEĞİL, VARSAYILAN: yan-servis başka bir makinede
+    /// koşuyorsa `BMAI_TOOLS_URL` yeterli.
+    public Uri BaseAddress { get; init; } =
+        Endpoints.Resolve("BMAI_TOOLS_URL", "http://localhost:8099");
 
     /// Hizalama bir modeli belleğe yüklüyor; ilk çağrı dakikalar sürebilir.
     public TimeSpan AlignTimeout { get; init; } = TimeSpan.FromMinutes(10);
@@ -28,6 +31,12 @@ public sealed record ToolsSidecarOptions
 
     /// Seslendirme hızlı ama İLK çağrı modeli belleğe yüklüyor.
     public TimeSpan SpeakTimeout { get; init; } = TimeSpan.FromMinutes(3);
+
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    public static Uri DefaultEndpoint { get; } = new("http://localhost:8099");
+
+    public const string EndpointVariable = "BMAI_TOOLS_URL";
 
     public static ToolsSidecarOptions FromEnvironment() => From(Environment.GetEnvironmentVariable);
 

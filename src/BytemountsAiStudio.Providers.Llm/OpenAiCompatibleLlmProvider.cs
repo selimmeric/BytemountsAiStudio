@@ -31,11 +31,21 @@ public sealed record OpenAiCompatibleOptions
 
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(2);
 
+    /// Varsayılan adresler — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    public const string OpenAiEndpoint = "https://api.openai.com/v1/";
+
+    public const string OpenAiEndpointVariable = "BMAI_OPENAI_URL";
+
+    public const string OpenRouterEndpoint = "https://openrouter.ai/api/v1/";
+
+    public const string OpenRouterEndpointVariable = "BMAI_OPENROUTER_URL";
+
     /// OpenAI. Katmanlar §7.4'e göre: para YALNIZCA senaryoda harcanıyor.
     public static OpenAiCompatibleOptions OpenAi() => new()
     {
         Key = "openai",
-        BaseAddress = new Uri("https://api.openai.com/v1/"),
+        BaseAddress = Endpoints.Resolve(OpenAiEndpointVariable, OpenAiEndpoint),
         KeyEnvironmentVariable = "OPENAI_API_KEY",
         Models = new Dictionary<ModelTier, string>
         {
@@ -55,7 +65,7 @@ public sealed record OpenAiCompatibleOptions
     public static OpenAiCompatibleOptions OpenRouter() => new()
     {
         Key = "openrouter",
-        BaseAddress = new Uri("https://openrouter.ai/api/v1/"),
+        BaseAddress = Endpoints.Resolve(OpenRouterEndpointVariable, OpenRouterEndpoint),
         KeyEnvironmentVariable = "OPENROUTER_API_KEY",
         Models = new Dictionary<ModelTier, string>
         {

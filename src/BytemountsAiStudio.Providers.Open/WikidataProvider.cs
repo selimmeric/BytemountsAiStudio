@@ -20,9 +20,19 @@ namespace BytemountsAiStudio.Providers.Open;
 /// yanlışlığı en görünür olan şeyler.
 ///
 /// Anahtar gerektirmiyor. Tanımlayıcı User-Agent zorunlu.
-public sealed class WikidataProvider(HttpClient http) : ISearchProvider
+public sealed class WikidataProvider(HttpClient http, Uri? endpoint = null) : ISearchProvider
 {
-    private const string Endpoint = "https://www.wikidata.org/w/api.php";
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: `BMAI_WIKIDATA_URL` ile eziliyor.
+    public static Uri DefaultEndpoint { get; } = new("https://www.wikidata.org/w/api.php");
+
+    /// Adresin okunduğu ortam değişkeni.
+    public const string EndpointVariable = "BMAI_WIKIDATA_URL";
+
+    private readonly string Endpoint =
+        (endpoint ?? Endpoints.Resolve(EndpointVariable, "https://www.wikidata.org/w/api.php")).ToString();
 
     /// Wikimedia'nın açıkça istediği tanımlayıcı ajan. Vermemek
     /// engellenme sebebi.

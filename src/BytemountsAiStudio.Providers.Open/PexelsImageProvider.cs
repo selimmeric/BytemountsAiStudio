@@ -21,9 +21,20 @@ namespace BytemountsAiStudio.Providers.Open;
 /// birlikte saklanıyor: "o gün ne yazıyordu" sorusunun cevabı ancak
 /// alındığı anda saklanmışsa var. Sonradan toplamak imkânsız — fotoğraf
 /// silinmiş olabiliyor.
-public sealed class PexelsImageProvider(HttpClient http, ICredentialSource? credentials = null) : IImageProvider
+public sealed class PexelsImageProvider(
+    HttpClient http, ICredentialSource? credentials = null, Uri? endpoint = null) : IImageProvider
 {
-    private const string SearchAddress = "https://api.pexels.com/v1/search";
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: `BMAI_PEXELS_URL` ile eziliyor.
+    public static Uri DefaultEndpoint { get; } = new("https://api.pexels.com/v1/search");
+
+    /// Adresin okunduğu ortam değişkeni.
+    public const string EndpointVariable = "BMAI_PEXELS_URL";
+
+    private readonly string SearchAddress =
+        (endpoint ?? Endpoints.Resolve(EndpointVariable, "https://api.pexels.com/v1/search")).ToString();
 
     public const string KeyEnvironmentVariable = "PEXELS_API_KEY";
 

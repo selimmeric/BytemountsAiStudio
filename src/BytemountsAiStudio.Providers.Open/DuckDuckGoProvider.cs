@@ -19,9 +19,19 @@ namespace BytemountsAiStudio.Providers.Open;
 ///
 /// Gerçek web araması gerektiğinde doğru cevap SearXNG (kendi
 /// sunucunuzda) ya da Brave API (anahtar ücretsiz).
-public sealed class DuckDuckGoProvider(HttpClient http) : ISearchProvider
+public sealed class DuckDuckGoProvider(HttpClient http, Uri? endpoint = null) : ISearchProvider
 {
-    private const string Endpoint = "https://api.duckduckgo.com/";
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: `BMAI_DUCKDUCKGO_URL` ile eziliyor.
+    public static Uri DefaultEndpoint { get; } = new("https://api.duckduckgo.com/");
+
+    /// Adresin okunduğu ortam değişkeni.
+    public const string EndpointVariable = "BMAI_DUCKDUCKGO_URL";
+
+    private readonly string Endpoint =
+        (endpoint ?? Endpoints.Resolve(EndpointVariable, "https://api.duckduckgo.com/")).ToString();
 
     private const string UserAgent =
         "BytemountsAiStudio/0.1 (icerik arastirma; +https://github.com/selimmeric/BytemountsAiStudio)";

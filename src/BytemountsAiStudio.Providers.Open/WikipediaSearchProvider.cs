@@ -18,10 +18,41 @@ namespace BytemountsAiStudio.Providers.Open;
 /// sayfalar) ve <see cref="IWebFetchProvider"/> (sayfanın metni). Ayrı ayrı
 /// olması gerekmiyor çünkü aynı API'nin iki uç noktası; ama arayüzler ayrı
 /// kalıyor ki başka sağlayıcılar birini uygulayıp diğerini uygulamayabilsin.
-public sealed class WikipediaProvider(HttpClient http, LanguageTag? defaultLanguage = null)
+public sealed class WikipediaProvider(
+    HttpClient http, LanguageTag? defaultLanguage = null, string? apiTemplate = null, string? pageTemplate = null)
     : ISearchProvider, IWebFetchProvider
 {
+    /// Dile göre değişen API adresi — `{language}` zorunlu yer tutucu.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: kendi Wikipedia kopyasını ya da
+    /// bir vekil sunucuyu kullanan biri `BMAI_WIKIPEDIA_API_URL` ile
+    /// geçiyor.
+    public const string DefaultApiTemplate = "https://{language}.wikipedia.org/w/api.php";
+
+    public const string DefaultPageTemplate = "https://{language}.wikipedia.org/wiki/{title}";
+
+    public const string ApiVariable = "BMAI_WIKIPEDIA_API_URL";
+
+    public const string PageVariable = "BMAI_WIKIPEDIA_PAGE_URL";
+
     private readonly LanguageTag _default = defaultLanguage ?? LanguageTag.Create("tr-TR");
+
+    private readonly string _api = apiTemplate
+        ?? Endpoints.ResolveTemplate(ApiVariable, DefaultApiTemplate, "{language}");
+
+    private readonly string _page = pageTemplate
+        ?? Endpoints.ResolveTemplate(PageVariable, DefaultPageTemplate, "{language}");
+
+    private string Api(string language)
+        => _api.Replace("{language}", language, StringComparison.Ordinal);
+
+    private string Page(string language, string title)
+        => _page
+            .Replace("{language}", language, StringComparison.Ordinal)
+            .Replace(
+                "{title}",
+                Uri.EscapeDataString(title.Replace(' ', '_')),
+                StringComparison.Ordinal);
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -42,7 +73,7 @@ public sealed class WikipediaProvider(HttpClient http, LanguageTag? defaultLangu
         var language = (query.Language ?? context?.Language ?? _default).Primary;
 
         var url = new Uri(
-            $"https://{language}.wikipedia.org/w/api.php"
+            Api(language)
             + "?action=query&list=search&format=json&utf8=1"
             + $"&srsearch={Uri.EscapeDataString(query.Text)}"
             + $"&srlimit={Math.Clamp(query.MaxResults, 1, 50).ToString(CultureInfo.InvariantCulture)}");
@@ -64,7 +95,7 @@ public sealed class WikipediaProvider(HttpClient http, LanguageTag? defaultLangu
 
             hits.Add(new SearchHit
             {
-                Url = new Uri($"https://{language}.wikipedia.org/wiki/{Uri.EscapeDataString(title.Replace(' ', '_'))}"),
+                Url = new Uri(Page(language, title)),
                 Title = title,
                 // `snippet` HTML vurgu etiketleri içeriyor; temizlenmezse
                 // iddia çıkarma adımına `<span class="searchmatch">` gider.
@@ -95,7 +126,7 @@ public sealed class WikipediaProvider(HttpClient http, LanguageTag? defaultLangu
         // `extracts` düz metin döndürüyor; HTML ayrıştırmaya gerek kalmıyor
         // ve şablon/altbilgi gürültüsü de gelmiyor.
         var apiUrl = new Uri(
-            $"https://{language}.wikipedia.org/w/api.php"
+            Api(language)
             + "?action=query&prop=extracts&explaintext=1&exsectionformat=plain&format=json&utf8=1"
             + $"&titles={Uri.EscapeDataString(title)}");
 

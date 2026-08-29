@@ -14,12 +14,22 @@ namespace BytemountsAiStudio.Providers.Open;
 /// kalite dalgalı, SLA yok. Bu yüzden yönlendirme politikasında (§9.3)
 /// TEK sağlayıcı olarak değil, ücretsiz varsayılan olarak duruyor; bütçe
 /// açıldığında üstüne ücretli bir sağlayıcı eklenir ve bu yedeğe düşer.
-public sealed class PollinationsImageProvider(HttpClient http) : IImageProvider
+public sealed class PollinationsImageProvider(HttpClient http, Uri? endpoint = null) : IImageProvider
 {
     /// Üretim uzun sürebiliyor; kısa timeout gereksiz başarısızlık üretir.
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(3);
 
-    private const string BaseAddress = "https://image.pollinations.ai/prompt/";
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: `BMAI_POLLINATIONS_URL` ile eziliyor.
+    public static Uri DefaultEndpoint { get; } = new("https://image.pollinations.ai/prompt/");
+
+    /// Adresin okunduğu ortam değişkeni.
+    public const string EndpointVariable = "BMAI_POLLINATIONS_URL";
+
+    private readonly string BaseAddress =
+        (endpoint ?? Endpoints.Resolve(EndpointVariable, "https://image.pollinations.ai/prompt/")).ToString();
 
     public string Key => "pollinations";
 

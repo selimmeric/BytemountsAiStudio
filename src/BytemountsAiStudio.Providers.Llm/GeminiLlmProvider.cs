@@ -9,7 +9,16 @@ namespace BytemountsAiStudio.Providers.Llm;
 
 public sealed record GeminiOptions
 {
-    public Uri BaseAddress { get; init; } = new("https://generativelanguage.googleapis.com/v1beta/");
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    public static Uri DefaultEndpoint { get; } = new("https://generativelanguage.googleapis.com/v1beta/");
+
+    public const string EndpointVariable = "BMAI_GEMINI_URL";
+
+    /// Kodda sabit DEĞİL, VARSAYILAN: bölgesel bir uç nokta ya da vekil
+    /// sunucu kullanmak yeniden derleme gerektirmesin.
+    public Uri BaseAddress { get; init; } =
+        Endpoints.Resolve(EndpointVariable, "https://generativelanguage.googleapis.com/v1beta/");
 
     public string KeyEnvironmentVariable { get; init; } = "GEMINI_API_KEY";
 

@@ -489,8 +489,21 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ## Faz 6 — Çok platform, çok içerik türü
 
-- [ ] **P6-01** `5p` — `IPublisher`: TikTok Content Posting API
-- [ ] **P6-02** `4p` — Instagram Reels (Graph API)
+- [~] **P6-01** `5p` — `IPublisher`: TikTok Content Posting API
+  - *Kısmen:* ✔ 29 Ağu 2026 — Adaptör tam, **anahtarsız sınandı**; gerçek API'ye hiç bağlanmadı. 8 test.
+  - ***Görünürlük önceden soruluyor — adaptörün en önemli işi bu.*** Denetimden geçmemiş uygulamalar yalnızca `SELF_ONLY` yayınlayabiliyor ve TikTok bu durumda **hata vermiyor**: videoyu sessizce gizli yayınlıyor. Sistem "herkese açık yayınlandı" der, kayıtta öyle yazar, video kimseye görünmez — ve bu ancak haftalar sonra "izlenme neden sıfır" diye fark edilir. `creator_info` önce sorgulanıyor, istenen görünürlük izin verilenler arasında değilse yayın **hiç başlamıyor** ve video da yüklenmiyor (boşuna yükleme hem kotayı hem bant genişliğini harcardı).
+  - *Boş izin listesi "her şey serbest" değil,* "cevabı anlamadım" demek — o hâlde yayınlamak görünürlüğü şansa bırakmak olurdu.
+  - *Üç adım da koşuyor:* `init` → parça yükleme → durum yoklama. İkinci adımı atlayıp "yayınlandı" demek, TikTok'un hiç görmediği bir videoyu yayınlanmış saymak olurdu; test yüklemenin gerçekten yapıldığını ölçüyor.
+  - *Yoklama sınırı **erteleme**, başarısızlık değil* (ADR-011 Resource): video muhtemelen hâlâ işleniyor ve kalıcı hata saymak, gerçekte yayınlanmış bir videoyu "düştü" diye işaretleyip yeniden yükletmek olurdu.
+  - *Kalan:* Gerçek API'ye hiç çağrı yapılmadı (anahtar yok) ve **yayın node'u yok** — `IPublisher`'ı çağıran hat P1-25 ile gelecek. Bu yüzden `[~]`.
+- [~] **P6-02** `4p` — Instagram Reels (Graph API)
+  - *Kısmen:* ✔ 29 Ağu 2026 — Adaptör tam, **anahtarsız sınandı**; gerçek API'ye hiç bağlanmadı. 6 test.
+  - ***Video yüklenmiyor, çekiliyor — adaptörün en önemli sınırı bu.*** Graph API dosya kabul etmiyor: `video_url` veriliyor ve Meta o adresi **kendi sunucularından indiriyor**. Yerel bir dosya yolu ya da yalnızca iç ağdan erişilebilen bir MinIO adresi orada işe yaramıyor; Meta "medya indirilemedi" diye anlaşılmaz bir kodla düşüyor ve sebebini bulmak saatler alıyor. Adresin varlığı yayından **önce** kontrol ediliyor ve hata ne yapılması gerektiğini söylüyor.
+  - *Gizli Reels diye bir şey yok:* "gizli yayınladık" demek, herkese açık olan bir videoyu gizli sanmak olurdu — gizli kalması gereken bir içerik için geri alınamaz bir hata.
+  - *İki adım:* konteyner → `FINISHED` olana kadar yoklama → yayın. Konteyner hazır olmadan yayınlamak Meta tarafında hata veriyor ve hata metni sebebi söylemiyor.
+  - *Hata sınıfları ayrılmış:* `ERROR` kalıcı (biçim desteklenmiyor), `EXPIRED` geçici (konteyner 24 saatte düşüyor, yenisi açılabilir), yoklama sınırı ve hız sınırı **kaynak** (erteleme). Hepsini kalıcı saymak, düzelebilir durumları ölü mektuba göndermek olurdu.
+  - *API sürümü ayarda:* Meta sürümü yılda birkaç kez yükseltip eskisini kapatıyor; `v21.0` kodda sabit olsaydı her sürüm yeni bir derleme demekti.
+  - *Kalan:* Gerçek API'ye hiç çağrı yapılmadı ve yayın node'u yok. Bu yüzden `[~]`.
 - [x] **P6-03** `3p` — Aynı içerikten rendition'lar (9:16 / 1:1 / 16:9, süre kırpma)
   - *Bitti:* ✔ 29 Ağu 2026 — Tek timeline'dan üç gerçek video: 1080×1920, 1080×1080, 1920×1080 (hepsi 46,8 sn, ffprobe ile ölçüldü). 18 test.
   - ***Türev timeline'dan, bitmiş videodan değil.*** Hazır mp4'ü kırpmak ucuz görünüyor ve yanlış: 9:16'lık bir videodan 16:9 kesmek karenin dörtte üçünü atıyor ve **altyazının tam ortasından** geçiyor. Doldurmak (letterbox) ise ekranın yarısını siyah bant yapıyor. İkisi de "aynı içerik başka orana uyarlandı" değil, "aynı içerik bozuldu".
@@ -522,6 +535,35 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     | `yatay` | video-1920x1080 | 1920×1080 h264 · 2,84 MB | 54,5 sn |
     | `ses` | podcast-m4a | **video akışı yok** · aac · 653 KB | 7,3 sn |
 - [ ] **P6-06** `4p` — Çok dilli türev: tek knowledge base → N dilde içerik (§20.7)
+
+---
+
+## Ek: Parametrik yapılandırma
+
+**Hiçbir adres kodda sabit değil.** Her dış servisin adresi
+`config/providers.json` içinde, her adresin bir ortam değişkeni
+karşılığı var, ve **kod ile katalog aynı olmak zorunda** —
+`ProviderEndpointTests` ikisini karşı karşıya getiriyor (9 test).
+
+*Neden test:* katalog `endpoint_env: BMAI_OLLAMA_URL` yazıyordu ama
+`ProviderDescriptor`'da o alan **hiç yoktu**; `JsonSerializer`
+tanımadığı alanı sessizce atıyordu. Kataloğu okuyup değişkeni tanımlayan
+biri, hiçbir şeyin değişmediğini ancak deneyerek anlardı. Katalog belge
+değil, yapılandırma; aralarındaki fark test edilmediğinde kaybolan tam
+olarak bu.
+
+- *Bozuk adres sessizce yok sayılmıyor:* `BMAI_PEXELS_URL=htp://...`
+  yazan biri sistemin hâlâ varsayılana gittiğini fark etmezdi ve
+  "ayarım neden çalışmıyor" sorusunun cevabı hiçbir yerde olmazdı.
+- *Şablonlarda yer tutucu zorunlu:* `{language}` düşen bir Wikipedia
+  ayarı bütün dilleri tek bir dile bağlardı — Türkçe kanal İngilizce
+  Wikipedia'dan okurdu, sessizce.
+- *Aynı servise aynı değişken:* `tools-sidecar`, `piper` ve `whisperx`
+  aynı yan-servisi kullanıyor; üçü için ayrı değişken, birini
+  değiştirip diğerlerini unutmak demekti.
+- Kapsam: **22 sağlayıcı**, hepsinin adresi ve ortam değişkeni tanımlı.
+  Yalnızca `windows-speech` hariç — o bir işletim sistemi API'si, adresi
+  yok.
 
 ---
 

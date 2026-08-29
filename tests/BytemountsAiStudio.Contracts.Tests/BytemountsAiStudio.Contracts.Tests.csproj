@@ -13,6 +13,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BytemountsAiStudio.Contracts\BytemountsAiStudio.Contracts.csproj" />
+
+    <!-- KATALOG-KOD MUTABAKATI BURADA SINANIYOR (ProviderEndpointTests).
+         Test projesi saglayicilari goruyor cunku sinanan sey tam olarak
+         "katalogdaki adres ile koddaki varsayilan ayni mi" sorusu; iki
+         tarafi da gormeden sorulamaz. -->
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Providers.Llm\BytemountsAiStudio.Providers.Llm.csproj" />
+    <ProjectReference Include="..\..\src\BytemountsAiStudio.Providers.Open\BytemountsAiStudio.Providers.Open.csproj" />
   </ItemGroup>
 
 </Project>

@@ -21,9 +21,19 @@ namespace BytemountsAiStudio.Providers.Open;
 /// sabit; konfigürasyondan gevşetilemiyor. §2.3/14: lisans bir metadata
 /// değil uyum kaydı — ve uyumu isteğe bağlı yapmak, bir gün birinin
 /// kapatması demektir.
-public sealed class OpenverseImageProvider(HttpClient http) : IImageProvider
+public sealed class OpenverseImageProvider(HttpClient http, Uri? endpoint = null) : IImageProvider
 {
-    private const string SearchAddress = "https://api.openverse.org/v1/images/";
+    /// Varsayılan adres — `config/providers.json` ile AYNI olmak
+    /// zorunda; `ProviderEndpointTests` ikisini karşılaştırıyor.
+    ///
+    /// Kodda sabit DEĞİL, VARSAYILAN: `BMAI_OPENVERSE_IMAGE_URL` ile eziliyor.
+    public static Uri DefaultEndpoint { get; } = new("https://api.openverse.org/v1/images/");
+
+    /// Adresin okunduğu ortam değişkeni.
+    public const string EndpointVariable = "BMAI_OPENVERSE_IMAGE_URL";
+
+    private readonly string SearchAddress =
+        (endpoint ?? Endpoints.Resolve(EndpointVariable, "https://api.openverse.org/v1/images/")).ToString();
 
     /// Wikimedia gibi Openverse de tanımlayıcı User-Agent bekliyor.
     private const string UserAgent = "BytemountsAiStudio/0.1 (icerik uretim arastirmasi)";

@@ -161,7 +161,18 @@ public sealed record ProviderDescriptor
 
     public string? Quality { get; init; }
 
+    /// Servisin adresi. KATALOGDA, KODDA DEĞİL: adres değişince
+    /// yeniden derleme gerekmesin.
     public string? Endpoint { get; init; }
+
+    /// Adresi ezen ortam değişkeni.
+    ///
+    /// BU ALAN DOSYADA VARDI AMA BURADA YOKTU ve `JsonSerializer`
+    /// tanımadığı alanı sessizce atıyordu: katalog `BMAI_OLLAMA_URL`
+    /// yazıyordu, kod onu hiç okumuyordu. Kataloğu okuyup değişkeni
+    /// tanımlayan biri, hiçbir şeyin değişmediğini ancak deneyerek
+    /// anlardı.
+    public string? EndpointEnv { get; init; }
 
     public string? Platform { get; init; }
 
