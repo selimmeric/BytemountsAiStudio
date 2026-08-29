@@ -470,7 +470,13 @@ public sealed record FilterGraph
 
     public required IReadOnlyList<FilterNode> Nodes { get; init; }
 
-    public required StreamRef VideoOut { get; init; }
+    /// Video çıkışı. `null` ise plan SESSİZ DEĞİL, GÖRÜNTÜSÜZ:
+    /// podcast rendition'ı (P6-05) yalnızca ses üretiyor.
+    ///
+    /// `AudioOut` ilk günden nullable'dı; video da olmalıydı. Zorunlu
+    /// kalması, "yalnızca ses" diye bir çıktının var olamayacağını
+    /// söylüyordu.
+    public StreamRef? VideoOut { get; init; }
 
     /// Ses çıkışı. `null` = SESSİZ video ve bu geçerli bir durum
     /// (P2-11): bölüm bazlı render'da segmentler sessiz üretiliyor,

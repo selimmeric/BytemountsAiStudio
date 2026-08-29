@@ -119,24 +119,39 @@ public static class FilterGraphEmitter
         args.Add("-filter_complex_script");
         args.Add(filterScriptPath);
 
-        args.Add("-map");
-        args.Add($"[{graph.VideoOut.Id}]");
+        if (graph.VideoOut is { } videoOut)
+        {
+            args.Add("-map");
+            args.Add($"[{videoOut.Id}]");
+        }
+        else
+        {
+            // GÖRÜNTÜSÜZ ÇIKTI (P6-05). `-vn` olmadan ffmpeg girdi
+            // dosyalarındaki video akışlarını kendi seçimiyle
+            // kopyalayabiliyor ve "yalnızca ses" dosyası içinde bir
+            // kapak görseli akışıyla çıkabiliyordu.
+            args.Add("-vn");
+        }
+
         if (graph.AudioOut is { } audioOut)
         {
             args.Add("-map");
             args.Add($"[{audioOut.Id}]");
         }
 
-        args.Add("-c:v");
-        args.Add(options.VideoCodec);
-        args.Add("-crf");
-        args.Add(options.Crf.ToString(CultureInfo.InvariantCulture));
-        args.Add("-preset");
-        args.Add(options.PresetSpeed);
-        args.Add("-pix_fmt");
-        args.Add(options.PixelFormat);
-        args.Add("-r");
-        args.Add(options.FrameRate.ToString(CultureInfo.InvariantCulture));
+        if (graph.VideoOut is not null)
+        {
+            args.Add("-c:v");
+            args.Add(options.VideoCodec);
+            args.Add("-crf");
+            args.Add(options.Crf.ToString(CultureInfo.InvariantCulture));
+            args.Add("-preset");
+            args.Add(options.PresetSpeed);
+            args.Add("-pix_fmt");
+            args.Add(options.PixelFormat);
+            args.Add("-r");
+            args.Add(options.FrameRate.ToString(CultureInfo.InvariantCulture));
+        }
 
         // ANAHTAR KARE ARALIĞI (P3-02): oynatıcı yalnızca anahtar
         // kareye atlayabiliyor. Sınır yokken x264 anahtar kareleri
@@ -145,7 +160,8 @@ public static class FilterGraphEmitter
         //
         // SINIR, HEDEF DEĞİL: sahne değişimi daha sık anahtar kare
         // ekleyebilir ve bu iyi — atlama daha da isabetli olur.
-        if (options.KeyframeInterval is { } keyframeInterval && keyframeInterval > 0)
+        if (graph.VideoOut is not null
+            && options.KeyframeInterval is { } keyframeInterval && keyframeInterval > 0)
         {
             args.Add("-g");
             args.Add(keyframeInterval.ToString(CultureInfo.InvariantCulture));

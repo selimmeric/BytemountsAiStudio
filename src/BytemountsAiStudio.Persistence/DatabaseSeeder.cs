@@ -77,7 +77,7 @@ public static class DatabaseSeeder
         }
         """;
 
-    /// Çok oranlı iş akışı (P6-03).
+    /// Çok biçimli iş akışı (P6-03, P6-05).
     ///
     /// AYRI BİR AKIŞ, VARSAYILANA EKLENTİ DEĞİL. Her videoya üç render
     /// dayatmak, tek platforma yayınlayan bir kanalın render süresini
@@ -98,7 +98,7 @@ public static class DatabaseSeeder
         {
           "schema_version": 1,
           "key": "shorts-cok-oran",
-          "name": "Coklu oran (9:16 + 1:1 + 16:9)",
+          "name": "Coklu bicim (9:16 + 1:1 + 16:9 + ses)",
           "content_kind": "Short",
           "nodes": [
             { "id": "topic",    "type": "topic.select",     "config": { "min_score": 0 } },
@@ -113,6 +113,8 @@ public static class DatabaseSeeder
               "config": { "rendition": { "width": 1080, "height": 1080 } } },
             { "id": "yatay",    "type": "media.render",
               "config": { "rendition": { "width": 1920, "height": 1080 } } },
+            { "id": "ses",      "type": "media.render",
+              "config": { "podcast": { "require_self_contained": false } } },
             { "id": "claims",   "type": "claim.check",      "config": {} },
             { "id": "seo",      "type": "seo.generate",     "config": {} },
             { "id": "thumbnail","type": "thumbnail.render", "config": {} },
@@ -132,11 +134,13 @@ public static class DatabaseSeeder
             { "from": "timeline", "to": "render" },
             { "from": "render",   "to": "kare" },
             { "from": "render",   "to": "yatay" },
+            { "from": "render",   "to": "ses" },
             { "from": "render",   "to": "seo" },
             { "from": "seo",      "to": "thumbnail" },
             { "from": "thumbnail","to": "qc" },
             { "from": "kare",     "to": "qc" },
             { "from": "yatay",    "to": "qc" },
+            { "from": "ses",      "to": "qc" },
             { "from": "qc",       "to": "qcs" },
             { "from": "qcs",      "to": "onay" }
           ]
@@ -211,7 +215,7 @@ public static class DatabaseSeeder
             cancellationToken).ConfigureAwait(false);
 
         added += await EnsureWorkflowAsync(
-            db, RenditionWorkflowKey, "Coklu oran (9:16 + 1:1 + 16:9)", ContentKind.Short,
+            db, RenditionWorkflowKey, "Coklu bicim (9:16 + 1:1 + 16:9 + ses)", ContentKind.Short,
             RenditionGraphJson, cancellationToken).ConfigureAwait(false);
 
         if (added > 0)

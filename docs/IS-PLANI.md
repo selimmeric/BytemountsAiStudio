@@ -505,7 +505,22 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Gerçek koşu bir hata buldu:* kare tuval **yatay sayılıyordu**. `IsPortrait` yanlışsa "yatay" varsayan koşul 1080×1080 çıktıyı `video-1080x1080` diye kaydediyordu (ad yine yalan söylüyordu, bu sefer daha sessizce) ve gereksiz anahtar kare sınırı dosyayı karşılıksız büyütüyordu. Kare artık `kare-1080x1080`.
   - *Ölçülen koşu:* `render` 68,2 sn · `kare` 39,6 sn · `yatay` 62,9 sn.
 - [ ] **P6-04** `4p` — Blog/makale içerik türü (aynı knowledge base'den)
-- [ ] **P6-05** `3p` — Podcast rendition'ı (yalnız ses)
+- [x] **P6-05** `3p` — Podcast rendition'ı (yalnız ses)
+  - *Bitti:* ✔ 29 Ağu 2026 — Tek timeline'dan **dört biçim**: 1080×1920, 1080×1080, 1920×1080 ve 653 KB'lık m4a. 11 test.
+  - ***Podcast "videonun sesi" değil.*** Videoda ekranda yazan ama seslendirilmeyen her şey dinleyici için **yok** — ve bunu kimse fark etmiyor, çünkü ses dosyası kusursuz çalıyor. Anlatımın kendi kendine yetip yetmediği ölçülüyor: seslendirilmeyen metin katmanları çıktıya yazılıyor, istenirse (`require_self_contained`) bloklayıcı oluyor. Varsayılan engellememek — kanal adı gibi dekoratif katmanlar yüzünden üretimi durdurmak, olmayan bir sorun için fabrikayı kapatmak olurdu.
+  - *Karşılaştırma dile duyarlı ve noktalamadan bağımsız:* `ToLowerInvariant` Türkçe'de "İSTANBUL"u noktalı i ile bırakıyor (P5-03'te ödenen dersin aynısı) ve ekrandaki "1453." ile söylenen "1453" aynı bilgi — farklı saymak her videoda uydurma bir uyarı üretir, uyarılar da okunmaz hâle gelirdi.
+  - ***Görüntü hiç üretilmiyor.*** Videoyu render edip sesini ayıklamak, aynı sesi **iki kez kodlamak** (birincinin kaybı ikinciye miras kalır) ve dakikalarca boşuna ffmpeg çalıştırmak demekti. `RenderPlan.VideoOut` nullable oldu — `AudioOut` ilk günden öyleydi, video da olmalıydı: zorunlu kalması "yalnızca ses diye bir çıktı olamaz" demekti.
+  - *Ses zinciri videodakiyle **aynı fonksiyon**:* ducking, müzik seviyesi ve LUFS normalizasyonu ayrı kurulsaydı aynı içeriğin iki sürümü farklı duyulurdu — ve o ayrışmanın belirtisi, sesin yalnızca bir yolda doğru çıkması olurdu.
+  - *Sessiz bir podcast üretilmiyor:* görüntüsüz **ve** sessiz bir dosya, birkaç kilobaytlık ve hiçbir şey içermeyen bir "başarı" demekti — sessiz başarının en saf hâli. Çıkışsız grafik de doğrulayıcıda düşüyor.
+  - ***Gerçek koşu bir hata buldu:*** `ses` node'u ilk denemede **`render.no_video` ile düştü**. `Verify` her çıktıda video akışı arıyordu — doğru kural, ama "her çıktı"nın video olduğu varsayımıyla yazılmıştı. Beklenti artık **grafikten** geliyor (`expectVideo: graph.VideoOut is not null`), tıpkı sesin ilk günden öyle olduğu gibi. Ters yön de eklendi: **yalnızca ses olması gereken çıktıda video akışı varsa hata** — `-vn` düşerse ffmpeg girdi görsellerinden bir akış kopyalayabiliyor ve dosya çalışmaya devam ediyor.
+  - *Ölçülen koşu* (tek timeline, dört çıktı, toplam 155 sn):
+
+    | node | ön ayar | ölçülen | süre |
+    |---|---|---|---|
+    | `render` | shorts-1080x1920 | 1080×1920 h264 · 1,99 MB | 56,7 sn |
+    | `kare` | kare-1080x1080 | 1080×1080 h264 · 1,73 MB | 33,9 sn |
+    | `yatay` | video-1920x1080 | 1920×1080 h264 · 2,84 MB | 54,5 sn |
+    | `ses` | podcast-m4a | **video akışı yok** · aac · 653 KB | 7,3 sn |
 - [ ] **P6-06** `4p` — Çok dilli türev: tek knowledge base → N dilde içerik (§20.7)
 
 ---

@@ -88,7 +88,15 @@ public sealed class FfmpegExecutor(string ffmpegPath = "ffmpeg", string ffprobeP
                 return Result.Failure<RenderOutcome>(probe.Error);
             }
 
-            var verification = Verify(probe.Value, options, expectAudio: graph.AudioOut is not null);
+            var verification = Verify(
+                probe.Value,
+                options,
+                expectAudio: graph.AudioOut is not null,
+
+                // BEKLENTİ GRAFİKTEN GELİYOR, bayraktan değil — sesle
+                // aynı sebep: iki tarafın da niyeti tek bir yerde
+                // yazılı ve o yer grafiğin kendisi.
+                expectVideo: graph.VideoOut is not null);
             if (verification is not null)
             {
                 SafeDelete(partialPath);
@@ -262,16 +270,28 @@ public sealed class FfmpegExecutor(string ffmpegPath = "ffmpeg", string ffprobeP
     /// olmayan, süresi sapan ya da çözünürlüğü yanlış bir mp4 "başarılı"
     /// görünür. QC'nin mekanik kontrolleri (§14.1) buradan besleniyor.
     ///
-    /// `expectAudio` GRAFİKTEN GELİYOR, bir bayrak olarak değil: sessiz
+    /// `expectAudio` ve `expectVideo` GRAFİKTEN GELİYOR, bayrak olarak
+    /// değil: sessiz
     /// bir grafiğin (P2-11 segmentleri) sessiz çıktı vermesi doğru,
     /// sesli bir grafiğin sessiz çıktı vermesi ise tam olarak yakalamak
     /// istediğimiz sessiz başarısızlık. İkisini ayıran şey çağıranın
     /// niyeti değil, grafiğin kendisi.
-    private static Error? Verify(MediaProbe probe, OutputOptions options, bool expectAudio)
+    private static Error? Verify(
+        MediaProbe probe, OutputOptions options, bool expectAudio, bool expectVideo)
     {
-        if (!probe.HasVideo)
+        if (expectVideo && !probe.HasVideo)
         {
             return Error.Permanent("render.no_video", "Çıktıda video akışı yok.");
+        }
+
+        if (!expectVideo && probe.HasVideo)
+        {
+            // GÖRÜNTÜSÜZ ÇIKTIDA VİDEO AKIŞI (P6-05): `-vn` düşmüşse
+            // ffmpeg girdi görsellerinden bir akış kopyalayabiliyor ve
+            // "yalnızca ses" dosyası sessizce video taşıyor. Dosya
+            // çalışıyor, boyutu makul, kimse fark etmiyor.
+            return Error.Permanent("render.unexpected_video",
+                "Yalnızca ses olması gereken çıktıda video akışı var.");
         }
 
         if (expectAudio && !probe.HasAudio)

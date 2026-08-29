@@ -90,9 +90,28 @@ public static class GraphValidator
         }
 
         // Çıkışlar üretilmiş ve tüketilmemiş olmalı.
-        var outputs = graph.AudioOut is { } audio
-            ? new[] { ("video", graph.VideoOut), ("ses", audio) }
-            : [("video", graph.VideoOut)];
+        var outputs = new List<(string Name, StreamRef Stream)>();
+
+        if (graph.VideoOut is { } video)
+        {
+            outputs.Add(("video", video));
+        }
+
+        if (graph.AudioOut is { } audio)
+        {
+            outputs.Add(("ses", audio));
+        }
+
+        // HİÇ ÇIKIŞI OLMAYAN GRAFİK BİR HATA.
+        //
+        // Video ve ses birlikte nullable olunca "ikisi de yok" hâli
+        // derleyiciye geçerli görünüyor — ffmpeg ise böyle bir komutta
+        // hiçbir şey üretmeden başarıyla çıkabiliyor. Sessiz başarı
+        // burada yakalanıyor.
+        if (outputs.Count == 0)
+        {
+            issues.Add(new("graph.no_output", "Grafiğin ne video ne ses çıkışı var."));
+        }
 
         foreach (var (name, output) in outputs)
         {
@@ -109,7 +128,7 @@ public static class GraphValidator
             }
         }
 
-        if (graph.VideoOut.Kind != MediaKind.Video)
+        if (graph.VideoOut is { } videoOut && videoOut.Kind != MediaKind.Video)
         {
             issues.Add(new("graph.output_kind", "Video çıkışı video akışı olmalı."));
         }
@@ -123,7 +142,7 @@ public static class GraphValidator
         // der ve render hiç başlamaz.
         var dangling = produced.Keys
             .Where(k => !consumedBy.ContainsKey(k))
-            .Where(k => k != graph.VideoOut.ToString() && k != graph.AudioOut?.ToString())
+            .Where(k => k != graph.VideoOut?.ToString() && k != graph.AudioOut?.ToString())
             .Where(k => !graph.Inputs.Any(i => k.StartsWith(i.Id + ":", StringComparison.Ordinal)))
             .ToList();
 

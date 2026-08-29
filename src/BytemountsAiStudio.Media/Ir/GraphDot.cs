@@ -53,9 +53,15 @@ public static class GraphDot
         }
 
         builder.AppendLine();
-        builder.Append("  out_video [shape=doublecircle, label=\"")
-            .Append(Escape(graph.VideoOut.ToString())).AppendLine("\"];");
-        builder.Append("  ").Append(SourceOf(graph.VideoOut, graph)).AppendLine(" -> out_video;");
+
+        // GÖRÜNTÜSÜZ GRAFİKTE VİDEO DÜĞÜMÜ ÇİZİLMİYOR (P6-05) —
+        // sessiz grafikte ses düğümünün çizilmemesiyle aynı sebep.
+        if (graph.VideoOut is { } videoOut)
+        {
+            builder.Append("  out_video [shape=doublecircle, label=\"")
+                .Append(Escape(videoOut.ToString())).AppendLine("\"];");
+            builder.Append("  ").Append(SourceOf(videoOut, graph)).AppendLine(" -> out_video;");
+        }
 
         // SESSİZ GRAFİKTE SES DÜĞÜMÜ HİÇ ÇİZİLMİYOR.
         //

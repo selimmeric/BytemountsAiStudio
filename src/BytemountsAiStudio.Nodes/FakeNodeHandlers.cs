@@ -953,6 +953,80 @@ public sealed class MediaRenderHandler(
     string ffmpegPath = "ffmpeg",
     string ffprobePath = "ffprobe") : INodeHandler
 {
+    /// Podcast (yalnızca ses) çıktısı (P6-05).
+    private async Task<Result<JsonElement>> RenderPodcastAsync(
+        NodeContext context,
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> paths,
+        JsonElement config,
+        CancellationToken cancellationToken)
+    {
+        // EKRANDA KALAN BİLGİ GÖRÜNÜR KILINIYOR.
+        //
+        // Videoda yazan ama seslendirilmeyen her şey dinleyici için
+        // yok — ve bunu kimse fark etmiyor, çünkü ses dosyası kusursuz
+        // çalıyor. Varsayılan engellemek değil (kanal adı gibi
+        // dekoratif katmanlar üretimi durdurmamalı) ama kayda
+        // geçiriliyor ve istenirse bloklayıcı yapılabiliyor.
+        var visualOnly = PodcastRendition.VisualOnlyText(timeline);
+
+        if (visualOnly.Count > 0
+            && config.TryGetProperty("require_self_contained", out var strict)
+            && strict.ValueKind == JsonValueKind.True)
+        {
+            return Error.Permanent("podcast.not_self_contained",
+                "Anlatım kendi kendine yetmiyor; ekranda kalan metin: "
+                + string.Join(", ", visualOnly));
+        }
+
+        var plan = RenderPlanner.PlanAudioOnly(timeline, paths);
+
+        if (!plan.IsSuccess)
+        {
+            return Error.Permanent("podcast.plan_failed",
+                "Plan üretilemedi: " + string.Join(" | ", plan.Issues));
+        }
+
+        Directory.CreateDirectory(outputDirectory);
+        var outputPath = Path.Combine(outputDirectory, $"{context.RunId:N}.m4a");
+
+        var executor = new FfmpegExecutor(ffmpegPath, ffprobePath);
+
+        var render = await executor
+            .RenderAsync(plan.Plan!.Graph, plan.Plan.Output, outputPath, null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (render.IsFailure)
+        {
+            return Result.Failure<JsonElement>(render.Error);
+        }
+
+        // ÖLÇÜLÜYOR, VARSAYILMIYOR (ADR-006).
+        var probe = await MediaProbe.ProbeAsync(ffprobePath, outputPath, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (probe.IsFailure)
+        {
+            return Result.Failure<JsonElement>(probe.Error);
+        }
+
+        return Result.Success(NodeJson.From(new
+        {
+            output_path = render.Value.OutputPath,
+            preset = "podcast-m4a",
+            podcast = true,
+            duration_seconds = probe.Value.DurationSeconds,
+            size_bytes = probe.Value.SizeBytes,
+            audio_codec = probe.Value.AudioCodec,
+
+            // GÖRÜNTÜ AKIŞI OLMADIĞI ÖLÇÜLÜYOR: `-vn` unutulursa
+            // ffmpeg girdi görsellerinden bir video akışı kopyalayabilir
+            // ve "yalnızca ses" dosyası sessizce video taşır.
+            video_codec = probe.Value.VideoCodec,
+            visual_only_text = visualOnly,
+        }));
+    }
+
     /// Node ayarındaki `rendition` bloğu (P6-03).
     ///
     /// TUVAL EKSİKSE HATA, VARSAYILAN DEĞİL. "rendition" yazıp boyut
@@ -1106,6 +1180,20 @@ public sealed class MediaRenderHandler(
                 captions, style, timeline.Canvas, directory, timeline.RightToLeft);
 
             overlays.AddRange(rendered.Select(r => new RenderPlanner.TimedLayer(r.Path, r.Range)));
+        }
+
+        // ---- PODCAST: YALNIZCA SES (P6-05) ----
+        //
+        // Videoyu render edip sesini ayıklamak DEĞİL: görüntü hiç
+        // üretilmiyor. Ayıklamak, aynı sesi iki kez kodlamak
+        // (birincinin kaybı ikinciye miras kalır) ve dakikalarca
+        // boşuna ffmpeg çalıştırmak demekti.
+        if (context.Config.ValueKind == JsonValueKind.Object
+            && context.Config.TryGetProperty("podcast", out var podcastBlock)
+            && podcastBlock.ValueKind == JsonValueKind.Object)
+        {
+            return await RenderPodcastAsync(
+                context, timeline, paths, podcastBlock, cancellationToken).ConfigureAwait(false);
         }
 
         var plan = RenderPlanner.Plan(timeline, paths, overlays);

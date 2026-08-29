@@ -79,6 +79,79 @@ public static class RenderPlanner
             issues);
     }
 
+    /// YALNIZCA SES planı — podcast rendition'ı (P6-05).
+    ///
+    /// Videoyu render edip sesini ayıklamak değil: görüntü hiç
+    /// üretilmiyor. Ayıklamak, aynı sesi iki kez kodlamak (birinci
+    /// kodlamanın kaybı ikincisine miras kalır) ve dakikalarca boşuna
+    /// ffmpeg çalıştırmak demekti.
+    ///
+    /// SES ZİNCİRİ AYNEN AYNI (`BuildAudio`): ducking, müzik seviyesi
+    /// ve LUFS normalizasyonu video ile podcast'te farklı olsaydı,
+    /// aynı içeriğin iki sürümü farklı duyulurdu.
+    public static Result PlanAudioOnly(
+        TimelineDocument timeline,
+        IReadOnlyDictionary<string, string> resolvedPaths)
+    {
+        ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(resolvedPaths);
+
+        var issues = new List<ValidationIssue>();
+        var inputs = new List<InputDecl>();
+        var nodes = new List<FilterNode>();
+
+        // SESSİZ BİR PODCAST ÜRETİLMİYOR.
+        //
+        // Görüntüsüz VE sessiz bir dosya, boyutu birkaç kilobayt olan
+        // ve hiçbir şey içermeyen bir "başarı" demekti — sessiz
+        // başarının en saf hâli.
+        if (timeline.Audio.VoiceSegments.Count == 0)
+        {
+            issues.Add(new("podcast.no_audio",
+                "Timeline'da ses parçası yok; yalnızca ses çıktısı üretilemez."));
+
+            return new Result(null, issues);
+        }
+
+        var audioOut = BuildAudio(timeline, resolvedPaths, inputs, nodes, issues);
+
+        if (issues.Count > 0)
+        {
+            return new Result(null, issues);
+        }
+
+        return new Result(
+            new PlanResult(
+                new FilterGraph
+                {
+                    Inputs = inputs,
+                    Nodes = nodes,
+                    VideoOut = null,
+                    AudioOut = audioOut,
+                },
+                AudioOptionsFor(timeline)),
+            issues);
+    }
+
+    /// Podcast çıktısının kodlama ayarları.
+    ///
+    /// Video alanları yine dolduruluyor ama emitter onlara BAKMIYOR
+    /// (grafikte video çıkışı yok). Boş bırakmak, ileride birinin
+    /// `OutputOptions`'ı video için kullanıp burada null bulmasına yol
+    /// açardı.
+    private static OutputOptions AudioOptionsFor(TimelineDocument timeline)
+        => OptionsFor(timeline) with
+        {
+            // AAC, mp3 DEĞİL: aynı bit hızında belirgin biçimde daha
+            // iyi ve podcast platformlarının tamamı okuyor. mp3'ü
+            // seçmenin tek sebebi çok eski oynatıcılar olurdu.
+            AudioCodec = "aac",
+            AudioBitrate = "128k",
+
+            // Anahtar kare aralığı görüntüsüz çıktıda anlamsız.
+            KeyframeInterval = null,
+        };
+
     private static OutputOptions OptionsFor(TimelineDocument timeline) => new()
     {
         VideoCodec = timeline.Output.VideoCodec,
