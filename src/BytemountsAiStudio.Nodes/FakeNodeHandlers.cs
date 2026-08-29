@@ -953,6 +953,54 @@ public sealed class MediaRenderHandler(
     string ffmpegPath = "ffmpeg",
     string ffprobePath = "ffprobe") : INodeHandler
 {
+    /// Node ayarındaki `rendition` bloğu (P6-03).
+    ///
+    /// TUVAL EKSİKSE HATA, VARSAYILAN DEĞİL. "rendition" yazıp boyut
+    /// vermeyen bir ayar, sessizce kaynak oranında ikinci bir kopya
+    /// üretirdi — iki özdeş dosya ve kimsenin fark etmediği bir
+    /// yapılandırma hatası.
+    internal static Result<RenditionSpec?> RenditionOf(JsonElement config)
+    {
+        if (config.ValueKind != JsonValueKind.Object
+            || !config.TryGetProperty("rendition", out var block)
+            || block.ValueKind != JsonValueKind.Object)
+        {
+            return Result.Success<RenditionSpec?>(null);
+        }
+
+        if (!block.TryGetProperty("width", out var w) || w.ValueKind != JsonValueKind.Number
+            || !block.TryGetProperty("height", out var h) || h.ValueKind != JsonValueKind.Number)
+        {
+            return Error.Permanent("render.bad_rendition",
+                "`rendition` bloğunda `width` ve `height` zorunlu.");
+        }
+
+        var fps = block.TryGetProperty("fps", out var f) && f.ValueKind == JsonValueKind.Number
+            ? f.GetInt32()
+            : 30;
+
+        Canvas canvas;
+
+        try
+        {
+            canvas = new Canvas(w.GetInt32(), h.GetInt32(), fps);
+        }
+        catch (ArgumentException ex)
+        {
+            return Error.Permanent("render.bad_rendition", ex.Message);
+        }
+
+        var seconds = block.TryGetProperty("max_seconds", out var m) && m.ValueKind == JsonValueKind.Number
+            ? m.GetDouble()
+            : (double?)null;
+
+        return Result.Success<RenditionSpec?>(new RenditionSpec
+        {
+            Canvas = canvas,
+            MaxDuration = seconds is { } value ? Ms.FromSeconds(value) : null,
+        });
+    }
+
     public string NodeType => "media.render";
 
     public QueueClass Queue => QueueClass.Render;
@@ -981,6 +1029,37 @@ public sealed class MediaRenderHandler(
         if (timeline is null)
         {
             return Error.Permanent("render.bad_timeline", "Timeline okunamadı.");
+        }
+
+        // RENDITION: aynı timeline, başka oran ve süre (P6-03).
+        //
+        // AYRI BİR NODE TİPİ AÇILMADI. Rendition, render'ın kendisiyle
+        // aynı işi yapıyor; tek farkı girdi belgesinin türetilmiş
+        // olması. Ayrı bir tip, iki node'un aynı ffmpeg yolunu ayrı
+        // kopyalarda taşıması ve birinde düzelen hatanın diğerinde
+        // kalması demekti.
+        //
+        // Grafa ikinci bir `media.render` node'u eklemek yetiyor;
+        // varlığı ayarında.
+        var rendition = RenditionOf(context.Config);
+
+        if (rendition.IsFailure)
+        {
+            return Result.Failure<JsonElement>(rendition.Error);
+        }
+
+        var derived = rendition.Value;
+
+        if (derived is not null)
+        {
+            var made = Rendition.Derive(timeline, derived);
+
+            if (made.IsFailure)
+            {
+                return Result.Failure<JsonElement>(made.Error);
+            }
+
+            timeline = made.Value;
         }
 
         // Varlıklar render ÖNCESİ yerelde hazır ediliyor (ADR-007).
@@ -1109,6 +1188,11 @@ public sealed class MediaRenderHandler(
                 // kaçının yeniden koştuğu görülmediği sürece iddia.
                 segments_rendered = segmented.Value.Rendered,
                 segments_reused = segmented.Value.Reused,
+                // ÖN AYAR ÇIKTIYA YAZILIYOR: aynı grafta iki render
+                // node'u varsa hangi dosyanın hangi oran olduğu
+                // sonradan tek yol.
+                preset = timeline.Output.Preset,
+                rendition = derived is not null,
             }));
         }
 
@@ -1141,6 +1225,8 @@ public sealed class MediaRenderHandler(
         return Result.Success(NodeJson.From(new
         {
             output_path = render.Value.OutputPath,
+            preset = timeline.Output.Preset,
+            rendition = derived is not null,
             width = probe.Width,
             height = probe.Height,
             duration_seconds = probe.DurationSeconds,

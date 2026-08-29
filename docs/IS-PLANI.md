@@ -491,7 +491,19 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 - [ ] **P6-01** `5p` — `IPublisher`: TikTok Content Posting API
 - [ ] **P6-02** `4p` — Instagram Reels (Graph API)
-- [ ] **P6-03** `3p` — Aynı içerikten rendition'lar (9:16 / 1:1 / 16:9, süre kırpma)
+- [x] **P6-03** `3p` — Aynı içerikten rendition'lar (9:16 / 1:1 / 16:9, süre kırpma)
+  - *Bitti:* ✔ 29 Ağu 2026 — Tek timeline'dan üç gerçek video: 1080×1920, 1080×1080, 1920×1080 (hepsi 46,8 sn, ffprobe ile ölçüldü). 18 test.
+  - ***Türev timeline'dan, bitmiş videodan değil.*** Hazır mp4'ü kırpmak ucuz görünüyor ve yanlış: 9:16'lık bir videodan 16:9 kesmek karenin dörtte üçünü atıyor ve **altyazının tam ortasından** geçiyor. Doldurmak (letterbox) ise ekranın yarısını siyah bant yapıyor. İkisi de "aynı içerik başka orana uyarlandı" değil, "aynı içerik bozuldu".
+  - *Timeline'dan türetmek bunun olmadığı tek yol:* metin boyutları zaten tuval yüzdesi (`TextStyle.SizePercent` — belge bunu ilk günden öngörmüş), görseller kadraja yeniden yerleşiyor, altyazı yeniden konumlanıyor. Bedeli yeniden render ve o bedel, kırpılmış bir altyazıdan ucuz.
+  - ***Süre kırpma cümle sınırında.*** 60 saniyelik Short çıkarmak, 60. saniyede sesi ortadan kesmek demek değil: kırpma yalnızca bir **ses parçasının bittiği** yerde yapılıyor. İlk cümle bile sınırdan uzunsa rendition **üretilmiyor** — sessizce yarım cümlelik bir video üretmek, yayınlanabilir görünen bozuk bir dosya demekti.
+  - *Kırpmanın bıraktığı izler kapatılıyor:* sahneler pencereye **kırpılıyor** (atılmıyor — atmak son sahneyle video sonu arasında boşluk bırakır ve ffmpeg orada siyah kare üretir), sınırı aşan altyazı kelimeleri düşüyor, müzik sönümü videoya sığdırılıyor, kırpılan videoya kapanış geçişi ekleniyor (aniden biten video "yüklenmedi mi" dedirtiyor).
+  - *Her türev doğrulayıcıdan geçiyor.* Türetme sırasında sahne boşluğu ya da taşan katman bırakmak kolay; bunu render sırasında "Invalid argument" olarak görmek, dakikalar sonra ve nerede olduğunu söylemeden görmek demek.
+  - *Kalıcı katman marjları oransal taşınıyor:* `PersistentLayer` marjı belgedeki **tek** tuvale bağımlı alan (piksel). 1080 genişlikte 40 piksellik boşluk 1920'de yarı yarıya daralmış görünürdü.
+  - *Kırpıldığı kayda geçiyor* (`rendition.excerpt: 0-5s / 12s`): kırpılmış bir rendition videonun tamamı sanılırsa yanlış okunur — "izlenme oranı düşük" diye rapor edilen şey aslında videonun ilk dakikası olabilir.
+  - **Ayrı node tipi açılmadı.** Rendition, `media.render`'ın kendisi; tek farkı girdi belgesinin türetilmiş olması. Ayrı bir tip, aynı ffmpeg yolunun iki kopyada taşınması ve birinde düzelen hatanın diğerinde kalması demekti. Grafa ikinci bir `media.render` eklemek yetiyor.
+  - *Yeni iş akışı `shorts-cok-oran` — varsayılana eklenti değil:* her videoya üç render dayatmak, tek platforma yayınlayan bir kanalın render süresini üçe katlamak olurdu.
+  - *Gerçek koşu bir hata buldu:* kare tuval **yatay sayılıyordu**. `IsPortrait` yanlışsa "yatay" varsayan koşul 1080×1080 çıktıyı `video-1080x1080` diye kaydediyordu (ad yine yalan söylüyordu, bu sefer daha sessizce) ve gereksiz anahtar kare sınırı dosyayı karşılıksız büyütüyordu. Kare artık `kare-1080x1080`.
+  - *Ölçülen koşu:* `render` 68,2 sn · `kare` 39,6 sn · `yatay` 62,9 sn.
 - [ ] **P6-04** `4p` — Blog/makale içerik türü (aynı knowledge base'den)
 - [ ] **P6-05** `3p` — Podcast rendition'ı (yalnız ses)
 - [ ] **P6-06** `4p` — Çok dilli türev: tek knowledge base → N dilde içerik (§20.7)

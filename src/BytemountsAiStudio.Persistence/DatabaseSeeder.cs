@@ -77,6 +77,72 @@ public static class DatabaseSeeder
         }
         """;
 
+    /// Çok oranlı iş akışı (P6-03).
+    ///
+    /// AYRI BİR AKIŞ, VARSAYILANA EKLENTİ DEĞİL. Her videoya üç render
+    /// dayatmak, tek platforma yayınlayan bir kanalın render süresini
+    /// üçe katlamak olurdu. Rendition isteyen bu akışı seçiyor.
+    ///
+    /// Rendition node'ları `media.render`'ın KENDİSİ; ayarlarındaki
+    /// `rendition` bloğu farklı. Ayrı bir node tipi, aynı ffmpeg
+    /// yolunun iki kopyada taşınması ve birinde düzelen hatanın
+    /// diğerinde kalması demekti.
+    ///
+    /// ÇIKTILARI KİMSE OKUMUYOR VE BU DOĞRU: müzik node'undan farklı
+    /// olarak bunlar bir sonraki adımın girdisi değil, işin kendisi.
+    /// Dosya yolları hem run bağlamına hem `node_executions`'a
+    /// yazılıyor.
+    public const string RenditionWorkflowKey = "shorts-cok-oran";
+
+    public const string RenditionGraphJson = """
+        {
+          "schema_version": 1,
+          "key": "shorts-cok-oran",
+          "name": "Coklu oran (9:16 + 1:1 + 16:9)",
+          "content_kind": "Short",
+          "nodes": [
+            { "id": "topic",    "type": "topic.select",     "config": { "min_score": 0 } },
+            { "id": "research", "type": "research.deep",    "config": { "max_sources": 3 } },
+            { "id": "script",   "type": "script.generate",  "config": { "target_seconds": 30 } },
+            { "id": "tts",      "type": "tts.synthesize",   "config": { "voice_id": "fake-tr-f1" } },
+            { "id": "timeline", "type": "timeline.compile", "config": { "aspect": "9:16" } },
+            { "id": "visuals",  "type": "visual.resolve",   "config": { "order": ["fake-stock", "fake-imagegen"] } },
+            { "id": "music",    "type": "music.select",     "config": { "mood": "ambient" } },
+            { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
+            { "id": "kare",     "type": "media.render",
+              "config": { "rendition": { "width": 1080, "height": 1080 } } },
+            { "id": "yatay",    "type": "media.render",
+              "config": { "rendition": { "width": 1920, "height": 1080 } } },
+            { "id": "claims",   "type": "claim.check",      "config": {} },
+            { "id": "seo",      "type": "seo.generate",     "config": {} },
+            { "id": "thumbnail","type": "thumbnail.render", "config": {} },
+            { "id": "qc",       "type": "qc.mechanical",    "config": {} },
+            { "id": "qcs",      "type": "qc.semantic",      "config": {} },
+            { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
+          ],
+          "edges": [
+            { "from": "topic",    "to": "research" },
+            { "from": "research", "to": "script" },
+            { "from": "script",   "to": "claims" },
+            { "from": "claims",   "to": "tts" },
+            { "from": "tts",      "to": "visuals" },
+            { "from": "tts",      "to": "music" },
+            { "from": "visuals",  "to": "timeline" },
+            { "from": "music",    "to": "timeline" },
+            { "from": "timeline", "to": "render" },
+            { "from": "render",   "to": "kare" },
+            { "from": "render",   "to": "yatay" },
+            { "from": "render",   "to": "seo" },
+            { "from": "seo",      "to": "thumbnail" },
+            { "from": "thumbnail","to": "qc" },
+            { "from": "kare",     "to": "qc" },
+            { "from": "yatay",    "to": "qc" },
+            { "from": "qc",       "to": "qcs" },
+            { "from": "qcs",      "to": "onay" }
+          ]
+        }
+        """;
+
     public const string LongWorkflowKey = "video-uzun";
 
     /// Uzun video iş akışı (P3-02).
@@ -143,6 +209,10 @@ public static class DatabaseSeeder
         added += await EnsureWorkflowAsync(
             db, LongWorkflowKey, "Uzun video (8-15 dk)", ContentKind.Video, LongGraphJson,
             cancellationToken).ConfigureAwait(false);
+
+        added += await EnsureWorkflowAsync(
+            db, RenditionWorkflowKey, "Coklu oran (9:16 + 1:1 + 16:9)", ContentKind.Short,
+            RenditionGraphJson, cancellationToken).ConfigureAwait(false);
 
         if (added > 0)
         {
