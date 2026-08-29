@@ -523,6 +523,28 @@ public sealed class WorkflowEngine(
         {
             run.State = RunState.Completed;
             run.FinishedAt = _time.GetUtcNow();
+
+            // ***GERCEKLESEN MALIYET KOSU BITERKEN YAZILIYOR.***
+            //
+            // `runs.actual_cost` kolonu panelde GOSTERILIYORDU ve
+            // hicbir yerden YAZILMIYORDU: "bu video kaca mal oldu"
+            // sorusunun cevabi her koşuda 0,00'di ve rakam dogru
+            // gorunuyordu.
+            //
+            // Kaynak `provider_calls`: maliyet cagri basina orada
+            // birikiyor (P0-16). Kosu suresince tek tek toplamak
+            // yerine BITISTE tek sorgu -- her node'da guncellemek,
+            // ayni satiri onlarca kez yazmak ve yarim kalan bir
+            // kosuda yaniltici bir ara toplam birakmak olurdu.
+            //
+            // Toplam AYRICA saklanıyor, `provider_calls`'tan her
+            // seferinde turetilmiyor: saklama supurucusu eski cagri
+            // kayitlarini silebilir ve o zaman gecmis videolarin
+            // maliyeti kaybolurdu.
+            run.ActualCost = await db.ProviderCalls
+                .Where(c => c.RunId == run.Id)
+                .SumAsync(c => c.Cost, cancellationToken)
+                .ConfigureAwait(false);
         }
         else
         {

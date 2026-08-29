@@ -151,6 +151,17 @@ public sealed class Run : EntityBase
     /// çalışamazdı.
     public int RetryLoop { get; set; }
 
+    /// ***BU KOLON NE YAZILIYOR NE OKUNUYOR ve bu YAZILI duruyor.***
+    ///
+    /// Amaci "kosu baslamadan once tahmin edilen maliyet"ti; tahmin
+    /// hicbir zaman uretilmedi. Butce kapisi da bugun sifir tahminle
+    /// calisiyor ve sebebi `PipelineDecorators` icinde yazili: yanlis
+    /// bir tahmin, tahmin olmamasindan kotu.
+    ///
+    /// KALDIRILMADI cunku kaldirmak bir goc dosyasi gerektiriyor ve
+    /// kolonun gelecekte bir karsiligi olabilir. Ama "doluyor" diye
+    /// okunmasin diye burada soyleniyor -- `ActualCost` DOLUYOR,
+    /// bu DOLMUYOR.
     public decimal EstimatedCost { get; set; }
 
     public decimal ActualCost { get; set; }
