@@ -59,4 +59,19 @@ public interface IStorageProvider : IProvider
     Task<Result<string>> GetLocalPathAsync(AssetRef assetRef, CancellationToken cancellationToken);
 
     Task<Result<bool>> ExistsAsync(AssetRef assetRef, CancellationToken cancellationToken);
+
+    /// Varlığı depodan siler (P4-02).
+    ///
+    /// ***BU METOT UZUN SÜRE YOKTU VE YOKLUĞU SAKLAMA KURALINI ÖLÜ
+    /// BIRAKIYORDU:*** `RetentionPolicy` yazılmış ve testlenmişti ama
+    /// silecek bir yer olmadığı için hiçbir yerden çağrılamıyordu.
+    /// Sonucu: hiçbir ara varlık silinmiyor, depo sınırsız büyüyor ve
+    /// maliyet üretimle değil GEÇMİŞLE orantılı hâle geliyordu.
+    ///
+    /// ***OLMAYAN VARLIK HATA DEĞİL.*** İki taraf da (satır ve dosya)
+    /// tek tek silindiği için yarım kalmış bir silme mümkün; ikinci
+    /// tur "zaten yok" gördüğünde ilerlemeli, düşmemeli. Hata dönseydi
+    /// tek bir yarım silme, süpürücüyü her turda aynı yerde
+    /// takılı bırakırdı.
+    Task<Result> DeleteAsync(AssetRef assetRef, CancellationToken cancellationToken);
 }

@@ -144,14 +144,15 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
             return Result.Failure<JsonElement>(response.Error);
         }
 
-        return Build(response.Value.Value.ToolArguments, rendered.Value.Stamp, style);
+        return Build(response.Value.Value.ToolArguments, rendered.Value.Stamp, style, context.RunContext);
     }
 
     /// Model çıktısını sınırlara sığdırır ve sonucu DOĞRULAR.
     ///
     /// Ayrı ve `internal`: kırpma mantığı LLM olmadan sınanabilsin.
     internal static Result<JsonElement> Build(
-        string? toolArguments, string promptStamp, string style = TitleVariant.DefaultStyle)
+        string? toolArguments, string promptStamp, string style = TitleVariant.DefaultStyle,
+        JsonElement? runContext = null)
     {
         if (string.IsNullOrWhiteSpace(toolArguments))
         {
@@ -187,7 +188,33 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
         }
 
         var title = PlatformLimits.TrimTitle(rawTitle);
-        var description = PlatformLimits.TrimDescription(rawDescription);
+
+        // ***BÖLÜM İŞARETLERİ AÇIKLAMAYA EKLENİYOR (P3-04).***
+        //
+        // `ChapterMarkers` yazılmış, testlenmişti ve HİÇBİR NODE
+        // ÇAĞIRMIYORDU: uzun videolarda bölüm planı hesaplanıyor,
+        // timeline'da kesim olarak kullanılıyor, ama "00:00 Giriş"
+        // satırları video AÇIKLAMASINA hiç yazılmıyordu. YouTube bölüm
+        // işaretlerini YALNIZCA açıklamadan okuyor — oynatıcıda hiçbir
+        // bölüm görünmüyordu ve bu hata vermiyor, yalnızca hiç
+        // çıkmıyor.
+        //
+        // KIRPMADAN ÖNCE EKLENİYOR: sonra eklenseydi işaretler
+        // açıklamayı sınırın üstüne taşıyabilir ve `Violations`
+        // kontrolü node'u düşürürdü. Önce eklendiğinde kırpma
+        // gerekirse metnin SONU gidiyor — yani işaretler değil,
+        // serbest metin.
+        var markers = runContext is { } chapters ? MarkerText(chapters) : null;
+
+        // SATIR SONU AÇIKÇA `\n`, `Environment.NewLine` DEĞİL.
+        //
+        // Windows'ta `\r\n` üretirdi ve aynı girdi iki platformda iki
+        // farklı açıklama verirdi: geliştirici makinesinde geçen bir
+        // test CI'da düşerdi — ya da tersi, ki daha kötü. Açıklama
+        // metni bir veri ve verinin biçimi makineye göre değişmemeli.
+        var description = PlatformLimits.TrimDescription(
+            markers is null ? rawDescription : rawDescription.TrimEnd() + "\n\n" + markers);
+
         var tags = PlatformLimits.TrimTags(rawTags);
 
         // Kırpmanın KENDİSİ denetleniyor. Bir hata yüzünden sınırı hâlâ
@@ -217,7 +244,58 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
             // söylüyor ve bu istem sürümüyle düzeltilecek bir şey.
             title_trimmed = title.Length != rawTitle.Trim().Length,
             tags_dropped = rawTags.Count - tags.Count,
+            // İŞARET EKLENDİ Mİ — KAYDA GEÇİYOR. Yazılmasaydı, bölüm
+            // listesi olmayan bir uzun videonun sebebi (plan yok mu,
+            // kurallar mı tutmadı, yoksa hiç mi denenmedi) hiçbir yerde
+            // olmazdı.
+            chapter_markers = markers is not null,
         }));
+    }
+
+    /// Bölüm işaret satırlarını run bağlamından okur.
+    ///
+    /// ***İŞARETLER BURADA HESAPLANMIYOR, OKUNUYOR.*** Hesap
+    /// `timeline.compile` içinde yapılıyor çünkü gerçek sahne sınırları
+    /// yalnızca orada var. Burada yeniden hesaplansaydı, plandaki
+    /// hedef sürelerden türetilirdi ve işaretler videonun gerçek
+    /// geçişlerinden saniyeler saparadı — izleyici bir bölüme atlayıp
+    /// önceki bölümün son cümlesini dinlerdi.
+    ///
+    /// KISA VİDEODA `null` DÖNÜYOR: Shorts'ta bölüm yok ve açıklamaya
+    /// boş bir blok eklemek anlamsız.
+    internal static string? MarkerText(JsonElement runContext)
+    {
+        if (!runContext.TryGetProperty("timeline", out var timeline)
+            || timeline.ValueKind != JsonValueKind.Object
+            || !timeline.TryGetProperty("chapter_markers", out var markers)
+            || markers.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var lines = new List<string>();
+
+        foreach (var marker in markers.EnumerateArray())
+        {
+            if (marker.ValueKind != JsonValueKind.Object
+                || !marker.TryGetProperty("start_ms", out var start)
+                || !start.TryGetInt32(out var startMs)
+                || NodeJson.Text(marker, "title") is not { Length: > 0 } title)
+            {
+                continue;
+            }
+
+            lines.Add(ChapterMarkers.Timestamp(new Core.Time.Ms(startMs)) + " " + title);
+        }
+
+        // ***ÜÇTEN AZ İŞARET LİSTEYİ GEÇERSİZ KILIYOR*** (YouTube
+        // kuralı). Üretici taraf zaten doğruluyor; burada ikinci kez
+        // bakılmasının sebebi, bu metodun run bağlamına doğrudan
+        // bakması: bağlamı elle düzenleyen bir test ya da hedefli
+        // retry, geçersiz bir liste bırakabilir.
+        return lines.Count >= ChapterMarkers.MinimumMarkers
+            ? string.Join('\n', lines)
+            : null;
     }
 
     /// Senaryo cümlelerini isteme girecek metne çevirir.

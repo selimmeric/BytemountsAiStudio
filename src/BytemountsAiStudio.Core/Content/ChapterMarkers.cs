@@ -63,6 +63,75 @@ public static class ChapterMarkers
         return builder.ToString();
     }
 
+    /// ***İŞARETLER GERÇEK SAHNE SINIRLARINDAN TÜRETİLİYOR, PLANDAN
+    /// DEĞİL.***
+    ///
+    /// Bölüm planı bir HEDEF veriyor (`start_ms`); sahneler gerçek
+    /// seslendirme sürelerinden doğuyor ve ikisi asla tam tutmuyor —
+    /// plan 144.000 ms diyor, sahne sınırı 141.320 ms'de. Planı
+    /// yazsaydık işaretler videonun içindeki gerçek geçişlerin birkaç
+    /// saniye ötesine düşerdi: izleyici bir bölüme atlıyor ve önceki
+    /// bölümün son cümlesini dinliyor. Daha kötüsü, plan toplam süreyi
+    /// aşarsa YouTube bütün listeyi geçersiz sayıyor.
+    ///
+    /// Aynı eşleştirmeyi bölüm geçişleri de kullanıyor
+    /// (`ChapterBoundaries`) ve tek kaynaktan gelmeleri şart: geçişin
+    /// uzadığı yer ile işaretin gösterdiği yer ayrışırsa, ikisi de
+    /// doğru görünürken video yanlış olurdu.
+    public static IReadOnlyList<(Ms Start, string Title)> Align(
+        IReadOnlyList<Chapter> chapters,
+        IReadOnlyList<int> sceneStartsMs,
+        IReadOnlyList<int> sceneEndsMs)
+    {
+        ArgumentNullException.ThrowIfNull(chapters);
+        ArgumentNullException.ThrowIfNull(sceneStartsMs);
+        ArgumentNullException.ThrowIfNull(sceneEndsMs);
+
+        var boundaries = ChapterBoundaries.Match(
+            sceneEndsMs, [.. chapters.Select(c => c.Start.Value)]);
+
+        // SINIR SIRALANIYOR: `Match` bir küme dönüyor ve kümenin sırası
+        // yok. Sırasız bir liste, ikinci bölümün birincinin önüne
+        // geçmesi demek olurdu ve YouTube o listeyi hiç göstermez.
+        var ordered = boundaries.Order().ToList();
+
+        var aligned = new List<Chapter>();
+        var index = 0;
+
+        foreach (var chapter in chapters)
+        {
+            if (chapter.Start.Value <= 0)
+            {
+                // SIFIRDA BAŞLAYAN BÖLÜM ZATEN GİRİŞ: `Match` onu
+                // sınır saymıyor ve burada da atlanıyor, yoksa
+                // eşleşmeler bir kayardı.
+                aligned.Add(chapter);
+                continue;
+            }
+
+            if (index >= ordered.Count)
+            {
+                // EŞLEŞMEYEN BÖLÜM ATILIYOR, PLANDAKİ YERİNE
+                // KONMUYOR: sahneler bölüm sayısından az olabiliyor
+                // (kısa bölümler birleşiyor) ve plandaki değeri
+                // yazmak, videonun içinde karşılığı olmayan bir
+                // işaret üretmekti.
+                continue;
+            }
+
+            // Sahne `i` sınırsa, bölüm `i+1`. sahnenin başında
+            // başlıyor.
+            var scene = ordered[index++] + 1;
+
+            if (scene < sceneStartsMs.Count)
+            {
+                aligned.Add(chapter with { Start = new Ms(sceneStartsMs[scene]) });
+            }
+        }
+
+        return Build(aligned, new Ms(sceneEndsMs.Count > 0 ? sceneEndsMs[^1] : 0));
+    }
+
     /// Bölümleri işaret listesine çevirir — giriş dâhil.
     public static IReadOnlyList<(Ms Start, string Title)> Build(
         IReadOnlyList<Chapter> chapters, Ms totalDuration)

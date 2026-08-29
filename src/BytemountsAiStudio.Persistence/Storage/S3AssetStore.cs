@@ -337,6 +337,52 @@ public sealed class S3AssetStore : IStorageProvider
         return await ObjectExistsAsync(KeyFor(assetRef, mimeType), cancellationToken).ConfigureAwait(false);
     }
 
+    /// Nesneyi kovadan siler (P4-02).
+    ///
+    /// ***YEREL ÖNBELLEK DE SİLİNİYOR.*** Yalnızca kovadaki nesneyi
+    /// silmek, render worker'ının diskinde aynı dosyanın kalması
+    /// demekti: saklama kuralı "yer açıyor" derken makinede hiçbir yer
+    /// açılmazdı — ve önbellek zaten diskin dolduğu yer.
+    ///
+    /// OLMAYAN NESNE HATA DEĞİL: S3 zaten var olmayan bir anahtarın
+    /// silinmesine başarı dönüyor ve bu doğru davranış — yarım kalmış
+    /// bir silmenin ikinci turu ilerlemeli.
+    public async Task<Result> DeleteAsync(AssetRef assetRef, CancellationToken cancellationToken)
+    {
+        var mimeType = await MimeTypeAsync(assetRef, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _client.DeleteObjectAsync(
+                new DeleteObjectRequest { BucketName = _bucket, Key = KeyFor(assetRef, mimeType) },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (AmazonS3Exception ex)
+        {
+            // GEÇİCİ: ağ ya da yetki dışı bir S3 hatası bir sonraki
+            // turda geçebilir. Süpürücü hatayı sayıyor ve satırı
+            // silmiyor.
+            return Error.Transient("storage.s3_delete_failed", ex.Message);
+        }
+
+        try
+        {
+            var cached = CachePath(assetRef, mimeType);
+
+            if (File.Exists(cached))
+            {
+                File.Delete(cached);
+            }
+        }
+        catch (IOException)
+        {
+            // Önbellek kalıntısı bir tutarsızlık değil: içerik-adresli
+            // olduğu için aynı dosya, aynı içerik.
+        }
+
+        return Result.Success();
+    }
+
     /// Kovanın var olduğundan emin olur.
     ///
     /// Uygulama açılışında çağrılıyor: kova yoksa ilk varlık yazımı

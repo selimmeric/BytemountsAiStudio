@@ -219,6 +219,47 @@ public sealed class FileSystemAssetStore(StudioDbContext db, string rootPath) : 
         return Result.Success(exists);
     }
 
+    /// Varlığı diskten siler (P4-02).
+    ///
+    /// ***KAYIT SİLİNMİYOR, YALNIZCA DOSYA.*** Satırın sahibi
+    /// süpürücü (`RetentionSweeper`) ve sırası kasıtlı: önce dosya,
+    /// sonra satır. Ters sırada, dosya silme düşerse satır gitmiş
+    /// olurdu ve dosya sonsuza kadar sahipsiz kalırdı — hiçbir kayıt
+    /// onu göstermediği için bir daha bulunamazdı.
+    ///
+    /// OLMAYAN DOSYA HATA DEĞİL: yarım kalmış bir silmenin ikinci
+    /// turu "zaten yok" görüp ilerlemeli.
+    public async Task<Result> DeleteAsync(AssetRef assetRef, CancellationToken cancellationToken)
+    {
+        var storagePath = await db.Assets
+            .AsNoTracking()
+            .Where(a => a.Sha256 == assetRef.Sha256)
+            .Select(a => a.StoragePath)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (storagePath is null)
+        {
+            return Result.Success();
+        }
+
+        try
+        {
+            SafeDelete(Path.Combine(rootPath, storagePath));
+            return Result.Success();
+        }
+        catch (IOException ex)
+        {
+            // GEÇİCİ: dosya kilitli olabilir (render hâlâ okuyor).
+            // Bir sonraki turda yeniden denenmeli.
+            return Error.Transient("storage.delete_failed", ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Error.Permanent("storage.delete_denied", ex.Message);
+        }
+    }
+
     private static void SafeDelete(string path)
     {
         try

@@ -104,6 +104,34 @@ public sealed class FakeStorageProvider : IStorageProvider, IDisposable
         return Task.FromResult(Result.Success(_index.ContainsKey(assetRef.Sha256)));
     }
 
+    /// Sahte depo da silmeyi GERÇEKTEN yapıyor (P4-02).
+    ///
+    /// "Sildim" deyip tutmasaydı, saklama süpürücüsünün testleri
+    /// silinen varlığın gerçekten gittiğini hiç sınayamazdı — ve
+    /// süpürücü sahte hatta yeşil, gerçek hatta bozuk olurdu.
+    public Task<Result> DeleteAsync(AssetRef assetRef, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // OLMAYAN VARLIK HATA DEĞİL: yarım kalmış bir silmenin ikinci
+        // turu ilerlemeli.
+        if (_index.TryRemove(assetRef.Sha256, out var stored))
+        {
+            try
+            {
+                File.Delete(Path.Combine(
+                    _root, assetRef.RelativePath(ExtensionFor(stored.Metadata.MimeType))));
+            }
+            catch (IOException)
+            {
+                // Sahte depo geçici dizinde: dosya kalıntısı testi
+                // etkilemiyor, dizin sonunda tümden siliniyor.
+            }
+        }
+
+        return Task.FromResult(Result.Success());
+    }
+
     private Result<string> ResolvePath(AssetRef assetRef)
     {
         if (!_index.TryGetValue(assetRef.Sha256, out var stored))

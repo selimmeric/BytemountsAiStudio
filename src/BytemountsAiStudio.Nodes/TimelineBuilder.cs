@@ -355,6 +355,51 @@ public static class TimelineBuilder
     /// bir Shorts'ta bölüm sınırı diye bir şey olmuyor. Liste boş
     /// olunca her sahne normal geçişini alıyor, videonun başı ve
     /// sonu yine açılıp kapanıyor.
+    /// Bölüm planını `Chapter` listesi olarak okur.
+    ///
+    /// `ChapterStartsFrom` yalnızca başlangıçları veriyor; bölüm
+    /// işaretleri (P3-04) BAŞLIĞA da ihtiyaç duyuyor. İki ayrı okuma
+    /// yerine biri diğerini kullanıyor ki bir gün bölüm planının biçimi
+    /// değiştiğinde tek yer düzeltilsin.
+    internal static IReadOnlyList<Chapter> ChaptersFrom(JsonElement runContext)
+    {
+        if (!runContext.TryGetProperty("chapters", out var node)
+            || node.ValueKind != JsonValueKind.Object
+            || !node.TryGetProperty("chapters", out var array)
+            || array.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var chapters = new List<Chapter>();
+        var index = 0;
+
+        foreach (var item in array.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || NodeJson.Text(item, "title") is not { Length: > 0 } title
+                || !item.TryGetProperty("start_ms", out var start)
+                || !start.TryGetInt32(out var startMs))
+            {
+                continue;
+            }
+
+            var target = item.TryGetProperty("target_ms", out var t) && t.TryGetInt32(out var targetMs)
+                ? targetMs
+                : 0;
+
+            chapters.Add(new Chapter
+            {
+                Index = index++,
+                Title = title,
+                Start = new Ms(startMs),
+                TargetDuration = new Ms(target),
+            });
+        }
+
+        return chapters;
+    }
+
     internal static IReadOnlyList<int> ChapterStartsFrom(JsonElement runContext)
     {
         if (!runContext.TryGetProperty("chapters", out var node)

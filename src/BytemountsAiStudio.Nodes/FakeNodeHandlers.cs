@@ -951,7 +951,54 @@ public sealed class TimelineCompileHandler(
                 // harcanmış olurdu.
                 aspect_recognised = aspect is null || Canvas.TryParseAspect(aspect) is not null,
                 music = timeline.Audio.Music is not null,
+
+                // ***BÖLÜM İŞARETLERİ BURADA ÜRETİLİYOR (P3-04).***
+                //
+                // `ChapterMarkers` yazılmış, testlenmiş ve HİÇBİR NODE
+                // ÇAĞIRMIYORDU: uzun videolarda bölüm planı
+                // hesaplanıyor, timeline'da kesim olarak kullanılıyor,
+                // ama "00:00 Giriş" satırları video AÇIKLAMASINA hiç
+                // yazılmıyordu. YouTube bölüm işaretlerini yalnızca
+                // açıklamadan okuduğu için oynatıcıda hiçbir bölüm
+                // görünmüyordu — ve dosyanın kendi yorumunun uyardığı
+                // gibi bu hata vermiyor, yalnızca hiç çıkmıyor.
+                //
+                // BURADA ÜRETİLİYOR çünkü gerçek sahne sınırları
+                // yalnızca burada var: SEO node'u run bağlamında
+                // sahneleri görmüyor ve planı yazsaydı işaretler
+                // videonun gerçek geçişlerinden saniyeler sapardı.
+                chapter_markers = MarkersFor(context.RunContext, timeline),
             }));
+    }
+
+    /// Bölüm işaretlerini gerçek sahne sınırlarından üretir.
+    ///
+    /// KISA VİDEODA BOŞ LİSTE ve bu bir eksiklik değil: 48 saniyelik
+    /// bir Shorts'ta bölüm diye bir şey yok. Boş liste, SEO node'unun
+    /// açıklamaya hiçbir şey eklememesi demek.
+    ///
+    /// KURALLARA UYMUYORSA DA BOŞ: YouTube üç kuralı da (en az üç
+    /// işaret, ilki sıfırda, aralar en az 10 sn) sağlamayan bir listeyi
+    /// HİÇ göstermiyor ve hata da vermiyor. Yarım bir liste yazmak,
+    /// açıklamayı kirletip hiçbir şey kazandırmazdı.
+    private static IReadOnlyList<object> MarkersFor(
+        JsonElement runContext, TimelineDocument timeline)
+    {
+        var chapters = TimelineBuilder.ChaptersFrom(runContext);
+
+        if (chapters.Count == 0 || timeline.Scenes.Count == 0)
+        {
+            return [];
+        }
+
+        var markers = ChapterMarkers.Align(
+            chapters,
+            [.. timeline.Scenes.Select(sc => sc.Range.Start.Value)],
+            [.. timeline.Scenes.Select(sc => sc.Range.End.Value)]);
+
+        return ChapterMarkers.Validate(markers, timeline.Duration).Count > 0
+            ? []
+            : [.. markers.Select(m => new { start_ms = m.Start.Value, title = m.Title })];
     }
 }
 
