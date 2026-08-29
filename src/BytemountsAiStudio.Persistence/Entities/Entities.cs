@@ -349,6 +349,17 @@ public sealed class Credential : EntityBase
     /// `config/providers.json` içindeki `key` ile aynı değer.
     public required string ProviderKey { get; set; }
 
+    /// Havuzdaki hesabın adı (P4-04).
+    ///
+    /// AYNI SAĞLAYICI İÇİN BİRDEN FAZLA HESAP: YouTube günlük 10.000
+    /// birim veriyor ve bir yükleme 1.600 — proje başına günde altı
+    /// video. Günde 100 video hedefi on yedi proje istiyor ve tek
+    /// kayıtlı bir kimlik bunu ifade edemiyordu.
+    ///
+    /// Varsayılan `default`: tek hesaplı kurulumda hiçbir şey
+    /// değişmiyor.
+    public string Account { get; set; } = "default";
+
     public required string CipherText { get; set; }
 
     /// Son dört karakter, maskeli. Arayüzde göstermek için — bu alanı
@@ -536,6 +547,34 @@ public sealed class Experiment : EntityBase
     public string? Reason { get; set; }
 
     public DateTimeOffset? DecidedAt { get; set; }
+}
+
+/// Kota defterinin bir satırı: bir hesabın bir günü (P4-04).
+///
+/// ADI `QuotaLedgerEntry`, `QuotaReservation` DEĞİL: `Core.Execution`
+/// içinde aynı adla saf bir KARAR kaydı var ve ikisini aynı adla
+/// anmak, "rezervasyon isteği" ile "defterdeki satır" arasındaki farkı
+/// silerdi.
+///
+/// REZERVASYON, HARCAMA DEĞİL. İkisi ayrı çünkü arada iş var: rezerve
+/// edilen kota yükleme BAŞLAMADAN önce düşülüyor, gerçek harcama sonra
+/// oluyor. Yalnızca gerçekleşeni saymak, aynı anda başlayan iki
+/// yüklemenin ikisinin de "yer var" görmesi demekti.
+///
+/// SATIR BAŞINA BİR GÜN: gün anahtarı PASİFİK tarihi, çünkü YouTube
+/// kotayı Pasifik gece yarısında sıfırlıyor.
+public sealed class QuotaLedgerEntry : EntityBase
+{
+    public required string ProviderKey { get; set; }
+
+    /// Havuzdaki hesap adı.
+    public required string Account { get; set; }
+
+    /// `yyyy-MM-dd`, Pasifik tarihi.
+    public required string DayKey { get; set; }
+
+    /// Bugüne kadar rezerve edilen birim.
+    public int ReservedUnits { get; set; }
 }
 
 /// Bir deneyin varyantı.

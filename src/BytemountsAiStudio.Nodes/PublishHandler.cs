@@ -21,7 +21,7 @@ namespace BytemountsAiStudio.Nodes;
 /// kanallarda farklı platforma yayınlayabilmeli. Tanınmayan bir
 /// platform SESSİZ GEÇİLMİYOR — sessiz geçmek, hiçbir yere
 /// yayınlanmamış bir videoyu "yayınlandı" diye işaretlemek olurdu.
-public sealed class PublishHandler(IReadOnlyList<IPublisher> publishers) : INodeHandler
+public sealed class PublishHandler(IReadOnlyList<IPublisher> publishers, IQuotaPool quota) : INodeHandler
 {
     public string NodeType => "publish.upload";
 
@@ -95,6 +95,42 @@ public sealed class PublishHandler(IReadOnlyList<IPublisher> publishers) : INode
             ResumeToken = NodeJson.Text(context.RunContext, $"{context.NodeId}.resume_token"),
         };
 
+        // ---- KOTA REZERVASYONU, YÜKLEMEDEN ÖNCE (P4-04) ----
+        //
+        // YouTube günlük 10.000 birim veriyor ve bir yükleme 1.600 —
+        // proje başına günde ALTI video. Kotayı yüklemeye BAŞLADIKTAN
+        // sonra öğrenmek, dakikalarca bant genişliği harcayıp sonunda
+        // reddedilmek demek.
+        //
+        // REZERVASYON HARCAMADAN ÖNCE: aynı anda başlayan iki yükleme
+        // aksi hâlde ikisi de "yer var" görürdü.
+        var cost = QuotaLedger.CostOf(
+            withThumbnail: request.Thumbnail is not null,
+            withPlaylist: false);
+
+        var reservation = await quota.ReserveAsync(
+            publisher.Key, ChannelOf(context.RunContext), cost, cancellationToken).ConfigureAwait(false);
+
+        if (reservation.IsFailure)
+        {
+            return Result.Failure<JsonElement>(reservation.Error);
+        }
+
+        if (!reservation.Value.Granted)
+        {
+            // HAVUZ TÜKENDİ: KAYNAK hatası, başarısızlık değil
+            // (ADR-011). Yarın kota sıfırlanıyor ve iş o zaman
+            // koşabilir; kalıcı saymak üretilmiş bir videoyu çöpe
+            // atmak olurdu.
+            //
+            // HESAP YOKLUĞU AYRI: beklemek onu var etmiyor, bu bir
+            // yapılandırma hatası ve KALICI.
+            return reservation.Value.Outcome == PoolOutcome.NoAccounts
+                ? Error.Permanent("publish.no_quota_account", reservation.Value.Reason)
+                : Error.Resource("publish.quota_exhausted", reservation.Value.Reason,
+                    QuotaLedger.NextReset(DateTimeOffset.UtcNow) - DateTimeOffset.UtcNow);
+        }
+
         var result = await publisher.PublishAsync(
             request,
             new ProviderContext
@@ -126,9 +162,22 @@ public sealed class PublishHandler(IReadOnlyList<IPublisher> publishers) : INode
             visibility = published.Visibility.ToString(),
             scheduled_for = published.ScheduledFor,
             quota_spent = published.QuotaSpent,
+
+            // HANGİ HESAPTAN YÜKLENDİĞİ KAYDA GİRİYOR.
+            //
+            // Bir hesap kapanırsa ya da askıya alınırsa, "hangi
+            // videolar oradan gitti" sorusu cevaplanabilmeli. Havuzda
+            // on yedi proje varken bunu sonradan bulmanın yolu yok.
+            quota_account = reservation.Value.Account,
+            quota_reserved = reservation.Value.Cost,
+            quota_remaining = reservation.Value.RemainingAfter,
             resume_token = published.ResumeToken,
         }));
     }
+
+    /// Koşunun kanalı — kota kapsamı için.
+    private static Guid? ChannelOf(JsonElement runContext)
+        => Guid.TryParse(NodeJson.Text(runContext, "channel.id"), out var id) ? id : null;
 
     /// Kapak varlığı.
     private static AssetRef? Thumbnail(JsonElement runContext)

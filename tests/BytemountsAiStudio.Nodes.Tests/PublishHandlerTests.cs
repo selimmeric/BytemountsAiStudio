@@ -49,7 +49,10 @@ public sealed class PublishHandlerTests
     private const string Fake = """{"platform":"fake"}""";
 
     private static PublishHandler Handler(params IPublisher[] publishers)
-        => new(publishers.Length > 0 ? publishers : [new FakePublisher()]);
+        => Handler(new UnlimitedQuotaPool(), publishers);
+
+    private static PublishHandler Handler(IQuotaPool quota, params IPublisher[] publishers)
+        => new(publishers.Length > 0 ? publishers : [new FakePublisher()], quota);
 
     /* ---- mutlu yol ---- */
 
@@ -180,6 +183,85 @@ public sealed class PublishHandlerTests
         Assert.Equal(Core.Errors.ErrorKind.Resource, result.Error.Kind);
     }
 
+    /* ---- kota havuzu (P4-04) ---- */
+
+    /// ***KOTA YÜKLEMEDEN ÖNCE REZERVE EDİLİYOR.***
+    ///
+    /// Kotayı yüklemeye başladıktan sonra öğrenmek, dakikalarca bant
+    /// genişliği harcayıp sonunda reddedilmek demek.
+    [Fact]
+    public async Task Kota_YuklemedenOnceRezerve()
+    {
+        var quota = new RecordingQuota();
+
+        var result = await Handler(quota, new FakePublisher()).ExecuteAsync(
+            Context(FullContext, Fake), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        Assert.Equal(1, quota.Calls);
+
+        // KAPAK VARSA MALİYETE GİRİYOR: kapak ayrı bir çağrı ve ayrı
+        // 50 birim. Hep kapaksız varsaymak, kotayı eksik saymak olurdu.
+        Assert.Equal(QuotaLedger.UploadCost + QuotaLedger.ThumbnailCost, quota.LastCost);
+    }
+
+    /// SEÇİLEN HESAP KAYDA GİRİYOR.
+    ///
+    /// Bir hesap kapanırsa "hangi videolar oradan gitti" sorusu
+    /// cevaplanabilmeli. Havuzda on yedi proje varken bunu sonradan
+    /// bulmanın yolu yok.
+    [Fact]
+    public async Task SecilenHesap_KaydaGiriyor()
+    {
+        var result = await Handler(new RecordingQuota(), new FakePublisher()).ExecuteAsync(
+            Context(FullContext, Fake), CancellationToken.None);
+
+        Assert.Equal("proje-01", result.Value.GetProperty("quota_account").GetString());
+    }
+
+    /// ***HAVUZ TÜKENDİĞİNDE ERTELEME, BAŞARISIZLIK DEĞİL.***
+    ///
+    /// Yarın kota sıfırlanıyor ve iş o zaman koşabilir; kalıcı saymak
+    /// üretilmiş bir videoyu çöpe atmak olurdu (ADR-011).
+    [Fact]
+    public async Task HavuzTukendi_KaynakHatasi()
+    {
+        var result = await Handler(new ExhaustedQuota(), new FakePublisher()).ExecuteAsync(
+            Context(FullContext, Fake), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(Core.Errors.ErrorKind.Resource, result.Error.Kind);
+        Assert.Equal("publish.quota_exhausted", result.Error.Code);
+    }
+
+    /// ***HESAP YOKLUĞU KALICI HATA — KOTA BİTMESİ DEĞİL.***
+    ///
+    /// Beklemek hesabı var etmiyor. Erteleme saysaydık, hiç
+    /// yapılandırılmamış bir sistem her gün sessizce bekler ve hiç
+    /// uyarmazdı.
+    [Fact]
+    public async Task HesapYok_KaliciHata()
+    {
+        var result = await Handler(new NoAccountQuota(), new FakePublisher()).ExecuteAsync(
+            Context(FullContext, Fake), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(Core.Errors.ErrorKind.Permanent, result.Error.Kind);
+        Assert.Equal("publish.no_quota_account", result.Error.Code);
+    }
+
+    /// KOTA REDDEDİLDİYSE YÜKLEME HİÇ DENENMİYOR.
+    [Fact]
+    public async Task KotaReddedildi_YuklemeYok()
+    {
+        var publisher = new CountingPublisher();
+
+        await Handler(new ExhaustedQuota(), publisher).ExecuteAsync(
+            Context(FullContext, """{"platform":"sayan"}"""), CancellationToken.None);
+
+        Assert.Equal(0, publisher.Calls);
+    }
+
     /* ---- kayıt ---- */
 
     /// NODE TİPİ TANIMLI.
@@ -200,6 +282,77 @@ public sealed class PublishHandlerTests
         => Assert.Equal(QueueClass.Upload, Handler().Queue);
 
     /* ---- yardımcılar ---- */
+
+    private sealed class RecordingQuota : IQuotaPool
+    {
+        public int Calls { get; private set; }
+
+        public int LastCost { get; private set; }
+
+        public Task<Core.Result<PoolDecision>> ReserveAsync(
+            string providerKey, Guid? channelId, int cost, CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastCost = cost;
+
+            return Task.FromResult(Core.Result.Success(new PoolDecision(
+                PoolOutcome.Selected, "proje-01", cost, 8_400, 50_000, "seçildi")));
+        }
+    }
+
+    private sealed class ExhaustedQuota : IQuotaPool
+    {
+        public Task<Core.Result<PoolDecision>> ReserveAsync(
+            string providerKey, Guid? channelId, int cost, CancellationToken cancellationToken)
+            => Task.FromResult(Core.Result.Success(new PoolDecision(
+                PoolOutcome.Exhausted, null, cost, 0, 900, "hepsi dolu")));
+    }
+
+    private sealed class NoAccountQuota : IQuotaPool
+    {
+        public Task<Core.Result<PoolDecision>> ReserveAsync(
+            string providerKey, Guid? channelId, int cost, CancellationToken cancellationToken)
+            => Task.FromResult(Core.Result.Success(new PoolDecision(
+                PoolOutcome.NoAccounts, null, cost, 0, 0, "hesap yok")));
+    }
+
+    private sealed class CountingPublisher : IPublisher
+    {
+        public int Calls { get; private set; }
+
+        public string Key => "sayan";
+
+        public string Platform => "sayan";
+
+        public PublishCapabilities Capabilities { get; } = new()
+        {
+            MaxTitleLength = 100,
+            MaxDescriptionLength = 5_000,
+            MaxTagsTotalLength = 500,
+            MaxDuration = new Core.Time.Ms(600_000),
+            SupportsScheduling = false,
+            SupportsCustomThumbnail = false,
+            QuotaCostPerPublish = 1_600,
+        };
+
+        public Task<Core.Result<ProviderResponse<PublishResult>>> PublishAsync(
+            PublishRequest request, ProviderContext context, CancellationToken cancellationToken)
+        {
+            Calls++;
+
+            return Task.FromResult(Core.Result.Success(ProviderResponse<PublishResult>.Free(
+                new PublishResult
+                {
+                    ExternalId = "s-1",
+                    Url = new Uri("https://ornek.test/s-1"),
+                    Visibility = Visibility.Private,
+                })));
+        }
+
+        public Task<Core.Result<PublishResult?>> FindExistingAsync(
+            string idempotencyKey, CancellationToken cancellationToken)
+            => Task.FromResult(Core.Result.Success<PublishResult?>(null));
+    }
 
     private sealed class SecondPlatform : IPublisher
     {

@@ -14,15 +14,37 @@ namespace BytemountsAiStudio.Contracts.Providers;
 /// ve o zaman veritabanındaki kayıt ortamı ezmeli. Ters sırada olsaydı
 /// sunucuda unutulmuş bir ortam değişkeni bütün kanalları sessizce aynı
 /// hesaba bağlardı.
+/// Kimlik kayıtlarının ortak sabitleri.
+public static class Credentials
+{
+    /// Hesap adı verilmediğinde kullanılan ad (P4-04).
+    ///
+    /// TEK YERDE: kod bir yerde `default`, göç dosyası başka bir yerde
+    /// boş dizge yazsaydı, mevcut kayıtlar havuzda GÖRÜNMEZ olurdu.
+    public const string DefaultAccount = "default";
+}
+
 public interface ICredentialStore
 {
     /// Anahtarın açık hâlini döndürür. Bulunamazsa kalıcı hata —
     /// yeniden denemek anahtarı var etmez.
-    Task<Result<string>> GetAsync(string providerKey, Guid? channelId, CancellationToken cancellationToken);
+    /// `account`: kota havuzundaki hesap adı (P4-04).
+    ///
+    /// VARSAYILANI OLAN BİR PARAMETRE, atlanabilir bir bağımlılık
+    /// değil: tek hesaplı kurulumda `default` DOĞRU cevap, çünkü
+    /// kayıtlar da o adla yazılıyor. Boş bırakmak bir şeyi sessizce
+    /// kapatmıyor.
+    Task<Result<string>> GetAsync(
+        string providerKey, Guid? channelId, CancellationToken cancellationToken,
+        string account = Credentials.DefaultAccount);
 
-    Task<Result> SetAsync(string providerKey, Guid? channelId, string secret, CancellationToken cancellationToken);
+    Task<Result> SetAsync(
+        string providerKey, Guid? channelId, string secret, CancellationToken cancellationToken,
+        string account = Credentials.DefaultAccount);
 
-    Task<Result> DeleteAsync(string providerKey, Guid? channelId, CancellationToken cancellationToken);
+    Task<Result> DeleteAsync(
+        string providerKey, Guid? channelId, CancellationToken cancellationToken,
+        string account = Credentials.DefaultAccount);
 
     /// Kayıtların ÜST BİLGİSİ — gizli değer dönmüyor.
     ///
@@ -36,6 +58,9 @@ public interface ICredentialStore
 public sealed record CredentialInfo
 {
     public required string ProviderKey { get; init; }
+
+    /// Havuzdaki hesap adı (P4-04).
+    public string Account { get; init; } = Credentials.DefaultAccount;
 
     /// null = genel kayıt, bütün kanallar için.
     public Guid? ChannelId { get; init; }

@@ -40,6 +40,7 @@ return command switch
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "ogrenme" => await RunLearningAsync(args).ConfigureAwait(false),
     "turev" => await RunDerivationAsync(args).ConfigureAwait(false),
+    "kota" => await RunQuotaAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
 };
@@ -68,11 +69,17 @@ static int Help()
                                         Windows TTS
           bmai providers                saglayici katalogunu goster
           bmai credential list [--channel <id>]
-          bmai credential set <saglayici> [--channel <id>]
+          bmai credential set <saglayici> [--channel <id>] [--hesap <ad>]
+                                        --hesap ile AYNI saglayici icin
+                                        birden fazla hesap: kota havuzu
+                                        (YouTube proje basina gunde 6 video)
                                         anahtari sifreleyerek saklar; deger
                                         stdin'den okunur, komut satirina
                                         yazilmaz
-          bmai credential rm <saglayici> [--channel <id>]
+          bmai credential rm <saglayici> [--channel <id>] [--hesap <ad>]
+          bmai kota [--saglayici youtube]
+                                        havuzdaki hesaplar, bugunku kalan
+                                        ve kac yayin sigdigi
           bmai prompt list              istem surumlerini goster
           bmai prompt eval              fixture'lari kosar (model cagirmaz)
           bmai fetch <url>              sayfayi ceker (robots.txt kontrollu)
@@ -358,6 +365,53 @@ static async Task<int> DecideAsync(StudioDbContext db, bool apply)
 ///
 /// Bu komut ARASTIRMAYI tasiyor, senaryoyu hedef dilde SIFIRDAN
 /// yazdiriyor. Pahali olan arastirma zaten yapilmis.
+/// Kota havuzunun durumu (P4-04).
+///
+/// "Bugun kac video yayinlanabilir" sorusunun cevabi, kota bittikten
+/// SONRA ogrenilecek bir sey olmamali.
+static async Task<int> RunQuotaAsync(string[] args)
+{
+    var provider = Option(args, "--saglayici", "youtube");
+
+    await using var db = CreateContext();
+
+    var service = new QuotaPoolService(db);
+    var accounts = await service.AccountsAsync(provider, null, CancellationToken.None).ConfigureAwait(false);
+
+    if (accounts.Count == 0)
+    {
+        Console.WriteLine($"'{provider}' icin havuzda hesap yok.");
+        Console.WriteLine($"  bmai credential set {provider} --hesap proje-01");
+        return 0;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"  {"HESAP",-16} {"KALAN",10} {"YAYIN",8}"));
+    Console.WriteLine("  " + new string('-', 36));
+
+    foreach (var account in accounts)
+    {
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {account.Account,-16} {account.Remaining,10} {account.Remaining / QuotaLedger.UploadCost,8}"));
+    }
+
+    var capacity = QuotaPool.Capacity(accounts, QuotaLedger.UploadCost);
+
+    Console.WriteLine();
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"  Bugun toplam {capacity} yayin sigiyor ({accounts.Count} hesap)."));
+
+    // PARCALANMA GORUNUR: toplam kalan ile sigan yayin ayri sayilar.
+    // "4.500 birim var" gorunumu, 1.600'luk bir isin hicbir hesaba
+    // sigmadigi durumu gizlerdi.
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"  Toplam kalan {accounts.Sum(a => a.Remaining)} birim "
+        + $"(bir yayin {QuotaLedger.UploadCost})."));
+
+    return 0;
+}
+
 static async Task<int> RunDerivationAsync(string[] args)
 {
     if (!Guid.TryParse(OptionOrNull(args, "--run"), out var sourceRunId))
@@ -716,8 +770,8 @@ static async Task<int> RunCredentialAsync(string[] args)
 
             Console.WriteLine();
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  {"SAGLAYICI",-20} {"DEGER",-10} {"KAPSAM",-10} SON KULLANIM"));
-            Console.WriteLine("  " + new string('-', 66));
+                $"  {"SAGLAYICI",-20} {"HESAP",-14} {"DEGER",-10} {"KAPSAM",-8} SON KULLANIM"));
+            Console.WriteLine("  " + new string('-', 78));
 
             foreach (var row in rows)
             {
@@ -725,7 +779,7 @@ static async Task<int> RunCredentialAsync(string[] args)
                 var used = row.LastUsedAt?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "-";
 
                 Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                    $"  {row.ProviderKey,-20} {row.Masked,-10} {scope,-10} {used}"));
+                    $"  {row.ProviderKey,-20} {row.Account,-14} {row.Masked,-10} {scope,-8} {used}"));
             }
 
             Console.WriteLine();
@@ -747,7 +801,13 @@ static async Task<int> RunCredentialAsync(string[] args)
                 return 2;
             }
 
-            var saved = await store.SetAsync(args[2], channel, secret.Trim(), CancellationToken.None)
+            // HESAP ADI (P4-04): ayni saglayici icin birden fazla
+            // hesap. YouTube gunluk 10.000 birim veriyor ve bir yukleme
+            // 1.600 -- proje basina gunde ALTI video.
+            var account = Option(args, "--hesap", Credentials.DefaultAccount);
+
+            var saved = await store
+                .SetAsync(args[2], channel, secret.Trim(), CancellationToken.None, account)
                 .ConfigureAwait(false);
 
             if (saved.IsFailure)
@@ -767,7 +827,9 @@ static async Task<int> RunCredentialAsync(string[] args)
                 return 2;
             }
 
-            var removed = await store.DeleteAsync(args[2], channel, CancellationToken.None).ConfigureAwait(false);
+            var removed = await store
+                .DeleteAsync(args[2], channel, CancellationToken.None, Option(args, "--hesap", Credentials.DefaultAccount))
+                .ConfigureAwait(false);
 
             if (removed.IsFailure)
             {

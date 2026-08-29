@@ -49,14 +49,15 @@ public sealed class CredentialStore : ICredentialStore
         key => key.Replace('-', '_').ToUpperInvariant() + "_API_KEY";
 
     public async Task<Result<string>> GetAsync(
-        string providerKey, Guid? channelId, CancellationToken cancellationToken)
+        string providerKey, Guid? channelId, CancellationToken cancellationToken,
+        string account = Credentials.DefaultAccount)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
 
         // 1. Kanala özel kayıt — en dar kapsam kazanıyor.
         if (channelId is { } id)
         {
-            var scoped = await FindAsync(providerKey, id, cancellationToken).ConfigureAwait(false);
+            var scoped = await FindAsync(providerKey, id, account, cancellationToken).ConfigureAwait(false);
 
             if (scoped is not null)
             {
@@ -65,7 +66,7 @@ public sealed class CredentialStore : ICredentialStore
         }
 
         // 2. Genel kayıt.
-        var global = await FindAsync(providerKey, null, cancellationToken).ConfigureAwait(false);
+        var global = await FindAsync(providerKey, null, account, cancellationToken).ConfigureAwait(false);
 
         if (global is not null)
         {
@@ -92,7 +93,8 @@ public sealed class CredentialStore : ICredentialStore
     }
 
     public async Task<Result> SetAsync(
-        string providerKey, Guid? channelId, string secret, CancellationToken cancellationToken)
+        string providerKey, Guid? channelId, string secret, CancellationToken cancellationToken,
+        string account = Credentials.DefaultAccount)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
 
@@ -101,7 +103,7 @@ public sealed class CredentialStore : ICredentialStore
             return Error.Permanent("credential.empty", "Bos anahtar saklanamaz.");
         }
 
-        var existing = await FindAsync(providerKey, channelId, cancellationToken).ConfigureAwait(false);
+        var existing = await FindAsync(providerKey, channelId, account, cancellationToken).ConfigureAwait(false);
         var now = _time.GetUtcNow();
 
         if (existing is null)
@@ -130,9 +132,10 @@ public sealed class CredentialStore : ICredentialStore
     }
 
     public async Task<Result> DeleteAsync(
-        string providerKey, Guid? channelId, CancellationToken cancellationToken)
+        string providerKey, Guid? channelId, CancellationToken cancellationToken,
+        string account = Credentials.DefaultAccount)
     {
-        var existing = await FindAsync(providerKey, channelId, cancellationToken).ConfigureAwait(false);
+        var existing = await FindAsync(providerKey, channelId, account, cancellationToken).ConfigureAwait(false);
 
         if (existing is null)
         {
@@ -160,6 +163,7 @@ public sealed class CredentialStore : ICredentialStore
         return [.. rows.Select(c => new CredentialInfo
         {
             ProviderKey = c.ProviderKey,
+            Account = c.Account,
             ChannelId = c.ChannelId,
             Source = "db",
             Masked = c.Masked,
@@ -168,9 +172,11 @@ public sealed class CredentialStore : ICredentialStore
         })];
     }
 
-    private Task<Credential?> FindAsync(string providerKey, Guid? channelId, CancellationToken cancellationToken)
+    private Task<Credential?> FindAsync(
+        string providerKey, Guid? channelId, string account, CancellationToken cancellationToken)
         => _db.Credentials.FirstOrDefaultAsync(
-            c => c.ProviderKey == providerKey && c.ChannelId == channelId, cancellationToken);
+            c => c.ProviderKey == providerKey && c.ChannelId == channelId && c.Account == account,
+            cancellationToken);
 
     private async Task<Result<string>> UnprotectAsync(Credential credential, CancellationToken cancellationToken)
     {

@@ -195,7 +195,9 @@ public static class NodeHandlerRegistration
             // kimlik üretiyor ve idempotency'yi hatırlıyor, yani "aynı
             // videoyu iki kez yayınlama" kuralı sahte hatta da
             // sınanabiliyor.
-            .Register(new PublishHandler([new Providers.Fake.FakePublisher()]));
+            .Register(new PublishHandler(
+                [new Providers.Fake.FakePublisher()],
+                new Providers.Fake.UnlimitedQuotaPool()));
     }
 
     /// ANAHTARSIZ GERÇEK hat (ADR-015).
@@ -334,7 +336,9 @@ public static class NodeHandlerRegistration
             // kimlik üretiyor ve idempotency'yi hatırlıyor, yani "aynı
             // videoyu iki kez yayınlama" kuralı sahte hatta da
             // sınanabiliyor.
-            .Register(new PublishHandler([new Providers.Fake.FakePublisher()]));
+            .Register(new PublishHandler(
+                [new Providers.Fake.FakePublisher()],
+                new Providers.Fake.UnlimitedQuotaPool()));
     }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.

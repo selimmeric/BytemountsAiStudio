@@ -63,6 +63,8 @@ public class StudioDbContext : DbContext
 
     public DbSet<Setting> Settings => Set<Setting>();
 
+    public DbSet<QuotaLedgerEntry> QuotaLedger => Set<QuotaLedgerEntry>();
+
     // ---- öğrenme döngüsü (Faz 5) ----
 
     public DbSet<Experiment> Experiments => Set<Experiment>();
@@ -393,6 +395,18 @@ public class StudioDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        b.Entity<QuotaLedgerEntry>(e =>
+        {
+            e.Property(x => x.ProviderKey).HasMaxLength(64);
+            e.Property(x => x.Account).HasMaxLength(64);
+            e.Property(x => x.DayKey).HasMaxLength(10);
+
+            // TEKILLIK KISITI ATOMIK ARTIRMANIN DAYANAGI: `ON CONFLICT`
+            // bu indekse bakiyor. Olmasaydi iki worker ayni gun icin
+            // iki satir olusturur ve ikisi de "yer var" gorurdu.
+            e.HasIndex(x => new { x.ProviderKey, x.Account, x.DayKey }).IsUnique();
+        });
+
         b.Entity<Credential>(e =>
         {
             e.Property(x => x.ProviderKey).HasMaxLength(64);
@@ -408,11 +422,16 @@ public class StudioDbContext : DbContext
             // NULL kanal (genel kayit) icin ayri kismi indeks gerekiyor:
             // Postgres'te NULL != NULL oldugu icin bilesik tekil indeks
             // genel kayitlarin coklanmasini engellemiyor.
-            e.HasIndex(x => new { x.ChannelId, x.ProviderKey })
+            e.Property(x => x.Account).HasMaxLength(64);
+
+            // HESAP ADI TEKILLIGE GIRDI (P4-04): ayni saglayici icin
+            // birden fazla hesap tutulabilmeli. Girmeseydi ikinci hesap
+            // ekleme denemesi kisit ihlaliyle duserdi.
+            e.HasIndex(x => new { x.ChannelId, x.ProviderKey, x.Account })
                 .IsUnique()
                 .HasFilter("channel_id IS NOT NULL");
 
-            e.HasIndex(x => x.ProviderKey)
+            e.HasIndex(x => new { x.ProviderKey, x.Account })
                 .IsUnique()
                 .HasFilter("channel_id IS NULL");
 
