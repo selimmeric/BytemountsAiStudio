@@ -177,6 +177,40 @@ public sealed record PromptTemplate
     }
 }
 
+/// Bir istem damgasının parçaları (P5-05).
+///
+/// BİÇİMİ ÜRETEN VE OKUYAN AYNI DOSYADA. Ayrı yerlerde olsalardı damga
+/// biçimi bir gün değişir, okuyan taraf sessizce eşleşmeyi kaybeder ve
+/// istem performans raporu "hiç veri yok" derdi — hata olmadan, uyarı
+/// olmadan.
+public readonly record struct PromptStamp(string Key, int Version, string Hash)
+{
+    public override string ToString()
+        => string.Create(CultureInfo.InvariantCulture, $"{Key}@{Version}#{Hash}");
+
+    /// `anahtar@surum#ozet` damgasını ayrıştırır.
+    public static PromptStamp? TryParse(string? stamp)
+    {
+        if (string.IsNullOrWhiteSpace(stamp))
+        {
+            return null;
+        }
+
+        var at = stamp.LastIndexOf('@');
+        var hash = stamp.LastIndexOf('#');
+
+        if (at <= 0 || hash <= at + 1)
+        {
+            return null;
+        }
+
+        return int.TryParse(stamp[(at + 1)..hash], NumberStyles.Integer, CultureInfo.InvariantCulture,
+            out var version)
+            ? new PromptStamp(stamp[..at], version, stamp[(hash + 1)..])
+            : null;
+    }
+}
+
 /// Doldurulmuş istem. Sağlayıcıya bu gidiyor, kayda `Stamp` yazılıyor.
 public sealed record RenderedPrompt
 {

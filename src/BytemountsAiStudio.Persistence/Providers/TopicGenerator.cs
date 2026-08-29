@@ -235,7 +235,12 @@ public sealed class TopicGenerator(
             return Result.Failure<RenderedPrompt>(registry.Error);
         }
 
-        var template = registry.Value.Get("topic.generate");
+        // SÜRÜM YOK: konu üretimi bir run'ın İÇİNDE değil, ÖNCESİNDE
+        // çalışıyor. Ortada henüz run yok, dolayısıyla deney ataması da
+        // yok. İstem deneyi konu üretimine ulaşmak isterse ayrı bir
+        // mekanizma gerekir; şimdi olmayan bir bağı varmış gibi
+        // göstermiyoruz.
+        var template = registry.Value.Get("topic.generate", version: null);
 
         if (template.IsFailure)
         {

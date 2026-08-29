@@ -193,6 +193,82 @@ public sealed class ExperimentAssignmentTests(DatabaseFixture fixture) : IAsyncL
         Assert.Equal(2, await db.ExperimentAssignments.CountAsync(CancellationToken.None));
     }
 
+    /* ---- istem deneyi (P5-05) ---- */
+
+    /// VAR OLAN İSTEM SÜRÜMÜ ATANIYOR.
+    [Fact]
+    public async Task IstemDeneyi_Atantyor()
+    {
+        RequireDatabase();
+
+        await using var db = fixture.CreateContext();
+        var versionId = await CreateWorkflowAsync(db);
+
+        await CreateExperimentAsync(db, "prompt",
+            """{"istem":"seo.generate","surum":"2"}""",
+            controlConfig: """{"istem":"seo.generate","surum":"1"}""");
+
+        var runId = await StartAsync(db, versionId);
+        var context = await ContextOfAsync(db, runId);
+
+        var config = ExperimentContext.ConfigFor(context.RootElement, "prompt");
+
+        Assert.NotNull(config);
+
+        var parsed = PromptVariant.Parse(config);
+        Assert.True(parsed.IsSuccess, parsed.IsFailure ? parsed.Error.Message : string.Empty);
+        Assert.Equal("seo.generate", parsed.Value.Key);
+    }
+
+    /// OLMAYAN İSTEM SÜRÜMÜ İLK VİDEODAN ÖNCE YAKALANIYOR.
+    ///
+    /// Bu kontrol olmasaydı iki sonuçtan biri olurdu: ya `Get`
+    /// hatasıyla her run düşerdi, ya da bir yerde varsayılana düşülüp
+    /// iki kol AYNI istemi kullanırdı. İkincisi daha kötü — deney
+    /// haftalarca koşup "fark yok" derdi.
+    [Fact]
+    public async Task OlmayanIstemSurumu_DeneyKapaniyor()
+    {
+        RequireDatabase();
+
+        await using var db = fixture.CreateContext();
+        var versionId = await CreateWorkflowAsync(db);
+
+        await CreateExperimentAsync(db, "prompt",
+            """{"istem":"seo.generate","surum":"99"}""",
+            controlConfig: """{"istem":"seo.generate","surum":"1"}""");
+
+        var runId = await StartAsync(db, versionId);
+        var context = await ContextOfAsync(db, runId);
+
+        Assert.False(context.RootElement.TryGetProperty(ExperimentContext.Key, out _));
+
+        var experiment = await db.Experiments.AsNoTracking().FirstAsync(CancellationToken.None);
+
+        Assert.Equal("Invalid", experiment.State);
+        Assert.Contains("99", experiment.Reason ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    /// OLMAYAN İSTEM ANAHTARI DA YAKALANIYOR.
+    [Fact]
+    public async Task OlmayanIstemAnahtari_DeneyKapaniyor()
+    {
+        RequireDatabase();
+
+        await using var db = fixture.CreateContext();
+        var versionId = await CreateWorkflowAsync(db);
+
+        await CreateExperimentAsync(db, "prompt",
+            """{"istem":"olmayan.istem","surum":"2"}""",
+            controlConfig: """{"istem":"olmayan.istem","surum":"1"}""");
+
+        await StartAsync(db, versionId);
+
+        var experiment = await db.Experiments.AsNoTracking().FirstAsync(CancellationToken.None);
+
+        Assert.Equal("Invalid", experiment.State);
+    }
+
     /* ---- yardımcılar ---- */
 
     private static async Task<Guid> StartAsync(StudioDbContext db, Guid versionId)
@@ -245,7 +321,8 @@ public sealed class ExperimentAssignmentTests(DatabaseFixture fixture) : IAsyncL
         return version.Id;
     }
 
-    private static async Task CreateExperimentAsync(StudioDbContext db, string dimension, string variantConfig)
+    private static async Task CreateExperimentAsync(
+        StudioDbContext db, string dimension, string variantConfig, string controlConfig = "{}")
     {
         var experiment = new Experiment
         {
@@ -259,7 +336,7 @@ public sealed class ExperimentAssignmentTests(DatabaseFixture fixture) : IAsyncL
         db.ExperimentVariants.AddRange(
             new ExperimentVariant
             {
-                Experiment = experiment, Name = "a-kontrol", IsControl = true, ConfigJson = "{}",
+                Experiment = experiment, Name = "a-kontrol", IsControl = true, ConfigJson = controlConfig,
             },
             new ExperimentVariant
             {

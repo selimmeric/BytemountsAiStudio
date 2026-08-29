@@ -167,18 +167,19 @@ public sealed class ContentVariantTests
         Assert.Equal("variant.unknown_dimension", result.Error.Code);
     }
 
-    /// HENÜZ BAĞLANMAMIŞ BOYUT DA REDDEDİLİYOR.
+    /// İSTEM BOYUTU DA BAĞLI (P5-05).
     ///
-    /// `prompt` boyutu P5-05'te bağlanacak. O güne kadar bir istem
-    /// deneyi açmak, ayarları hiç doğrulanmayan bir varyantla ölçüm
-    /// yapmak olurdu — ve sonucu "fark yok" olurdu.
+    /// P5-03'te bilerek reddediliyordu: ayarları doğrulanmayan bir
+    /// varyantla ölçüm yapmak, sonucu "fark yok" olan bir deney
+    /// koşturmak demekti. Şimdi sözlüğü var ve sürümün gerçekten var
+    /// olduğu kayıt anında doğrulanıyor.
     [Fact]
-    public void BaglanmamisBoyut_Reddediliyor()
+    public void IstemBoyutu_Tanimli()
     {
         var result = VariantVocabulary.For("prompt");
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("variant.dimension_unsupported", result.Error.Code);
+        Assert.True(result.IsSuccess);
+        Assert.Contains(PromptVariant.VersionField, result.Value.Keys);
     }
 
     /* ---- run bağlamı köprüsü ---- */

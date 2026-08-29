@@ -23,11 +23,10 @@ public static class VariantVocabulary
             "thumbnail" => Result.Success(ThumbnailVariant.Allowed),
             "title" => Result.Success(TitleVariant.Allowed),
 
-            "prompt" => Error.Permanent("variant.dimension_unsupported",
-                "İstem boyutu henüz bağlanmadı (P5-05). Deney koşturmak, "
-                + "ayarları doğrulanmamış bir varyantla ölçüm yapmak olurdu."),
+            "prompt" => Result.Success(PromptVariant.Allowed),
 
             _ => Error.Permanent("variant.unknown_dimension",
-                $"'{dimension}' bilinmeyen bir deney boyutu. Tanımlılar: thumbnail, title."),
+                $"'{dimension}' bilinmeyen bir deney boyutu. "
+                + "Tanımlılar: thumbnail, title, prompt."),
         };
 }

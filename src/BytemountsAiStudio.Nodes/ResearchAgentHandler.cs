@@ -6,6 +6,7 @@ using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Providers.Open;
 using BytemountsAiStudio.Workflow.Engine;
 
@@ -235,7 +236,8 @@ public sealed class ResearchAgentHandler(
             return Result.Success(fallback);
         }
 
-        var template = registry.Value.Get("research.plan");
+        var template = registry.Value.Get(
+            "research.plan", PromptSelection.Version(context.RunContext, "research.plan"));
 
         if (template.IsFailure)
         {

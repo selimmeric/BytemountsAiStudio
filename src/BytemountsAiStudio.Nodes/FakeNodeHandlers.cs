@@ -8,6 +8,7 @@ using BytemountsAiStudio.Core.Assets;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Core.Time;
 using BytemountsAiStudio.Media.Planning;
 using BytemountsAiStudio.Media.Rendering;
@@ -192,7 +193,18 @@ public sealed class ScriptGenerateHandler(ILlmProvider llm, PromptRegistry? prom
 
         // Araştırma yoksa biçimli v3 istemi kullanılamıyor: kaynağı
         // olmayan bir yapıyı doldurmak modeli uydurmaya iter.
-        var version = research is null ? 1 : 3;
+        // DENEY SÜRÜMÜ HANDLER'IN KISITINI AŞMIYOR (P5-05).
+        //
+        // Araştırma yoksa biçimli v3 istemi kullanılamıyor: kaynağı
+        // olmayan bir yapıyı doldurmak modeli uydurmaya iter. Deney
+        // böyle bir run'da uygulanamıyor — ve UYGULANMAYAN KOL
+        // SAYILMAMALI. Sayılması, kolun aldığı tedaviyi almamış bir
+        // videoyu o kolun ortalamasına katmak olurdu.
+        //
+        // Rapor bunu yakalıyor: gruplama ATANAN kola göre değil,
+        // çıktıya yazılan GERÇEK damgaya göre yapılıyor.
+        var assigned = PromptSelection.Version(context.RunContext, "script.generate");
+        var version = research is null ? 1 : assigned ?? 3;
         var template = registry.Value.Get("script.generate", version);
 
         if (template.IsFailure)

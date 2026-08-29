@@ -64,7 +64,8 @@ public sealed class SeoGenerateHandler(ILlmProvider llm, PromptRegistry? prompts
             return Result.Failure<JsonElement>(registry.Error);
         }
 
-        var template = registry.Value.Get("seo.generate");
+        var template = registry.Value.Get(
+            "seo.generate", PromptSelection.Version(context.RunContext, "seo.generate"));
 
         if (template.IsFailure)
         {

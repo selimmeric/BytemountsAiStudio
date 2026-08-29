@@ -6,6 +6,7 @@ using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Core.Time;
 using BytemountsAiStudio.Workflow.Engine;
 
@@ -55,7 +56,9 @@ public sealed class ChapterPlanHandler(ILlmProvider llm, PromptRegistry? prompts
 
         var sources = SourcesOf(context.RunContext);
 
-        var rendered = Render(topic, language, target, sources);
+        var rendered = Render(
+            topic, language, target, sources,
+            PromptSelection.Version(context.RunContext, "chapter.plan"));
 
         if (rendered.IsFailure)
         {
@@ -225,7 +228,8 @@ public sealed class ChapterPlanHandler(ILlmProvider llm, PromptRegistry? prompts
     private static string Shorten(string text)
         => text.Length <= 200 ? text : text[..200] + "…";
 
-    private Result<RenderedPrompt> Render(string topic, string language, Ms target, string sources)
+    private Result<RenderedPrompt> Render(
+        string topic, string language, Ms target, string sources, int? promptVersion)
     {
         var registry = prompts is not null ? Result.Success(prompts) : PromptRegistry.Embedded;
 
@@ -234,7 +238,7 @@ public sealed class ChapterPlanHandler(ILlmProvider llm, PromptRegistry? prompts
             return Result.Failure<RenderedPrompt>(registry.Error);
         }
 
-        var template = registry.Value.Get("chapter.plan");
+        var template = registry.Value.Get("chapter.plan", promptVersion);
 
         if (template.IsFailure)
         {

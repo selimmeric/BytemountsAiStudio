@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using BytemountsAiStudio.Contracts.Prompts;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Learning;
@@ -9,9 +10,21 @@ using Microsoft.EntityFrameworkCore;
 namespace BytemountsAiStudio.Persistence.Providers;
 
 /// Deney atama ve değerlendirme (P5-02).
-public sealed class ExperimentService(StudioDbContext db, TimeProvider? timeProvider = null)
+public sealed class ExperimentService(
+    StudioDbContext db,
+    TimeProvider? timeProvider = null,
+    PromptRegistry? prompts = null)
 {
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+
+    /// İSTEM KAYDI VARSAYILAN OLARAK BAĞLI (P5-05).
+    ///
+    /// Opsiyonel bir doğrulayıcı olsaydı, geçirmeyi unutan her çağrı
+    /// istem deneylerini doğrulanmadan geçirirdi — ve var olmayan bir
+    /// sürüme işaret eden kol sessizce varsayılana düşüp iki kolu
+    /// aynılaştırırdı.
+    private readonly Result<PromptRegistry> _prompts =
+        prompts is not null ? Result.Success(prompts) : PromptRegistry.Embedded;
 
     /// Bir run'ı kanalın açık deneylerine atar ve ALDIĞI KOLLARI döner.
     ///
@@ -130,7 +143,7 @@ public sealed class ExperimentService(StudioDbContext db, TimeProvider? timeProv
     /// Üçüncüsü `ExperimentEvaluator.SingleChangedDimension` ile
     /// yapılıyor; o fonksiyon P5-02'de yazılmıştı ve HİÇBİR YERDEN
     /// ÇAĞRILMIYORDU. Kural, çağrılana kadar bir niyet beyanıydı.
-    private static Result Validate(Experiment experiment, List<ExperimentVariant> variants)
+    private Result Validate(Experiment experiment, List<ExperimentVariant> variants)
     {
         if (variants.Count < 2)
         {
@@ -161,6 +174,16 @@ public sealed class ExperimentService(StudioDbContext db, TimeProvider? timeProv
             if (valid.IsFailure)
             {
                 return Result.Failure(valid.Error);
+            }
+
+            if (experiment.Dimension == "prompt")
+            {
+                var wired = PromptExists(variant.ConfigJson);
+
+                if (wired.IsFailure)
+                {
+                    return Result.Failure(wired.Error);
+                }
             }
 
             configs[variant.Id] = parsed.Value;
@@ -268,6 +291,34 @@ public sealed class ExperimentService(StudioDbContext db, TimeProvider? timeProv
         }
 
         return new VariantResult(name, clicks, impressions);
+    }
+
+    /// Kolun işaret ettiği istem sürümünün GERÇEKTEN var olduğunu doğrular.
+    ///
+    /// Olmayan bir sürüme işaret eden kol, `Get` hatası verip run'ı
+    /// düşürürdü — ya da daha kötüsü, bir yerde varsayılana düşülüp
+    /// iki kol aynı istemi kullanırdı. İkisi de deneyin ölçtüğü şeyi
+    /// yok ediyor; hatayı KAYIT anında görmek, ilk videoyu üretmeden
+    /// önce görmek demek.
+    private Result PromptExists(string configJson)
+    {
+        var parsed = PromptVariant.Parse(configJson);
+
+        if (parsed.IsFailure)
+        {
+            return Result.Failure(parsed.Error);
+        }
+
+        if (_prompts.IsFailure)
+        {
+            return Result.Failure(_prompts.Error);
+        }
+
+        var template = _prompts.Value.Get(parsed.Value.Key, parsed.Value.Version);
+
+        return template.IsFailure
+            ? Result.Failure(template.Error)
+            : Result.Success();
     }
 
     /// Varyant seçimi — `run_id` ve deney kimliğinden deterministik.

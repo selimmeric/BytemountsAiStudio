@@ -144,7 +144,17 @@ public sealed class PromptRegistry
     /// olmasını sağlıyor: dosyayı ekle, yeter. Ayrı bir "aktif sürüm"
     /// ayarı olsaydı dosya eklendiği hâlde devreye girmeyen istemler
     /// olurdu ve bunun teşhisi zor.
-    public Result<PromptTemplate> Get(string key, int? version = null)
+    /// SÜRÜM AÇIKÇA İSTENİYOR, VARSAYILANI YOK (P5-05).
+    ///
+    /// Varsayılan `null` olsaydı istem deneyi eklemek, sekiz çağrı
+    /// yerinin sekizini de elle bulup değiştirmek demekti — ve birini
+    /// atlamak, o node'un deneyin dışında kalması. Bu depoda "yazıldı
+    /// ama bağlanmadı" hatası defalarca ödendi; burada DERLEYİCİ
+    /// bağlanmayı zorunlu kılıyor.
+    ///
+    /// `null` geçmek hâlâ geçerli ve "en yeni sürüm" demek — ama artık
+    /// bilerek yazılmış bir karar.
+    public Result<PromptTemplate> Get(string key, int? version)
     {
         if (!_byKey.TryGetValue(key, out var versions))
         {

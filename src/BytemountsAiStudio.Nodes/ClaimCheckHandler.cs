@@ -7,6 +7,7 @@ using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Workflow.Engine;
 
 namespace BytemountsAiStudio.Nodes;
@@ -164,7 +165,8 @@ public sealed class ClaimCheckHandler(
         NodeContext context,
         CancellationToken cancellationToken)
     {
-        var template = registry.Get("claim.extract");
+        var template = registry.Get(
+            "claim.extract", PromptSelection.Version(context.RunContext, "claim.extract"));
 
         if (template.IsFailure)
         {
@@ -221,7 +223,8 @@ public sealed class ClaimCheckHandler(
         NodeContext context,
         CancellationToken cancellationToken)
     {
-        var template = registry.Get("claim.verify");
+        var template = registry.Get(
+            "claim.verify", PromptSelection.Version(context.RunContext, "claim.verify"));
 
         if (template.IsFailure)
         {

@@ -5,6 +5,7 @@ using BytemountsAiStudio.Contracts.Providers;
 using BytemountsAiStudio.Core;
 using BytemountsAiStudio.Core.Errors;
 using BytemountsAiStudio.Core.Execution;
+using BytemountsAiStudio.Core.Learning;
 using BytemountsAiStudio.Workflow.Engine;
 
 namespace BytemountsAiStudio.Nodes;
@@ -134,7 +135,9 @@ public sealed class LongScriptHandler(ILlmProvider llm, PromptRegistry? prompts 
         NodeContext context,
         CancellationToken cancellationToken)
     {
-        var rendered = Render(topic, language, chapter, sentenceCount, previous, sources);
+        var rendered = Render(
+            topic, language, chapter, sentenceCount, previous, sources,
+            PromptSelection.Version(context.RunContext, "script.chapter"));
 
         if (rendered.IsFailure)
         {
@@ -259,7 +262,8 @@ public sealed class LongScriptHandler(ILlmProvider llm, PromptRegistry? prompts 
         ChapterRef chapter,
         int sentenceCount,
         IReadOnlyList<string> previous,
-        string sources)
+        string sources,
+        int? promptVersion)
     {
         var registry = prompts is not null ? Result.Success(prompts) : PromptRegistry.Embedded;
 
@@ -268,7 +272,7 @@ public sealed class LongScriptHandler(ILlmProvider llm, PromptRegistry? prompts 
             return Result.Failure<RenderedPrompt>(registry.Error);
         }
 
-        var template = registry.Value.Get("script.chapter");
+        var template = registry.Value.Get("script.chapter", promptVersion);
 
         if (template.IsFailure)
         {

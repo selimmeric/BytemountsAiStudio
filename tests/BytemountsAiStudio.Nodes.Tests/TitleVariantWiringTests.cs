@@ -175,6 +175,78 @@ public sealed class TitleVariantWiringTests
         Assert.Equal("variant.unknown_value", result.Error.Code);
     }
 
+    /* ---- istem sürümü deneyi (P5-05) ---- */
+
+    /// ATANAN İSTEM SÜRÜMÜ MODELE GİDEN METNİ DEĞİŞTİRİYOR.
+    ///
+    /// `seo.generate` v1 ile v2 arasındaki fark gözle görülür: v2
+    /// başlık stili bloğunu taşıyor, v1 taşımıyor. Kol v1'i seçtiğinde
+    /// o blok isteme HİÇ girmiyor — yani sürüm seçimi damgada kalmıyor,
+    /// gerçekten modele ulaşıyor.
+    [Fact]
+    public async Task AtananIstemSurumu_ModeleUlasiyor()
+    {
+        var eski = new RecordingLlm();
+        var yeni = new RecordingLlm();
+
+        await new SeoGenerateHandler(eski).ExecuteAsync(
+            PromptContext(1), CancellationToken.None);
+
+        await new SeoGenerateHandler(yeni).ExecuteAsync(
+            PromptContext(2), CancellationToken.None);
+
+        Assert.DoesNotContain("Başlık stili", PromptText(eski), StringComparison.Ordinal);
+        Assert.Contains("Başlık stili", PromptText(yeni), StringComparison.Ordinal);
+    }
+
+    /// KULLANILAN SÜRÜM ÇIKTIYA DAMGA OLARAK YAZILIYOR.
+    ///
+    /// Rapor gruplamayı ATANAN kola göre değil bu damgaya göre yapıyor:
+    /// bir handler kendi kısıtı yüzünden istenen sürümü
+    /// kullanamayabiliyor ve o run'ı atandığı kolda saymak, tedaviyi
+    /// almamış bir videoyu o kolun ortalamasına katmak olurdu.
+    [Fact]
+    public async Task KullanilanSurum_CiktiyaYaziliyor()
+    {
+        var result = await new SeoGenerateHandler(new RecordingLlm())
+            .ExecuteAsync(PromptContext(1), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+
+        var stamp = PromptStamp.TryParse(result.Value.GetProperty("prompt").GetString());
+
+        Assert.NotNull(stamp);
+        Assert.Equal("seo.generate", stamp.Value.Key);
+        Assert.Equal(1, stamp.Value.Version);
+    }
+
+    private static NodeContext PromptContext(int version)
+    {
+        var config = "{\"istem\":\"seo.generate\",\"surum\":\"" + version + "\"}";
+
+        var json = """
+            {
+              "topic": { "topic": "Göbeklitepe", "language": "tr-TR" },
+              "script": { "sentences": ["Göbeklitepe dünyanın bilinen en eski tapınağıdır."] }
+            """
+            + ",\"experiments\":{\"prompt\":{\"name\":\"kol\",\"config\":" + config + "}}"
+            + Environment.NewLine + "}";
+
+        using var document = JsonDocument.Parse(json);
+
+        return new NodeContext
+        {
+            RunId = Guid.CreateVersion7(),
+            NodeId = "seo",
+            NodeType = "seo.generate",
+            Attempt = 1,
+            Config = JsonDocument.Parse("{}").RootElement.Clone(),
+            RunContext = document.RootElement.Clone(),
+            IdempotencyKey = "test",
+            CorrelationId = "test",
+        };
+    }
+
     /// YER TUTUCUSUZ İSTEM SÜRÜMÜYLE DENEY KOŞMUYOR.
     ///
     /// ASIL SESSİZ HATA BU. Şablon, kendisinde olmayan yer tutuculara

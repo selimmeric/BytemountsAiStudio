@@ -34,7 +34,7 @@ public sealed class PromptRegistryTests : IDisposable
         var registry = PromptRegistry.Load(_root);
 
         Assert.True(registry.IsSuccess, registry.IsFailure ? registry.Error.Message : string.Empty);
-        Assert.Equal(3, registry.Value.Get("script.generate").Value.Version);
+        Assert.Equal(3, registry.Value.Get("script.generate", null).Value.Version);
         Assert.Equal("ikinci", registry.Value.Get("script.generate", 2).Value.User);
         Assert.Equal(3, registry.Value.Versions("script.generate").Count);
     }
@@ -44,7 +44,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("x", 1, "# system\nsen bir yazarsin\n\n# user\nsunu yaz");
 
-        var template = PromptRegistry.Load(_root).Value.Get("x").Value;
+        var template = PromptRegistry.Load(_root).Value.Get("x", null).Value;
 
         Assert.Equal("sen bir yazarsin", template.System);
         Assert.Equal("sunu yaz", template.User);
@@ -57,7 +57,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("x", 1, "dogrudan istem");
 
-        var template = PromptRegistry.Load(_root).Value.Get("x").Value;
+        var template = PromptRegistry.Load(_root).Value.Get("x", null).Value;
 
         Assert.Null(template.System);
         Assert.Equal("dogrudan istem", template.User);
@@ -68,7 +68,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("x", 1, "# user\n'{{topic}}' konusunda {{language}} dilinde yaz");
 
-        var rendered = PromptRegistry.Load(_root).Value.Get("x").Value
+        var rendered = PromptRegistry.Load(_root).Value.Get("x", null).Value
             .Render(Values(("topic", "Göbeklitepe"), ("language", "tr-TR")));
 
         Assert.Equal("'Göbeklitepe' konusunda tr-TR dilinde yaz", rendered.Value.User);
@@ -82,7 +82,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("x", 1, "# user\n{{topic}} ve {{language}}");
 
-        var rendered = PromptRegistry.Load(_root).Value.Get("x").Value
+        var rendered = PromptRegistry.Load(_root).Value.Get("x", null).Value
             .Render(Values(("topic", "konu")));
 
         Assert.True(rendered.IsFailure);
@@ -96,7 +96,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("x", 1, "# user\n{{topic}}");
 
-        var rendered = PromptRegistry.Load(_root).Value.Get("x").Value
+        var rendered = PromptRegistry.Load(_root).Value.Get("x", null).Value
             .Render(Values(("topic", "konu"), ("kullanilmayan", "deger")));
 
         Assert.True(rendered.IsSuccess);
@@ -109,10 +109,10 @@ public sealed class PromptRegistryTests : IDisposable
     public void MetinDegisince_OzetDegisir()
     {
         var path = WritePrompt("x", 1, "# user\nbirinci metin");
-        var first = PromptRegistry.Load(_root).Value.Get("x").Value.Hash;
+        var first = PromptRegistry.Load(_root).Value.Get("x", null).Value.Hash;
 
         File.WriteAllText(path, File.ReadAllText(path).Replace("birinci", "ikinci", StringComparison.Ordinal));
-        var second = PromptRegistry.Load(_root).Value.Get("x").Value.Hash;
+        var second = PromptRegistry.Load(_root).Value.Get("x", null).Value.Hash;
 
         Assert.NotEqual(first, second);
     }
@@ -127,10 +127,10 @@ public sealed class PromptRegistryTests : IDisposable
         var path = Path.Combine(directory, "v1.md");
 
         File.WriteAllText(path, "---\nkey: x\nversion: 1\n---\n\n# user\nmetin\n");
-        var lf = PromptRegistry.Load(_root).Value.Get("x").Value.Hash;
+        var lf = PromptRegistry.Load(_root).Value.Get("x", null).Value.Hash;
 
         File.WriteAllText(path, "---\r\nkey: x\r\nversion: 1\r\n---\r\n\r\n# user\r\nmetin\r\n");
-        var crlf = PromptRegistry.Load(_root).Value.Get("x").Value.Hash;
+        var crlf = PromptRegistry.Load(_root).Value.Get("x", null).Value.Hash;
 
         Assert.Equal(lf, crlf);
     }
@@ -140,7 +140,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("script.generate", 2, "# user\nmetin");
 
-        var stamp = PromptRegistry.Load(_root).Value.Get("script.generate").Value.Stamp;
+        var stamp = PromptRegistry.Load(_root).Value.Get("script.generate", null).Value.Stamp;
 
         Assert.StartsWith("script.generate@2#", stamp, StringComparison.Ordinal);
         Assert.Equal(16, stamp[stamp.IndexOf('#', StringComparison.Ordinal)..].Length - 1);
@@ -192,7 +192,7 @@ public sealed class PromptRegistryTests : IDisposable
     {
         WritePrompt("script.generate", 1, "# user\nmetin");
 
-        var result = PromptRegistry.Load(_root).Value.Get("yok.boyle");
+        var result = PromptRegistry.Load(_root).Value.Get("yok.boyle", null);
 
         Assert.True(result.IsFailure);
         Assert.Contains("script.generate", result.Error.Message, StringComparison.Ordinal);
