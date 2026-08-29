@@ -292,13 +292,47 @@ public sealed class WorkflowEngine(
         var started = _time.GetUtcNow();
         Result<JsonElement> outcome;
 
+        // ***KIRALAMA IS KOSARKEN UZATILIYOR (atis).***
+        //
+        // Uzatilmasaydi 60 dakikayi asan bir render HALA KOSARKEN geri
+        // alinir ve ikinci bir worker ayni isi paralel baslatirdi: iki
+        // FFmpeg ayni cikti dosyasina yazar, `node_executions` cift
+        // kayit alir ve maliyet iki katina cikardi. `HeartbeatAsync`
+        // kuyrukta yaziliydi ve HICBIR YERDEN cagrilmiyordu.
+        await using var keeper = LeaseKeeper.Start(
+            db.Database.GetConnectionString(),
+            handlerLease.Id,
+            workerId,
+            LeaseDurationFor(queue),
+            cancellationToken,
+            _time,
+            reason => LogAsync(run.Id, node.Id, "warn", reason, CancellationToken.None)
+                .GetAwaiter().GetResult());
+
         try
         {
-            outcome = await handler.ExecuteAsync(context, cancellationToken).ConfigureAwait(false);
+            // NODE ATISIN BELIRTECIYLE KOSUYOR: kiralama kaybedilirse
+            // node iptal oluyor. Kaybedilmis bir kiralamayla devam
+            // etmek, atisin onlemeye calistigi seyin ta kendisi.
+            outcome = await handler.ExecuteAsync(context, keeper.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            throw;
+            // ***KIRALAMA KAYBI ILE KAPANIS AYRI SEYLER.***
+            //
+            // Kapanista istisna yukari gidiyor: worker duruyor ve is
+            // kiralamasi dolunca geri aliniyor -- dogru davranis.
+            //
+            // Kiralama kaybinda ise is ARTIK BIZIM DEGIL. `FailAsync`
+            // cagirmak, baska bir worker'in kosturdugu isin deneme
+            // sayacini artirmak ve onu olduren bir yarisa girmek
+            // olurdu. Sessizce cekiliyoruz.
+            if (!keeper.LeaseLost)
+            {
+                throw;
+            }
+
+            return Result.Success();
         }
 #pragma warning disable CA1031 // İşleyici hatası tüm worker'ı düşürmemeli.
         catch (Exception ex)
