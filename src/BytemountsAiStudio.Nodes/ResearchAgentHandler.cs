@@ -32,7 +32,7 @@ namespace BytemountsAiStudio.Nodes;
 public sealed class ResearchAgentHandler(
     ILlmProvider planner,
     WikipediaProviderAdapter wikipedia,
-    WikidataProvider? wikidata = null,
+    WikidataAdapter? wikidata = null,
     PromptRegistry? prompts = null) : INodeHandler
 {
     private static readonly ToolSchema PlanSchema = new(
@@ -107,7 +107,19 @@ public sealed class ResearchAgentHandler(
                 $"'{topic}' için hiçbir kaynak çekilemedi ({budget}).");
         }
 
-        var facts = await FactsAsync(topic, language, cancellationToken).ConfigureAwait(false);
+        // BAGLAM BURADA KURULUYOR: `providerContext` arastirma
+        // dongusunun icinde, sorgu basina yeniden uretiliyor. Olgu
+        // cagrisinin kendi anahtari var ve o anahtar node'un gercek
+        // idempotency anahtarindan turuyor.
+        var factsContext = new ProviderContext
+        {
+            IdempotencyKey = context.IdempotencyKey,
+            CorrelationId = context.CorrelationId,
+            Language = language,
+        };
+
+        var facts = await FactsAsync(topic, language, factsContext, cancellationToken)
+            .ConfigureAwait(false);
 
         return Result.Success(NodeJson.From(new
         {
@@ -332,8 +344,21 @@ public sealed class ResearchAgentHandler(
     }
 
     /// Wikidata olguları — başarısızlığı araştırmayı düşürmüyor.
+    /// ***BAGLAM GERCEK, `ForTest` DEGIL.***
+    ///
+    /// Once `ProviderContext.ForTest($"wikidata:{topic}")` yaziliyordu
+    /// ve `ForTest` idempotency anahtarini da korelasyon kimligini de
+    /// AYNI dizgeye ayarliyor. Sonucu:
+    ///
+    ///   - Telemetri span'i kosuyla birlesemiyordu: `run.correlation_id`
+    ///     etiketi "wikidata:konu" oluyordu, kosunun kimligi degil.
+    ///     Yani bir kosunun tum saglayici cagrilarini tek sorguyla
+    ///     toplamak (§2.4/22) Wikidata icin calismiyordu.
+    ///   - Uretim kodunda "ForTest" gormek, o cagrinin sahte hatta
+    ///     kaldigini dusundurur -- oysa gercek bir HTTP cagrisi.
     private async Task<List<object>> FactsAsync(
-        string topic, LanguageTag language, CancellationToken cancellationToken)
+        string topic, LanguageTag language, ProviderContext context,
+        CancellationToken cancellationToken)
     {
         var facts = new List<object>();
 
@@ -342,9 +367,12 @@ public sealed class ResearchAgentHandler(
             return facts;
         }
 
-        var search = await wikidata.SearchAsync(
+        var search = await wikidata.Search.SearchAsync(
             new SearchQuery { Text = topic, Language = language, MaxResults = 1 },
-            ProviderContext.ForTest($"wikidata:{topic}"),
+            // IDEMPOTENCY ANAHTARI KONUYU ICERIYOR: ayni kosuda iki
+            // farkli konu icin iki farkli Wikidata cagrisi olabiliyor
+            // ve ikisi ayni onbellek satirina dusmemeli.
+            context with { IdempotencyKey = $"{context.IdempotencyKey}:wikidata:{topic}" },
             cancellationToken).ConfigureAwait(false);
 
         if (search.IsFailure || search.Value.Value.Count == 0)
@@ -353,7 +381,7 @@ public sealed class ResearchAgentHandler(
         }
 
         var entityId = search.Value.Value[0].Url.Segments[^1];
-        var result = await wikidata.FactsAsync(entityId, language, cancellationToken).ConfigureAwait(false);
+        var result = await wikidata.Facts.FactsAsync(entityId, language, cancellationToken).ConfigureAwait(false);
 
         if (result.IsFailure)
         {

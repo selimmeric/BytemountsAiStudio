@@ -19,7 +19,7 @@ namespace BytemountsAiStudio.Nodes;
 /// kaynağı olmayan iddia üretmektense hiç iddia üretmemek doğru davranış.
 public sealed class WikipediaResearchHandler(
     WikipediaProviderAdapter provider,
-    WikidataProvider? wikidata = null) : INodeHandler
+    WikidataAdapter? wikidata = null) : INodeHandler
 {
     public string NodeType => "research.deep";
 
@@ -99,7 +99,8 @@ public sealed class WikipediaResearchHandler(
         // değerler. Bir tarih metinden çıkarıldığında yanlış olabilir;
         // buradan geldiğinde yanlışsa hata Wikidata'da. Ayrımı korumak,
         // bir hatanın nereden geldiğini söyleyebilmek demek.
-        var facts = await FactsAsync(topic, language, cancellationToken).ConfigureAwait(false);
+        var facts = await FactsAsync(topic, language, providerContext, cancellationToken)
+            .ConfigureAwait(false);
 
         return Result.Success(NodeJson.From(new
         {
@@ -116,8 +117,21 @@ public sealed class WikipediaResearchHandler(
     /// zorunluluk değil. Wikidata çöktüğünde Wikipedia metniyle senaryo
     /// yine üretilebilmeli — tersi, tek bir ek servisi kritik yola
     /// koymak olurdu.
+    /// ***BAGLAM GERCEK, `ForTest` DEGIL.***
+    ///
+    /// Once `ProviderContext.ForTest($"wikidata:{topic}")` yaziliyordu
+    /// ve `ForTest` idempotency anahtarini da korelasyon kimligini de
+    /// AYNI dizgeye ayarliyor. Sonucu:
+    ///
+    ///   - Telemetri span'i kosuyla birlesemiyordu: `run.correlation_id`
+    ///     etiketi "wikidata:konu" oluyordu, kosunun kimligi degil.
+    ///     Yani bir kosunun tum saglayici cagrilarini tek sorguyla
+    ///     toplamak (§2.4/22) Wikidata icin calismiyordu.
+    ///   - Uretim kodunda "ForTest" gormek, o cagrinin sahte hatta
+    ///     kaldigini dusundurur -- oysa gercek bir HTTP cagrisi.
     private async Task<List<object>> FactsAsync(
-        string topic, LanguageTag language, CancellationToken cancellationToken)
+        string topic, LanguageTag language, ProviderContext context,
+        CancellationToken cancellationToken)
     {
         var facts = new List<object>();
 
@@ -126,9 +140,12 @@ public sealed class WikipediaResearchHandler(
             return facts;
         }
 
-        var search = await wikidata.SearchAsync(
+        var search = await wikidata.Search.SearchAsync(
             new SearchQuery { Text = topic, Language = language, MaxResults = 1 },
-            ProviderContext.ForTest($"wikidata:{topic}"),
+            // IDEMPOTENCY ANAHTARI KONUYU ICERIYOR: ayni kosuda iki
+            // farkli konu icin iki farkli Wikidata cagrisi olabiliyor
+            // ve ikisi ayni onbellek satirina dusmemeli.
+            context with { IdempotencyKey = $"{context.IdempotencyKey}:wikidata:{topic}" },
             cancellationToken).ConfigureAwait(false);
 
         if (search.IsFailure || search.Value.Value.Count == 0)
@@ -139,7 +156,7 @@ public sealed class WikipediaResearchHandler(
         var hit = search.Value.Value[0];
         var entityId = hit.Url.Segments[^1];
 
-        var result = await wikidata.FactsAsync(entityId, language, cancellationToken).ConfigureAwait(false);
+        var result = await wikidata.Facts.FactsAsync(entityId, language, cancellationToken).ConfigureAwait(false);
 
         if (result.IsFailure)
         {
@@ -181,6 +198,24 @@ public sealed class WikipediaResearchHandler(
 /// <see cref="IWebFetchProvider"/> uyguluyor; bu sarmalayıcı node'un
 /// ikisini de tek bağımlılıkla almasını sağlıyor. Ayrı ayrı enjekte etmek
 /// aynı nesneyi iki kez geçirmek olurdu.
+/// Wikidata'nin ARAMA ve OLGU taraflari.
+///
+/// ***ARAMA ZINCIRDEN GECIYOR, OLGU CAGRISI GECMIYOR ve bu yazili.***
+/// `SearchAsync` `ISearchProvider` uzerinden geliyor ve sarilabiliyor;
+/// `FactsAsync` `ProviderResponse` dondurmuyor, yani olculecek bir
+/// birimi yok. Wikipedia adaptorundeki ayrimin aynisi.
+///
+/// Ayrimin bedeli acik: kosu basina bir olgu cagrisi hiz siniri,
+/// devre kesici ve olcum defteri olmadan gidiyor. Bunu kapatmak
+/// `FactsAsync`'in imzasini degistirmeyi gerektiriyor ve o is
+/// yapilmadan once burada YAZILI duruyor.
+public sealed record WikidataAdapter(ISearchProvider Search, WikidataProvider Facts)
+{
+    /// Tek nesneden kurma kisayolu — zincirsiz kurulumlar icin.
+    public static WikidataAdapter From(WikidataProvider provider)
+        => new(provider, provider);
+}
+
 public sealed record WikipediaProviderAdapter(ISearchProvider Search, IWebFetchProvider Fetch)
 {
     public static WikipediaProviderAdapter From<T>(T provider)

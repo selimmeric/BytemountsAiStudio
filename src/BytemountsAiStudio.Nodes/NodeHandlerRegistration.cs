@@ -382,6 +382,8 @@ public static class NodeHandlerRegistration
         var wikipedia = new WikipediaProviderAdapter(
             wikipediaProvider.Wrap(pipeline), wikipediaProvider);
 
+        var wikidataProvider = new WikidataProvider(http);
+
         return new NodeRegistry { Kind = PipelineKind.Open }
             .Register(new TopicSelectHandler(uniqueness))
             // Wikipedia METIN, Wikidata OLGU veriyor. Ikisi birlikte:
@@ -394,7 +396,14 @@ public static class NodeHandlerRegistration
             .Register(new ResearchAgentHandler(
                 llm,
                 wikipedia,
-                new WikidataProvider(http)))
+                // WIKIDATA'NIN ARAMA TARAFI DA ZINCIRDEN GECIYOR.
+                // Kosu basina birkac HTTP cagrisi hiz siniri, devre
+                // kesici, olcum defteri ve telemetri span'i olmadan
+                // gidiyordu -- Wikidata coktugunde devre kesici
+                // devreye girmedigi icin her kosu tam zaman asimi
+                // bedelini oduyordu.
+                new WikidataAdapter(
+                    wikidataProvider.Wrap(pipeline), wikidataProvider)))
             // Katmanlı sağlayıcı TEK sağlayıcıyla bile devrede (P1-03):
             // anahtar geldiğinde değişen tek şey bu sözlük olsun, çağıran
             // taraf hiç değişmesin. Strong katmanı tanımlı değil, o yüzden
