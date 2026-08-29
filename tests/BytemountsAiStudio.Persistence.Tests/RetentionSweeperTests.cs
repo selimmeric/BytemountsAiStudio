@@ -43,7 +43,8 @@ public sealed class RetentionSweeperTests(DatabaseFixture fixture) : IAsyncLifet
         await using var db = fixture.CreateContext();
 
         await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM assets; DELETE FROM node_executions; DELETE FROM runs");
+            "DELETE FROM assets; DELETE FROM node_executions; DELETE FROM runs; "
+            + "DELETE FROM workflow_versions; DELETE FROM workflows WHERE key = 'saklama-testi'");
     }
 
     private void RequireDatabase()
@@ -189,9 +190,28 @@ public sealed class RetentionSweeperTests(DatabaseFixture fixture) : IAsyncLifet
         await using var db = fixture.CreateContext();
         var storage = new DeletingStore();
 
+        // ***KOSU GERCEK BIR IS AKISI SURUMUNE BAGLI OLMAK ZORUNDA.***
+        //
+        // Ilk yazimda rastgele bir `WorkflowVersionId` verilmisti ve
+        // test CI'da yabanci anahtar ihlaliyle dustu -- yerelde
+        // veritabani olmadigi icin gorulmemisti. Sema kisiti hakli:
+        // sahipsiz bir kosu, "hangi graf uretti" sorusunu cevapsiz
+        // birakirdi.
+        var workflow = new Workflow { Key = "saklama-testi", Name = "Saklama testi" };
+
+        var version = new WorkflowVersion
+        {
+            Workflow = workflow,
+            Version = 1,
+            GraphJson = """{"schema_version":1,"nodes":[],"edges":[]}""",
+        };
+
+        db.Workflows.Add(workflow);
+        db.WorkflowVersions.Add(version);
+
         var run = new Run
         {
-            WorkflowVersionId = Guid.CreateVersion7(),
+            WorkflowVersionId = version.Id,
             State = RunState.Completed,
             ContextJson = "{}",
         };

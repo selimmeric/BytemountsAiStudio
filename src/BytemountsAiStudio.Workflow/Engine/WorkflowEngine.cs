@@ -394,6 +394,26 @@ public sealed class WorkflowEngine(
             outcome.Value, null, elapsed, idempotencyKey, workerId, cancellationToken).ConfigureAwait(false);
 
         await MergeContextAsync(run, node.Id, outcome.Value, cancellationToken).ConfigureAwait(false);
+
+        // ***KALICI BILGI TABANINA YAZILIYOR (P1-06).***
+        //
+        // `KnowledgeBase` yazilmis, testlenmis ve HICBIR YERDEN
+        // CAGRILMIYORDU: arastirma node'lari ve iddia denetimi
+        // kaynaklari ve iddialari YALNIZCA run baglami JSON'una
+        // yaziyordu, `sources` ve `claims` tablolarina tek satir
+        // girmiyordu. Kosular arasi kaynak yeniden kullanimi,
+        // telif/atif denetimi ve "bu iddia hangi kaynaktan geldi"
+        // sorgusu bos tablo uzerinden kosuyor ve sessizce sifir sonuc
+        // donuyordu.
+        //
+        // ***MOTORDA, NODE ICINDE DEGIL ve secim CIKTININ SEKLINE
+        // gore, node TIPINE gore degil.*** Node icinde olsaydi yeni
+        // bir arastirma node'u eklendiginde kimse eklemeyi
+        // hatirlamazdi -- bu deponun tekrar eden hata sinifi. Tipe
+        // baksaydi ayni sey: liste guncellenmeyi bekler. Ciktisinda
+        // `sources` ya da `claims` dizisi olan her node kayda giriyor.
+        await RecordKnowledgeAsync(run.Id, outcome.Value, cancellationToken).ConfigureAwait(false);
+
         run.State = RunState.Running;
 
         // ---- ONAY KAPISI: RUN PARK EDİLİYOR (P1-27) ----
@@ -886,6 +906,68 @@ public sealed class WorkflowEngine(
         entry.OriginalValue = merged;
         entry.CurrentValue = merged;
         entry.IsModified = false;
+    }
+
+    /// Node ciktisindaki kaynak ve iddialari kalici bilgi tabanina
+    /// yazar (P1-06).
+    ///
+    /// ***HATA KOSUYU DUSURMUYOR.*** Bilgi tabani bir TANI ve YENIDEN
+    /// KULLANIM araci; yazilamamasi videoyu gecersiz kilmiyor. Kosuyu
+    /// dusurseydi, tamamlanmis bir videoyu bir yan kaydin basarisizligi
+    /// yuzunden coper ederdik. Sessiz de degil: sebep `run_events`'e
+    /// giriyor.
+    ///
+    /// AYNI ISLEMDE: cagiran taraf zaten bir transaction acti ve bilgi
+    /// tabani kaydi node kaydiyla birlikte ya girer ya girmez. Ayri
+    /// olsaydi, yarida kesilen bir kosu "node basarili ama kaynagi yok"
+    /// haline gelirdi.
+    private async Task RecordKnowledgeAsync(
+        Guid runId, JsonElement output, CancellationToken cancellationToken)
+    {
+        if (output.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var hasSources = output.TryGetProperty("sources", out var sources)
+                         && sources.ValueKind == JsonValueKind.Array
+                         && sources.GetArrayLength() > 0;
+
+        var hasClaims = output.TryGetProperty("claims", out var claims)
+                        && claims.ValueKind == JsonValueKind.Array
+                        && claims.GetArrayLength() > 0;
+
+        if (!hasSources && !hasClaims)
+        {
+            return;
+        }
+
+        try
+        {
+            var knowledge = new Persistence.Providers.KnowledgeBase(db);
+
+            if (hasSources)
+            {
+                await knowledge.RecordSourcesAsync(output, cancellationToken).ConfigureAwait(false);
+            }
+
+            // KAYNAKLAR ONCE, IDDIALAR SONRA: iddia kaydi kaynaklari
+            // ADRESE gore esliyor ve kaynak satiri henuz yoksa
+            // eslesme bos kalirdi. Tek bir ciktida ikisi birden
+            // olabilir (arastirma ajani hem kaynak hem iddia
+            // uretiyor).
+            if (hasClaims)
+            {
+                await knowledge.RecordClaimsAsync(runId, output, cancellationToken).ConfigureAwait(false);
+            }
+        }
+#pragma warning disable CA1031 // Bilgi tabani hatasi kosuyu dusurmemeli.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            await LogAsync(runId, null, "warn",
+                $"Bilgi tabanina yazilamadi: {ex.Message}", cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// §8.1: kiralama süresi işin gerçek süresine yakın olmalı. Render için

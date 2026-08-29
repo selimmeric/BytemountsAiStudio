@@ -249,8 +249,19 @@ public sealed record CaptionCue
 
     public string? SegmentId { get; init; }
 
-    /// O an vurgulanan kelime mi (karaoke altyazı).
-    public bool Emphasis { get; init; }
+    // ***`Emphasis` ALANI KALDIRILDI (29 Ağu 2026).***
+    //
+    // "O an vurgulanan kelime mi (karaoke altyazı)" diyordu ve HİÇBİR
+    // YERDE ne set ediliyor ne okunuyordu: her timeline JSON'una
+    // `false` olarak yazılıyor, bir okuyan "vurgu var ama kapalı"
+    // sanıyordu. Karaoke vurgusu GERÇEKTEN çalışıyor ama başka türlü:
+    // `CaptionRenderer` satırdaki kelimeleri tek tek çizip o anki
+    // kelimeyi konumundan biliyor — ayrı bir bayrağa ihtiyacı yok.
+    //
+    // Kaldırılmasının sebebi yalnızca boşuna yer kaplaması değil:
+    // duran bir alan, ileride birinin onu doldurup "vurgu artık
+    // çalışıyor" sanmasına yol açardı — oysa okuyan hâlâ kimse
+    // olmazdı.
 }
 
 public sealed record PersistentLayer
@@ -314,7 +325,27 @@ public sealed record OutputSpec
 {
     public required string Preset { get; init; }
 
+    /// Çıktı konteyneri — çıktı dosyasının UZANTISI bundan geliyor.
+    ///
+    /// ***BU ALAN OKUNUYOR, DOĞRULANIYOR VE HİÇBİR YERE TAŞINMIYORDU.***
+    /// Timeline'da `container: "webm"` yazan biri hiçbir hata almıyor,
+    /// render yine mp4 üretiyordu: ayar okunuyor, doğrulanıyor, sonra
+    /// sessizce düşüyordu — "ayarımı neden uygulamıyor" sorusunun
+    /// cevabı hiçbir yerde yoktu.
+    ///
+    /// FFmpeg konteyneri UZANTIDAN seçiyor, o yüzden değeri çıktı
+    /// yoluna taşımak yetiyor; ayrı bir `-f` bayrağı gereksiz ve
+    /// ikisinin ayrışma riskini açardı.
     public string Container { get; init; } = "mp4";
+
+    /// Bilinen konteynerler.
+    ///
+    /// LİSTE VAR ÇÜNKÜ UZANTI DOĞRUDAN DOSYA ADINA GİDİYOR: serbest
+    /// bırakmak, `container: "../../etc"` yazan bir timeline'ın çıktı
+    /// yolunu dizin dışına taşıması demekti. Ayrıca yazım hatası
+    /// (`"mp"`) ffmpeg tarafında anlaşılmaz bir hata üretirdi.
+    public static IReadOnlyList<string> KnownContainers { get; } =
+        ["mp4", "mov", "mkv", "webm", "m4a"];
 
     public string VideoCodec { get; init; } = "libx264";
 

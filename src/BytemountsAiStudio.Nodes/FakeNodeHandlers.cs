@@ -1261,7 +1261,17 @@ public sealed class MediaRenderHandler(
         }
 
         Directory.CreateDirectory(outputDirectory);
-        var outputPath = Path.Combine(outputDirectory, $"{context.RunId:N}.mp4");
+
+        // ***UZANTI TIMELINE'IN KONTEYNERİNDEN GELİYOR.***
+        //
+        // Burada `.mp4` sabitti ve `OutputSpec.Container` okunup
+        // sessizce atılıyordu: `container: "webm"` yazan biri hiçbir
+        // hata almıyor, render yine mp4 üretiyordu. FFmpeg konteyneri
+        // uzantıdan seçiyor, dolayısıyla değeri buraya taşımak yetiyor.
+        // Doğrulama timeline tarafında (`TimelineValidator`): buraya
+        // tanınmayan bir değer gelmiyor.
+        var outputPath = Path.Combine(
+            outputDirectory, $"{context.RunId:N}.{timeline.Output.Container}");
 
         // ---- BÖLÜM BAZLI RENDER (P2-11) ----
         //

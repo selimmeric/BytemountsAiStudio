@@ -51,6 +51,19 @@ public static class TimelineValidator
             issues.Add(new("timeline.no_scenes", "En az bir sahne gerekli."));
         }
 
+        // ***BİLİNMEYEN KONTEYNER REDDEDİLİYOR.***
+        //
+        // Uzantı doğrudan dosya adına gidiyor; serbest bırakmak
+        // `container: "../../etc"` yazan bir timeline'ın çıktı yolunu
+        // dizin dışına taşıması demekti. Yazım hatası (`"mp"`) da
+        // ffmpeg tarafında anlaşılmaz bir hata üretirdi.
+        if (!OutputSpec.KnownContainers.Contains(t.Output.Container, StringComparer.Ordinal))
+        {
+            issues.Add(new("timeline.unknown_container",
+                $"Bilinmeyen konteyner: '{t.Output.Container}'. "
+                + $"Geçerli değerler: {string.Join(", ", OutputSpec.KnownContainers)}"));
+        }
+
         if (t.FontStack.Count == 0)
         {
             // Zincir boşsa eksik glif yerine tofu çizilir ve bunu ancak

@@ -68,7 +68,7 @@ internal static class TimelineFactory
                 Cues =
                 [
                     new() { Text = "Bin", Range = new TimeRange(new Ms(120), new Ms(460)), SegmentId = "s1" },
-                    new() { Text = "dört", Range = new TimeRange(new Ms(460), new Ms(980)), SegmentId = "s1", Emphasis = true },
+                    new() { Text = "dört", Range = new TimeRange(new Ms(460), new Ms(980)), SegmentId = "s1" },
                 ],
             },
             Styles = styles,
