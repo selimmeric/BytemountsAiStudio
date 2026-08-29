@@ -182,6 +182,49 @@ public sealed class ContentVariantTests
         Assert.Contains(PromptVariant.VersionField, result.Value.Keys);
     }
 
+    /* ---- kanal varsayılanları (P5-07) ---- */
+
+    /// KAZANAN VARYANT KANAL AYARINDAN OKUNUYOR.
+    [Fact]
+    public void KanalVarsayilani_Okunuyor()
+    {
+        var settings = Execution.ChannelSettings.Parse(
+            """{"default_variants":{"title":{"stil":"soru"}}}""");
+
+        Assert.Equal("soru", TitleVariant.Parse(settings.DefaultVariants["title"]).Value);
+
+        // Varsayılan hakkında uyarı YOK. (`daily_target` uyarısı
+        // ayrı bir eksiklik ve bu testin konusu değil.)
+        Assert.DoesNotContain(settings.Warnings,
+            w => w.Contains("default_variants", StringComparison.Ordinal));
+    }
+
+    /// BOZUK VARSAYILAN SESSİZCE UYGULANMIYOR — ve söyleniyor.
+    ///
+    /// Doğrulamamak, kazanan varyantı yazarken bir yazım hatası olsa
+    /// bile kanalın onu sessizce yok sayması demekti: deney kazanır,
+    /// karar yazılır, hiçbir video değişmez.
+    [Fact]
+    public void BozukVarsayilan_UygulanmiyorVeUyariyor()
+    {
+        var settings = Execution.ChannelSettings.Parse(
+            """{"default_variants":{"title":{"stl":"soru"}}}""");
+
+        Assert.Empty(settings.DefaultVariants);
+        Assert.Contains(settings.Warnings, w => w.Contains("stl", StringComparison.Ordinal));
+    }
+
+    /// BİLİNMEYEN BOYUT DA UYARIYOR.
+    [Fact]
+    public void BilinmeyenBoyutVarsayilani_Uyariyor()
+    {
+        var settings = Execution.ChannelSettings.Parse(
+            """{"default_variants":{"renk":{"a":"b"}}}""");
+
+        Assert.Empty(settings.DefaultVariants);
+        Assert.Contains(settings.Warnings, w => w.Contains("renk", StringComparison.Ordinal));
+    }
+
     /* ---- run bağlamı köprüsü ---- */
 
     /// ATAMA RUN BAĞLAMINA YAZILIYOR VE GERİ OKUNUYOR.

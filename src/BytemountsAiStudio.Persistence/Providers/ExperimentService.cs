@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text;
 using BytemountsAiStudio.Contracts.Prompts;
 using BytemountsAiStudio.Core;
@@ -260,6 +262,136 @@ public sealed class ExperimentService(
         var variant = Aggregate(rows.Where(r => !r.IsControl), byRun, "varyant");
 
         return ExperimentEvaluator.Evaluate(control, variant, experiment.MinimumDetectableEffect);
+    }
+
+    /// Deneyi karara bağlar ve KAZANANI UYGULAR (P5-07).
+    ///
+    /// BİR DENEYİN KAZANMASI, KAZANANIN UYGULANDIĞI ANLAMINA GELMİYOR.
+    /// Karar verilip hiçbir şey değişmezse öğrenme döngüsü kapanmıyor:
+    /// sistem "soru başlıklar daha iyi" diye rapor yazar ve ertesi gün
+    /// yine düz başlık üretir. Faz 5'in kabul kriteri tam olarak bu
+    /// halkanın kapanması.
+    ///
+    /// KARAR VERİLMEMİŞSE HİÇBİR ŞEY YAZILMIYOR. Saklanmış bir "yeterli
+    /// veri yok" cevabı, veri geldikten sonra da orada durur.
+    public async Task<Result<ExperimentVerdict>> ConcludeAsync(
+        Guid experimentId, bool apply, CancellationToken cancellationToken)
+    {
+        var verdict = await EvaluateAsync(experimentId, cancellationToken).ConfigureAwait(false);
+
+        if (verdict.IsFailure || !verdict.Value.IsDecided || !apply)
+        {
+            return verdict;
+        }
+
+        var experiment = await db.Experiments
+            .FirstOrDefaultAsync(e => e.Id == experimentId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (experiment is null)
+        {
+            return Error.Permanent("experiment.unknown", $"Deney yok: {experimentId}");
+        }
+
+        experiment.State = "Concluded";
+        experiment.Outcome = verdict.Value.Outcome.ToString();
+        experiment.Reason = verdict.Value.Reason;
+        experiment.DecidedAt = _time.GetUtcNow();
+
+        if (verdict.Value.Outcome == ExperimentOutcome.VariantWins)
+        {
+            var applied = await ApplyWinnerAsync(experiment, cancellationToken).ConfigureAwait(false);
+
+            if (applied.IsFailure)
+            {
+                return Result.Failure<ExperimentVerdict>(applied.Error);
+            }
+        }
+
+        // KONTROL KAZANDIYSA HİÇBİR ŞEY UYGULANMIYOR ve bu doğru
+        // davranış: kontrol zaten yürürlükteki ayar. Onu "kazanan"
+        // diye yeniden yazmak, hiçbir şeyin değişmediği bir değişiklik
+        // kaydı üretirdi.
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return verdict;
+    }
+
+    /// Kazanan kolun ayarını kanalın varsayılanı yapar.
+    private async Task<Result> ApplyWinnerAsync(
+        Experiment experiment, CancellationToken cancellationToken)
+    {
+        if (experiment.ChannelId is null)
+        {
+            // KANALSIZ DENEY UYGULANAMIYOR ve bu SESSİZ GEÇİLMİYOR.
+            // Varsayılan yazılacak bir yer yok; "kazandı ama
+            // uygulanmadı" durumunu gizlemek, öğrenme döngüsünün
+            // kapandığı izlenimi verirdi.
+            return Error.Permanent("experiment.no_channel",
+                "Deney bir kanala bağlı değil; kazanan varyant hiçbir yere yazılamaz.");
+        }
+
+        var winner = await db.ExperimentVariants.AsNoTracking()
+            .Where(v => v.ExperimentId == experiment.Id && !v.IsControl)
+            .Select(v => v.ConfigJson)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (winner is null)
+        {
+            return Error.Permanent("experiment.no_variant", "Deneyde varyant kolu yok.");
+        }
+
+        var channel = await db.Channels
+            .FirstOrDefaultAsync(c => c.Id == experiment.ChannelId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (channel is null)
+        {
+            return Error.Permanent("experiment.no_channel", $"Kanal yok: {experiment.ChannelId}");
+        }
+
+        JsonNode? root;
+
+        try
+        {
+            root = JsonNode.Parse(
+                string.IsNullOrWhiteSpace(channel.SettingsJson) ? "{}" : channel.SettingsJson);
+        }
+        catch (JsonException ex)
+        {
+            return Error.Permanent("experiment.bad_settings", ex.Message);
+        }
+
+        if (root is not JsonObject settings)
+        {
+            return Error.Permanent("experiment.bad_settings", "Kanal ayarı bir nesne değil.");
+        }
+
+        if (settings["default_variants"] is not JsonObject defaults)
+        {
+            defaults = [];
+            settings["default_variants"] = defaults;
+        }
+
+        JsonNode? config;
+
+        try
+        {
+            config = JsonNode.Parse(string.IsNullOrWhiteSpace(winner) ? "{}" : winner);
+        }
+        catch (JsonException ex)
+        {
+            return Error.Permanent("experiment.bad_config", ex.Message);
+        }
+
+        defaults[experiment.Dimension] = config;
+
+        // AYARIN GERİ KALANI KORUNUYOR: belgenin tamamını yeniden
+        // yazmak, ses ve tempo ayarlarını sessizce silmek olurdu.
+        channel.SettingsJson = settings.ToJsonString();
+
+        return Result.Success();
     }
 
     /// Ölçümün okunduğu gün.

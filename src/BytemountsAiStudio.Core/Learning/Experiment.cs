@@ -104,7 +104,7 @@ public static class ExperimentEvaluator
                 ExperimentOutcome.NoDifference,
                 FormattableString.Invariant(
                     $"Yeterli veri var ({control.Trials} / {variant.Trials}) ve fark anlamlı değil ")
-                    + FormattableString.Invariant($"(p = {p:0.###}). Varyant taşınmıyor."),
+                    + FormattableString.Invariant($"({Format(p)}). Varyant taşınmıyor."),
                 p,
                 required);
         }
@@ -114,10 +114,21 @@ public static class ExperimentEvaluator
         return new ExperimentVerdict(
             better ? ExperimentOutcome.VariantWins : ExperimentOutcome.ControlWins,
             (better ? "Varyant" : "Kontrol") + " kazandı: "
-                + FormattableString.Invariant($"{control.Rate:P2} → {variant.Rate:P2} (p = {p:0.###})."),
+                + FormattableString.Invariant($"{control.Rate:P2} → {variant.Rate:P2} ({Format(p)})."),
             p,
             required);
     }
+
+    /// p-değerini YUVARLAMADAN yazar.
+    ///
+    /// `{p:0.###}` biçimi 0,00001'i "0" diye yazıyordu ve "p = 0"
+    /// KESİNLİK iddiası — istatistikte olmayan bir şey. Kabul
+    /// koşusunda gerçek çıktıda görüldü: "Varyant kazandı: %4,00 →
+    /// %6,00 (p = 0)". Küçük değerler artık eşikle yazılıyor.
+    private static string Format(double p)
+        => p < 0.001
+            ? "p < 0,001"
+            : FormattableString.Invariant($"p = {p:0.###}");
 
     /// İki varyantın TEK bir boyutta ayrıştığını doğrular.
     ///

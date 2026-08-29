@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using BytemountsAiStudio.Core.Content;
+using BytemountsAiStudio.Core.Learning;
 
 namespace BytemountsAiStudio.Core.Execution;
 
@@ -46,6 +47,20 @@ public sealed record ChannelSettings
 
     /// Onay rejimi (P2-08).
     public ChannelMode? Mode { get; init; }
+
+    /// Kazanan varyantların kanal varsayılanı hâline gelmiş hâli (P5-07).
+    ///
+    /// BİR DENEYİN KAZANMASI, KAZANANIN UYGULANDIĞI ANLAMINA GELMİYOR.
+    /// Karar verilip hiçbir şey değişmezse öğrenme döngüsü kapanmıyor:
+    /// sistem "soru başlıklar daha iyi" diye rapor yazar ve ertesi gün
+    /// yine düz başlık üretir.
+    ///
+    /// Boyut → varyant ayarı. Aynı boyutta açık bir deney varsa DENEY
+    /// KAZANIYOR: kanal varsayılanı zaten kontrol kolu olarak sınanıyor
+    /// ve iki kaynağın çakışması, hangi ayarın uygulandığını belirsiz
+    /// kılardı.
+    public IReadOnlyDictionary<string, string> DefaultVariants { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// Konu skorlama ağırlıkları (P5-04).
     ///
@@ -110,8 +125,64 @@ public sealed record ChannelSettings
             VoiceId = ReadVoiceId(root),
             FontStack = ReadFontStack(root, warnings),
             ScoreWeights = ScoreWeights.Read(root, warnings),
+            DefaultVariants = ReadDefaultVariants(root, warnings),
             Warnings = warnings,
         };
+    }
+
+    /// `default_variants` bloğunu okur ve DOĞRULAR.
+    ///
+    /// Doğrulamamak, kazanan varyantı yazarken bir yazım hatası olsa
+    /// bile kanalın onu sessizce yok sayması demekti — deney kazanır,
+    /// karar yazılır, hiçbir video değişmez.
+    private static Dictionary<string, string> ReadDefaultVariants(
+        JsonElement root, List<string> warnings)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        if (!root.TryGetProperty("default_variants", out var block)
+            || block.ValueKind != JsonValueKind.Object)
+        {
+            return result;
+        }
+
+        foreach (var property in block.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.Object)
+            {
+                warnings.Add($"`default_variants.{property.Name}` bir nesne değil; yok sayıldı");
+                continue;
+            }
+
+            var vocabulary = VariantVocabulary.For(property.Name);
+
+            if (vocabulary.IsFailure)
+            {
+                warnings.Add($"`default_variants.{property.Name}`: {vocabulary.Error.Message}");
+                continue;
+            }
+
+            var json = property.Value.GetRawText();
+            var parsed = VariantConfig.Parse(json);
+
+            if (parsed.IsFailure)
+            {
+                warnings.Add($"`default_variants.{property.Name}`: {parsed.Error.Message}");
+                continue;
+            }
+
+            var valid = VariantConfig.Validate(parsed.Value, vocabulary.Value);
+
+            if (valid.IsFailure)
+            {
+                warnings.Add($"`default_variants.{property.Name}`: {valid.Error.Message}");
+                continue;
+            }
+
+            result[property.Name] = json;
+        }
+
+        return result;
     }
 
     private static ChannelPacing ReadPacing(JsonElement root, List<string> warnings)

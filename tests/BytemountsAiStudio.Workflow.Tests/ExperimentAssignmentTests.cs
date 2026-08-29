@@ -269,9 +269,89 @@ public sealed class ExperimentAssignmentTests(DatabaseFixture fixture) : IAsyncL
         Assert.Equal("Invalid", experiment.State);
     }
 
+    /* ---- kanal varsayılanları (P5-07) ---- */
+
+    /// KAZANAN VARYANT, DENEYİN KULLANDIĞI YOLDAN NODE'LARA ULAŞIYOR.
+    ///
+    /// Bir deneyin kazanması, kazananın uygulandığı anlamına gelmiyor:
+    /// karar verilip hiçbir şey değişmezse sistem "soru başlıklar daha
+    /// iyi" diye rapor yazar ve ertesi gün yine düz başlık üretir.
+    [Fact]
+    public async Task KanalVarsayilani_RunBaglaminaGiriyor()
+    {
+        RequireDatabase();
+
+        await using var db = fixture.CreateContext();
+        var versionId = await CreateWorkflowAsync(db);
+
+        var channelId = await CreateChannelAsync(db,
+            """{"default_variants":{"title":{"stil":"soru"}}}""");
+
+        var runId = await StartAsync(db, versionId, channelId);
+        var context = await ContextOfAsync(db, runId);
+
+        // Dizge karşılaştırılmıyor: bağlam `jsonb` kolonundan geçiyor
+        // ve PostgreSQL belgeyi kendi biçiminde geri veriyor. Ölçülen
+        // şey biçim değil, node'un okuyabildiği İÇERİK.
+        Assert.Equal("soru", PromptOrTitle(context.RootElement));
+
+        Assert.Equal("kanal-varsayilani",
+            ExperimentContext.VariantName(context.RootElement, "title"));
+    }
+
+    /// AÇIK DENEY VARSAYILANI EZİYOR.
+    ///
+    /// Aynı boyutta koşan bir deney varken varsayılanı da uygulamak,
+    /// hangi ayarın geçerli olduğunu belirsiz kılardı — ve deneyin
+    /// kontrol kolu zaten "varsayılan" demek.
+    [Fact]
+    public async Task AcikDeney_VarsayilaniEziyor()
+    {
+        RequireDatabase();
+
+        await using var db = fixture.CreateContext();
+        var versionId = await CreateWorkflowAsync(db);
+
+        var channelId = await CreateChannelAsync(db,
+            """{"default_variants":{"title":{"stil":"sayi"}}}""");
+
+        await CreateExperimentAsync(db, "title", """{"stil":"soru"}""");
+
+        var runId = await StartAsync(db, versionId, channelId);
+        var context = await ContextOfAsync(db, runId);
+
+        Assert.NotEqual("kanal-varsayilani",
+            ExperimentContext.VariantName(context.RootElement, "title"));
+
+        // Ve kanal varsayılanının ayarı HİÇ görünmüyor: iki kaynağın
+        // birleşmesi, hangi ayarın uygulandığını belirsiz kılardı.
+        Assert.DoesNotContain("sayi",
+            ExperimentContext.ConfigFor(context.RootElement, "title") ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    private static string PromptOrTitle(JsonElement runContext)
+        => TitleVariant.Parse(ExperimentContext.ConfigFor(runContext, "title")).Value;
+
     /* ---- yardımcılar ---- */
 
-    private static async Task<Guid> StartAsync(StudioDbContext db, Guid versionId)
+    private static async Task<Guid> CreateChannelAsync(StudioDbContext db, string settingsJson)
+    {
+        var channel = new Channel
+        {
+            Name = "deney kanalı " + Guid.NewGuid().ToString("N")[..6],
+            Language = "tr-TR",
+            SettingsJson = settingsJson,
+        };
+
+        db.Channels.Add(channel);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        return channel.Id;
+    }
+
+    private static async Task<Guid> StartAsync(
+        StudioDbContext db, Guid versionId, Guid? channelId = null)
     {
         var engine = new WorkflowEngine(
             db,
@@ -279,7 +359,7 @@ public sealed class ExperimentAssignmentTests(DatabaseFixture fixture) : IAsyncL
             new NodeRegistry().Register(new ScriptedHandler(
                 "test.tek", QueueClass.Llm, _ => ScriptedHandler.Json("{}"))));
 
-        var run = await engine.StartRunAsync(versionId, null, null, CancellationToken.None);
+        var run = await engine.StartRunAsync(versionId, channelId, null, CancellationToken.None);
 
         Assert.True(run.IsSuccess, run.IsFailure ? run.Error.Message : string.Empty);
 

@@ -12,6 +12,7 @@ using BytemountsAiStudio.Workflow.Engine;
 using BytemountsAiStudio.Queue;
 using BytemountsAiStudio.Core.Content;
 using BytemountsAiStudio.Persistence;
+using BytemountsAiStudio.Persistence.Entities;
 using BytemountsAiStudio.Contracts.Prompts;
 using BytemountsAiStudio.Contracts.Providers;
 using BytemountsAiStudio.Media.Rendering.Text;
@@ -37,6 +38,7 @@ return command switch
     "tools" => await RunToolsAsync(args).ConfigureAwait(false),
     "thumb" => RunThumbnail(args),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
+    "ogrenme" => await RunLearningAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
 };
@@ -80,6 +82,13 @@ static int Help()
           bmai thumb "<baslik>" [--out t.jpg] [--bg <gorsel>]
           bmai db migrate               semayi guncelle
           bmai db seed                  baslangic verisini yukle
+          bmai ogrenme olcum --run <id> [--gun 7] [--gosterim N] [--tiklama N]
+                             [--izlenme N] [--saniye N]
+                                        yayin sonrasi olcumu elle girer
+                                        (P5-01 baglanana kadar tek yol)
+          bmai ogrenme durum            deneyler, agirliklar, istem surumleri
+          bmai ogrenme karar [--uygula] deneyleri karara baglar; --uygula ile
+                                        KAZANAN kanal varsayilani olur
           bmai version                  surum
           bmai help                     bu yardim
 
@@ -145,6 +154,166 @@ static async Task<int> RunDatabaseAsync(string[] args)
             Console.Error.WriteLine($"Bilinmeyen db komutu: {subcommand}");
             return 2;
     }
+}
+
+/// Ogrenme dongusu komutlari (P5-01 anahtar beklerken tek giris yolu).
+///
+/// OLCUM ELLE GIRILIYOR CUNKU BASKA YOLU YOK: YouTube Analytics
+/// baglanana kadar (P5-01) performans verisi sisteme baska turlu
+/// ulasmiyor. Ayni tabloya yaziyor, yani P5-01 gelince degisen tek sey
+/// verinin KAYNAGI olacak -- karar zinciri ayni kalacak.
+static async Task<int> RunLearningAsync(string[] args)
+{
+    var subcommand = args.Length > 1 ? args[1] : "durum";
+    await using var db = CreateContext();
+
+    switch (subcommand)
+    {
+        case "olcum":
+            return await RecordMetricAsync(db, args).ConfigureAwait(false);
+
+        case "durum":
+            return await ShowLearningAsync(db).ConfigureAwait(false);
+
+        case "karar":
+            return await DecideAsync(db, Array.IndexOf(args, "--uygula") >= 0).ConfigureAwait(false);
+
+        default:
+            Console.Error.WriteLine($"Bilinmeyen ogrenme komutu: {subcommand}");
+            return 2;
+    }
+}
+
+static async Task<int> RecordMetricAsync(StudioDbContext db, string[] args)
+{
+    if (!Guid.TryParse(OptionOrNull(args, "--run"), out var runId))
+    {
+        Console.Error.WriteLine("--run gecerli bir GUID olmali.");
+        return 2;
+    }
+
+    var day = int.Parse(Option(args, "--gun", "7"), CultureInfo.InvariantCulture);
+
+    db.PublicationMetrics.Add(new PublicationMetric
+    {
+        RunId = runId,
+        DayOffset = day,
+        Impressions = int.Parse(Option(args, "--gosterim", "0"), CultureInfo.InvariantCulture),
+        Clicks = int.Parse(Option(args, "--tiklama", "0"), CultureInfo.InvariantCulture),
+        Views = int.Parse(Option(args, "--izlenme", "0"), CultureInfo.InvariantCulture),
+        WatchSeconds = long.Parse(Option(args, "--saniye", "0"), CultureInfo.InvariantCulture),
+    });
+
+    try
+    {
+        await db.SaveChangesAsync().ConfigureAwait(false);
+    }
+    catch (DbUpdateException ex)
+    {
+        // AYNI GUN IKI KEZ YAZILAMIYOR: veritabani kisiti. Iki kez
+        // toplanan bir gun butun oranlari bozardi.
+        Console.Error.WriteLine($"Olcum yazilamadi: {ex.InnerException?.Message ?? ex.Message}");
+        return 1;
+    }
+
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"Olcum yazildi: run {runId:N}, gun {day}."));
+
+    return 0;
+}
+
+static async Task<int> ShowLearningAsync(StudioDbContext db)
+{
+    var experiments = await db.Experiments.AsNoTracking().ToListAsync().ConfigureAwait(false);
+    var service = new ExperimentService(db);
+
+    if (experiments.Count == 0)
+    {
+        Console.WriteLine("Deney yok.");
+    }
+
+    foreach (var experiment in experiments)
+    {
+        var verdict = await service.EvaluateAsync(experiment.Id, CancellationToken.None).ConfigureAwait(false);
+
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"[{experiment.State,-9}] {experiment.Dimension,-9} {experiment.Name}"));
+
+        Console.WriteLine("            " + (verdict.IsSuccess
+            ? verdict.Value.Outcome + " - " + verdict.Value.Reason
+            : verdict.Error.Message));
+    }
+
+    var channels = await db.Channels.AsNoTracking()
+        .Select(c => new { c.Id, c.Name, c.SettingsJson })
+        .ToListAsync()
+        .ConfigureAwait(false);
+
+    foreach (var channel in channels)
+    {
+        var settings = ChannelSettings.Parse(channel.SettingsJson);
+
+        if (settings.DefaultVariants.Count > 0)
+        {
+            Console.WriteLine($"Kanal varsayilanlari - {channel.Name}: "
+                + string.Join(", ", settings.DefaultVariants.Select(d => d.Key + "=" + d.Value)));
+        }
+    }
+
+    return 0;
+}
+
+static async Task<int> DecideAsync(StudioDbContext db, bool apply)
+{
+    var service = new ExperimentService(db);
+
+    var running = await db.Experiments.AsNoTracking()
+        .Where(e => e.State == "Running")
+        .Select(e => new { e.Id, e.Name, e.Dimension })
+        .ToListAsync()
+        .ConfigureAwait(false);
+
+    var changed = 0;
+
+    foreach (var experiment in running)
+    {
+        var verdict = await service.ConcludeAsync(experiment.Id, apply, CancellationToken.None).ConfigureAwait(false);
+
+        if (verdict.IsFailure)
+        {
+            Console.Error.WriteLine($"{experiment.Name}: {verdict.Error.Message}");
+            continue;
+        }
+
+        Console.WriteLine($"{experiment.Dimension}/{experiment.Name}: "
+            + verdict.Value.Outcome + " - " + verdict.Value.Reason);
+
+        if (apply && verdict.Value.IsDecided)
+        {
+            changed++;
+        }
+    }
+
+    // AGIRLIK KALIBRASYONU AYRI BIR KARAR: deneyler kolu secer,
+    // kalibrasyon KONU SECIMINI degistirir.
+    var calibrator = new TopicWeightCalibrator(db);
+
+    foreach (var channelId in await db.Channels.AsNoTracking().Select(c => c.Id)
+                 .ToListAsync().ConfigureAwait(false))
+    {
+        var verdict = await calibrator.CalibrateAsync(channelId, apply, CancellationToken.None).ConfigureAwait(false);
+
+        if (verdict.IsSuccess && verdict.Value.Changed)
+        {
+            Console.WriteLine($"Agirliklar guncellendi: {verdict.Value.Reason}");
+            changed++;
+        }
+    }
+
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"{running.Count} deney degerlendirildi, {changed} strateji degisikligi uygulandi."));
+
+    return 0;
 }
 
 static async Task<int> RunPipelineAsync(string[] args)

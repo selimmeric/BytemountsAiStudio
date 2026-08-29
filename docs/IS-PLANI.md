@@ -470,7 +470,20 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Ekrana bakmak hiçbir şeyi değiştirmiyor:* kalibrasyon `apply: false` ile çağrılıyor. Bir panele girmek kanalın ağırlıklarını değiştirmemeli — ve bu testle sabitlendi.
   - *Varsayılan ağırlıklar "elle kondu" diye işaretli:* kalibre edilmiş gibi görünmeleri, ölçülmemiş bir hipotezi ölçülmüş gibi göstermek olurdu.
   - *Tarayıcıda açıldı, sadece test edilmedi:* JS hatası 1769 testin hiçbirine yakalanmazdı. İlk açılışta boyut adları "dema · sour · visu" diye kırpılmış görünüyordu (ilk dört harf); Türkçe etiketlere çevrildi.
-- [ ] **P5-07** `2p` — 🏁 **Faz 5 kabul:** bir strateji değişikliği veriyle gerekçelendirildi
+- [~] **P5-07** `2p` — 🏁 **Faz 5 kabul:** bir strateji değişikliği veriyle gerekçelendirildi
+  - *Kısmen:* ✔ 29 Ağu 2026 — Döngü **uçtan uca kapandı ve ölçüldü**; eksik olan tek şey verinin gerçek izleyiciden gelmesi. 10 test.
+  - ***Bir deneyin kazanması, kazananın uygulandığı anlamına gelmiyor.*** Karar verilip hiçbir şey değişmezse sistem "kapak altta daha iyi" diye rapor yazar ve ertesi gün yine ortada kapak üretir. Faz 5'in kabul kriteri tam olarak bu halkanın kapanması — ve halka P5-06'ya kadar **açıktı**.
+  - *Kazanan, deneyin kullandığı YOLUN AYNISINDAN geçiyor:* kanal varsayılanı da run bağlamındaki `experiments.<boyut>` bloğuna yazılıyor. Ayrı bir yol açmak, node'ların bir yolu okuyup diğerini okumaması riskini getirirdi; bu yol zaten testli. Açık deney varsayılanı **eziyor**: aynı boyutta koşan bir deney varken varsayılanı da uygulamak, hangi ayarın geçerli olduğunu belirsiz kılardı.
+  - **KABUL KOŞUSU — gerçek CLI, gerçek veritabanı, gerçek video:**
+    1. Kanal + kapak deneyi açıldı (kontrol: ortada, varyant: altta).
+    2. `bmai run` ile **altı video** üretildi; motor kolları dağıttı (2 kontrol / 4 varyant — deterministik özet, altı örneklemde beklenen dengesizlik).
+    3. Yedinci gün ölçümleri `bmai ogrenme olcum` ile girildi: kontrol %4,00, varyant %6,00 (kol başına 4.000 ve 8.000 gösterim, gerekli 1.500).
+    4. `bmai ogrenme karar --uygula` → **VariantWins**, `{"konum":"alt"}` kanal varsayılanı oldu, tempo ayarı korundu.
+    5. **Yedinci video** üretildi: `experiments.thumbnail.name = "kanal-varsayilani"`, kapak node'unun çıktısında da aynı kayıt. Strateji değişikliği bir sonraki videoyu gerçekten değiştirdi.
+  - *Koşu bir hata buldu:* karar metni "**p = 0**" yazıyordu — `{p:0.###}` biçimi 0,00001'i sıfıra yuvarlıyordu ve "p = 0" istatistikte olmayan bir **kesinlik iddiası**. Küçük değerler artık `p < 0,001` diye yazılıyor. Testlerin hiçbiri bunu yakalamamıştı; gerçek çıktıyı okumak yakaladı.
+  - *Kontrol kazandığında hiçbir şey uygulanmıyor:* kontrol zaten yürürlükteki ayar, onu "kazanan" diye yeniden yazmak hiçbir şeyin değişmediği bir değişiklik kaydı üretirdi. Karar verilmemişse de hiçbir şey yazılmıyor — saklanmış bir "yeterli veri yok", veri geldikten sonra da orada dururdu.
+  - *Kanalsız deney kazanırsa hata dönüyor,* sessiz geçilmiyor: varsayılan yazılacak yer yok ve "kazandı ama uygulanmadı" durumunu gizlemek, döngünün kapandığı izlenimi verirdi.
+  - ***KALAN — ve kriteri tam saymamamın sebebi:*** ölçümler **elle girildi**, gerçek izleyiciden gelmedi. Karar zinciri gerçek; kararın dayandığı sayılar sentetik. `bmai ogrenme olcum` ile P5-01'in yazacağı tablo aynı — anahtar gelince değişen tek şey verinin **kaynağı** olacak, karar yolu değil. Bu yüzden görev `[~]`.
 
 ---
 

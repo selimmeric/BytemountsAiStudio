@@ -133,9 +133,43 @@ public sealed class WorkflowEngine(
             return Result.Failure<Guid>(assigned.Error);
         }
 
-        if (assigned.Value.Count > 0)
+        // KAZANAN VARYANT KANAL VARSAYILANI OLARAK AYNI KÖPRÜDEN
+        // GEÇİYOR (P5-07).
+        //
+        // Bir deneyin kazanması, kazananın uygulandığı anlamına
+        // gelmiyor: karar verilip hiçbir şey değişmezse sistem "soru
+        // başlıklar daha iyi" diye rapor yazar ve ertesi gün yine düz
+        // başlık üretir. Kazanan, deneyin kullandığı YOLUN AYNISINDAN
+        // node'lara ulaşıyor — o yol zaten testli.
+        //
+        // AÇIK DENEY VARSAYILANI EZİYOR: aynı boyutta koşan bir deney
+        // varken varsayılanı da uygulamak, hangi ayarın geçerli
+        // olduğunu belirsiz kılardı.
+        var effective = assigned.Value.ToList();
+
+        if (channelId is not null)
         {
-            var merged = ExperimentContext.Merge(run.ContextJson, assigned.Value);
+            var covered = effective.Select(a => a.Dimension).ToHashSet(StringComparer.Ordinal);
+
+            var settingsJson = await db.Channels.AsNoTracking()
+                .Where(c => c.Id == channelId)
+                .Select(c => c.SettingsJson)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var (dimension, config) in ChannelSettings.Parse(settingsJson).DefaultVariants)
+            {
+                if (covered.Add(dimension))
+                {
+                    effective.Add(new AssignedVariant(
+                        Guid.Empty, Guid.Empty, dimension, "kanal-varsayilani", config));
+                }
+            }
+        }
+
+        if (effective.Count > 0)
+        {
+            var merged = ExperimentContext.Merge(run.ContextJson, effective);
 
             if (merged.IsFailure)
             {
@@ -146,8 +180,8 @@ public sealed class WorkflowEngine(
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             await LogAsync(run.Id, null, "info",
-                "Deney kolları: " + string.Join(", ",
-                    assigned.Value.Select(a => a.Dimension + "=" + a.VariantName)),
+                "Varyantlar: " + string.Join(", ",
+                    effective.Select(a => a.Dimension + "=" + a.VariantName)),
                 cancellationToken).ConfigureAwait(false);
         }
 
