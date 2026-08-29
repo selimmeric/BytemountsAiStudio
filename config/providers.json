@@ -90,7 +90,7 @@
       "cost": "ucretsiz",
       "endpoint": "https://text.pollinations.ai/openai/",
       "quality": "orta",
-      "notes": "ANAHTARSIZ ve GPU istemiyor: anahtarsiz hattin BIRINCIL LLM'i. Ollama yedek. OpenAI uyumlu uc (/openai). POLLINATIONS_TOKEN verilirse daha yuksek hiz siniri taniniyor. Gorme modeli de ayni uctan (P2-06).",
+      "notes": "OLCULDU 29 Agu 2026: bu agdan 402 (API key budget too low) donuyor -- ADAPTOR DOGRU, SERVIS BU MAKINEDEN UCRETSIZ DEGIL. Zincirde ilk sirada kaliyor: 402 Kaynak sinifi, router yedege geciyor ve devre kesici birkac denemeden sonra atliyor. BMAI_POLLINATIONS_TEXT_URL ile OpenAI uyumlu BASKA bir uca (yerel llama.cpp, bakiyeli jeton) cevrilebiliyor. Gorme modeli de ayni uctan (P2-06). NOT: image.pollinations.ai ayni agdan 200 donuyor, sorun yalnizca metin/gorme ucunda.",
       "limits": {
         "requests_per_minute": 10
       },

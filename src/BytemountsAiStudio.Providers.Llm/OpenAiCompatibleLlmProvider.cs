@@ -97,6 +97,28 @@ public sealed record OpenAiCompatibleOptions
     /// değil bir GERÇEK: ücretsiz servis. Hız sınırı zincirde
     /// uygulanıyor (P0-17), yani sınır aşıldığında iş DÜŞMÜYOR,
     /// erteleniyor.
+    ///
+    /// ***ÖLÇÜLDÜ: 29 Ağu 2026'da BU AĞDAN 402 DÖNÜYOR.***
+    ///
+    /// Gerçek bir çağrı yapıldı ve cevap şu oldu: `402 Payment
+    /// Required — API key budget too low`. Servis bu ağı anahtarlı
+    /// sayıyor ve anahtarın bakiyesi sıfır; anonim uç de aynı cevabı
+    /// veriyor. Yani ADAPTÖR DOĞRU, SERVİS BU MAKİNEDEN ÜCRETSİZ
+    /// DEĞİL.
+    ///
+    /// Kod yine de duruyor ve zincirde İLK sırada, üç sebeple:
+    ///   - 402 `Kaynak` sınıfına düşüyor ve `ProviderRouter` kaynak
+    ///     hatasında YEDEĞE GEÇİYOR, yani hat durmuyor.
+    ///   - Devre kesici (P0-17, artık gerçekten takılı) birkaç
+    ///     denemeden sonra bu sağlayıcıyı atlıyor: kayıp birkaç
+    ///     istekle sınırlı.
+    ///   - Aynı yapılandırma OpenAI uyumlu HERHANGİ bir uca işaret
+    ///     edebiliyor (`BMAI_POLLINATIONS_TEXT_URL`): yerel bir
+    ///     llama.cpp sunucusu ya da bakiyesi olan bir Pollinations
+    ///     jetonu tek satırlık ayar.
+    ///
+    /// Pollinations'ın GÖRSEL ucu (`image.pollinations.ai`) aynı
+    /// ağdan 200 dönüyor ve çalışıyor — sorun metin/görme ucunda.
     public static OpenAiCompatibleOptions Pollinations() => new()
     {
         Key = "pollinations-text",
