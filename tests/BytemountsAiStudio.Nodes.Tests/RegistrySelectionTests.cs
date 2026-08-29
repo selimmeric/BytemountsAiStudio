@@ -185,4 +185,27 @@ public sealed class RegistrySelectionTests
         // Ortam "acik" dese bile açık seçim sahte diyorsa sahte.
         Assert.Equal(PipelineKind.Fake, Build(storage, PipelineKind.Fake, warnings).Kind);
     }
+
+    /* ---- ayni node tipini bildiren iki isleyici ---- */
+
+    /// ***HER NODE TIPI ICIN KAYITTA TEK ISLEYICI VAR.***
+    ///
+    /// `WikipediaResearchHandler` ve `ResearchAgentHandler` IKISI DE
+    /// `research.deep` bildiriyor. Kayit bir sozluk oldugu icin ikisi
+    /// birden eklenirse SONUNCUSU sessizce kazanir -- ve hangisinin
+    /// kostugu yalnizca kayit sirasina bakilarak anlasilirdi.
+    ///
+    /// Bu test o sirayi degil, SONUCU siniyor: kayitli isleyici
+    /// planli arastirma yapan olmali.
+    [Fact]
+    public void ArastirmaNodeu_PlanliIsleyiciyi_Kullaniyor()
+    {
+        using var storage = new FakeStorageProvider();
+        var warnings = new List<string>();
+
+        var handler = Build(storage, PipelineKind.Open, warnings).Find("research.deep");
+
+        Assert.NotNull(handler);
+        Assert.IsType<ResearchAgentHandler>(handler);
+    }
 }

@@ -17,6 +17,21 @@ namespace BytemountsAiStudio.Nodes;
 ///
 /// Şu an yalnızca özet metinleri topluyor, iddia üretmiyor. Bu kasıtlı:
 /// kaynağı olmayan iddia üretmektense hiç iddia üretmemek doğru davranış.
+///
+/// ***BU İŞLEYİCİ HİÇBİR KAYITTA DEĞİL VE YERİNİ `ResearchAgentHandler`
+/// ALDI (P1-09).***
+///
+/// İkisi de `research.deep` node tipini bildiriyor ve bu bir TUZAK:
+/// yanlışlıkla bunu kaydeden biri, hiçbir hata almadan PLANSIZ
+/// araştırmaya döner. Eski hâl sabitti — "konuyu Wikipedia'da ara, ilk
+/// üç sonucu çek" — ve bir konu için çalışıp diğeri için hiç sonuç
+/// vermiyordu; üstelik neden vermediğini söyleyecek bir şey yoktu.
+///
+/// SİLİNMEDİ, İKİ SEBEPLE: statik `Excerpt` yardımcısını
+/// `ResearchAgentHandler` kullanıyor, ve plansız arama basit bir
+/// yedek olarak hâlâ anlamlı — model yokken bile kaynak toplayabilen
+/// tek yol bu. Ama kayda GİRMEMELİ; girecekse `ResearchAgentHandler`
+/// kayıttan çıkarılmalı, ikisi birden değil.
 public sealed class WikipediaResearchHandler(
     WikipediaProviderAdapter provider,
     WikidataAdapter? wikidata = null) : INodeHandler
