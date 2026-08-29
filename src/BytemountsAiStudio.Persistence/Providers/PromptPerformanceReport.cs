@@ -113,7 +113,7 @@ public sealed class PromptPerformanceReport(StudioDbContext db)
     ///
     /// Not listesi raporun en önemli kısmı: sayılar tek başına her
     /// zaman bir "kazanan" gösteriyor.
-    internal static IReadOnlyList<string> Notes(IReadOnlyList<PromptVersionRow> versions)
+    public static IReadOnlyList<string> Notes(IReadOnlyList<PromptVersionRow> versions)
     {
         var notes = new List<string>();
 

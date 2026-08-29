@@ -461,7 +461,15 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Olmayan sürüm ilk videodan önce yakalanıyor:* kol var olmayan bir istem sürümüne işaret ediyorsa deney kayıt anında kapatılıyor. Olmasaydı ya her run düşerdi ya da bir yerde varsayılana düşülüp **iki kol aynı istemi kullanırdı** — ikincisi daha kötü, çünkü sessiz.
   - *Damgayı üreten ve okuyan aynı dosyada:* ayrılsalardı biçim bir gün değişir, okuyan taraf sessizce eşleşmeyi kaybeder ve rapor "hiç veri yok" derdi — hata olmadan, uyarı olmadan.
   - *Kalan:* Ölçüm yine **YouTube Analytics'e bağlı** (P5-01). Boru hattı uçtan uca sınandı: v1 ve v2 kolları modele **gerçekten farklı metin** gönderiyor (v2'nin başlık stili bloğu v1'de yok).
-- [ ] **P5-06** `3p` — "Ne işe yarıyor" dashboard'u
+- [x] **P5-06** `3p` — "Ne işe yarıyor" dashboard'u
+  - *Bitti:* ✔ 29 Ağu 2026 — `/ogrenme` uç noktası ve panelde yeni sekme; tarayıcıda gerçekten açılıp doğrulandı. 8 test.
+  - ***Ekranın en önemli işi "veri yok" ile "etki yok"u ayırmak.*** Ölçüm gelmemişken sıfırlarla dolu bir tablo göstermek, bakan kişiye "denediklerimiz işe yaramıyor" dedirtir; doğru cümle "henüz hiçbir şey ölçmedik". Aynı ayrım P5-02'de karar katmanında yapılmıştı — **doğru hesaplanan bir sonucu yanlış gösteren panel, yanlış hesaplayan panelle aynı kararı verdiriyor.**
+  - *Gerçek ekrandan okunan cümle:* "10 video yayınlandı, **HİÇBİRİNİN performansı ölçülmedi**. Bu 'işe yaramıyor' değil, 'henüz bilmiyoruz' — ölçüm kaynağı bağlanmadan hiçbir karşılaştırma yapılamaz."
+  - *Geçersiz deneyler en üstte ve kırmızı:* kapanmış bir deney, kapatıldığı söylenmediği sürece hâlâ veri topluyor sanılır. Bir deneyin bozuk olduğunu görmek, sonucunu görmekten acil.
+  - *Koşan deneyin kararı her bakışta yeniden hesaplanıyor:* saklanmış bir "yeterli veri yok" cevabı, veri geldikten sonra da ekranda öyle durur.
+  - *Ekrana bakmak hiçbir şeyi değiştirmiyor:* kalibrasyon `apply: false` ile çağrılıyor. Bir panele girmek kanalın ağırlıklarını değiştirmemeli — ve bu testle sabitlendi.
+  - *Varsayılan ağırlıklar "elle kondu" diye işaretli:* kalibre edilmiş gibi görünmeleri, ölçülmemiş bir hipotezi ölçülmüş gibi göstermek olurdu.
+  - *Tarayıcıda açıldı, sadece test edilmedi:* JS hatası 1769 testin hiçbirine yakalanmazdı. İlk açılışta boyut adları "dema · sour · visu" diye kırpılmış görünüyordu (ilk dört harf); Türkçe etiketlere çevrildi.
 - [ ] **P5-07** `2p` — 🏁 **Faz 5 kabul:** bir strateji değişikliği veriyle gerekçelendirildi
 
 ---

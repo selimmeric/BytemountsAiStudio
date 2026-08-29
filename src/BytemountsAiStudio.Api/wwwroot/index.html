@@ -102,6 +102,7 @@ button.act.warn{color:var(--warn);border-color:var(--warn)}
 .live.on i{background:var(--ok)}
 .back{background:none;border:0;color:var(--signal);cursor:pointer;font:inherit;padding:0}
 .err{padding:10px 14px;color:var(--bad);font-size:13px}
+.err-row td{background:rgba(200,60,60,.08)}
 </style>
 </head>
 <body>
@@ -133,6 +134,7 @@ const TABS = [
   ["varliklar", "Varlıklar"],
   ["isakislari", "İş akışları"],
   ["istemler", "İstemler"],
+  ["ogrenme", "Ne işe yarıyor"],
   ["control", "Kontrol"],
 ];
 
@@ -1010,6 +1012,92 @@ async function showControl() {
     }));
 }
 
+/* ---- "Ne işe yarıyor" (P5-06) ---- */
+
+/* EKRANIN EN ÖNEMLİ İŞİ "VERİ YOK" İLE "ETKİ YOK"U AYIRMAK.
+ *
+ * Ölçüm gelmemişken sıfırlarla dolu bir tablo göstermek, bakan kişiye
+ * "denediklerimiz işe yaramıyor" dedirtir. Doğru cümle "henüz hiçbir
+ * şey ölçmedik". Aynı ayrım karar katmanında (P5-02) zaten var; burada
+ * korunmazsa doğru hesaplanmış bir sonuç yanlış okunur ve yanlış
+ * kararı yine ekran verdirir.
+ *
+ * GEÇERSİZ DENEYLER EN ÜSTTE ve kırmızı: kapanmış bir deney,
+ * kapatıldığı söylenmediği sürece hâlâ veri topluyor sanılır. */
+/* Boyut adları İNGİLİZCE saklanıyor (JSON anahtarı, kanal ayarında
+ * yazılan şey) ama ekranda Türkçe: ilk dört harfi kesmek "dema",
+ * "sour", "visu" gibi hiçbir dile ait olmayan kırıntılar üretiyordu. */
+const DIMENSION_LABELS = {
+  demand: "talep",
+  fit: "uygunluk",
+  sourceability: "kaynak",
+  visualizability: "görsel",
+  freshness: "tazelik",
+};
+
+async function showLearning() {
+  const r = await api("/ogrenme");
+
+  const experiments = r.experiments.map((e) => `
+    <tr class="${e.state === "Invalid" ? "err-row" : ""}">
+      <td>${tag(e.state)}</td>
+      <td class="mono">${esc(e.dimension)}</td>
+      <td>${esc(e.name)}</td>
+      <td class="mono">${e.measured}/${e.assigned}</td>
+      <td class="mono">${esc(e.outcome)}</td>
+      <td class="muted">${esc(e.reason)}</td>
+    </tr>`);
+
+  const weights = r.weights.map((w) => `
+    <tr>
+      <td>${esc(w.channelName)}</td>
+      <td class="mono">${Object.entries(w.weights)
+        .map(([k, v]) => `${esc(DIMENSION_LABELS[k] ?? k)} ${Number(v).toFixed(2)}`).join(" · ")}</td>
+      <td>${w.isDefault ? '<span class="muted">elle kondu</span>' : "kalibre edildi"}</td>
+      <td class="muted">${esc(w.calibrationReason)}</td>
+    </tr>`);
+
+  const prompts = r.prompts.map((p) => `
+    <tr>
+      <td class="mono">${esc(p.key)}@${p.version}</td>
+      <td class="mono">${p.runs}</td>
+      <td class="mono">${p.randomizedRuns > 0
+        ? p.randomizedRuns + " rastgele"
+        : '<span class="muted">gözlemsel</span>'}</td>
+      <td class="mono">${p.meanRetentionSeconds === null
+        ? "—" : Number(p.meanRetentionSeconds).toFixed(1) + " sn"}</td>
+      <td class="mono">${p.meanCtr === null
+        ? "—" : (Number(p.meanCtr) * 100).toFixed(2) + "%"}</td>
+    </tr>`);
+
+  view.innerHTML = `
+    <section class="panel">
+      <h2>Ne işe yarıyor</h2>
+      <div class="stats">
+        <div class="stat"><b>${r.publishedRuns}</b><span>yayınlanan video</span></div>
+        <div class="stat">
+          <b class="${r.hasData ? "s-Completed" : "s-Failed"}">${r.measuredRuns}</b>
+          <span>performansı ölçülen</span>
+        </div>
+      </div>
+      <p class="${r.hasData ? "muted" : "err"}">${esc(r.headline)}</p>
+    </section>
+
+    ${panel("Deneyler", table(
+      ["Durum", "Boyut", "Deney", "Ölçülen/Atanan", "Sonuç", "Gerekçe"], experiments))}
+
+    ${panel("Konu skorlama ağırlıkları", table(
+      ["Kanal", "Ağırlıklar", "Kaynak", "Kalibrasyon"], weights))}
+
+    ${panel("İstem sürümleri", table(
+      ["İstem", "Koşu", "Atama", "Tutma", "CTR"], prompts))}
+
+    ${r.promptNotes.length
+      ? `<section class="panel"><h2>Karşılaştırma uyarıları</h2><ul>${
+          r.promptNotes.map((n) => `<li class="muted">${esc(n)}</li>`).join("")}</ul></section>`
+      : ""}`;
+}
+
 /* ---- Sekmeler ---- */
 
 const VIEWS = {
@@ -1023,6 +1111,7 @@ const VIEWS = {
   varliklar: showAssets,
   isakislari: showWorkflows,
   istemler: showPrompts,
+  ogrenme: showLearning,
   control: showControl,
 };
 

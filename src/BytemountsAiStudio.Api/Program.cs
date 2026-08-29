@@ -314,6 +314,20 @@ app.MapGet("/rapor", async (
         db, TimeSpan.FromHours(hours), cancellationToken));
 });
 
+// ---- "Ne işe yarıyor" ekranı (P5-06) ----
+//
+// EKRANIN EN ÖNEMLİ İŞİ "VERİ YOK" İLE "ETKİ YOK"U AYIRMAK. Ölçüm
+// gelmemişken sıfırlarla dolu bir tablo, bakan kişiye
+// "denediklerimiz işe yaramıyor" dedirtir; doğru cümle "henüz hiçbir
+// şey ölçmedik". Doğru hesaplanan bir sonucu yanlış gösteren panel,
+// yanlış hesaplayan panelle aynı kararı verdiriyor.
+//
+// YAZMA REPLİKASI: deney kararları o anki atamalara bakıyor ve
+// gecikmeli bir replikadan okumak, az önce atanan bir kolun ekranda
+// görünmemesi demek olurdu.
+app.MapGet("/ogrenme", async (StudioDbContext db, CancellationToken cancellationToken) =>
+    Results.Ok(await LearningReport.BuildAsync(db, cancellationToken)));
+
 // ---- Varlık gezgini ve lisans raporu (P3-08) ----
 //
 // Lisans bir metadata değil, bir UYUM KAYDI (§2.3/14). "Bu videoda
