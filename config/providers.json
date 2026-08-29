@@ -461,6 +461,20 @@
       "platform": "instagram",
       "setup": "Meta for Developers > Instagram Graph API > Business hesap + Sayfa baglantisi",
       "notes": "IKI ADIMLI: once konteyner olusturuluyor, HAZIR olana kadar yoklaniyor, sonra yayinlaniyor. Video URL ILE veriliyor -- dosya yuklenmiyor, yani varlik depolayan yerin disaridan erisilebilir olmasi gerekiyor."
+    },
+    {
+      "key": "youtube-analytics",
+      "role": "metrics",
+      "display_name": "YouTube Analytics",
+      "enabled": false,
+      "requires_key": true,
+      "key_env": "YOUTUBE_ACCESS_TOKEN",
+      "cost": "ucretsiz",
+      "endpoint": "https://youtubeanalytics.googleapis.com/v2/reports",
+      "endpoint_env": "BMAI_YOUTUBE_ANALYTICS_URL",
+      "platform": "youtube",
+      "setup": "YouTube Data API ile ayni OAuth; yt-analytics.readonly kapsami gerekiyor",
+      "notes": "OGRENME DONGUSUNUN VERI KAYNAGI. Raporlar IKI GUNE KADAR GERIDEN geliyor: yedinci gunun sayilarini yedinci gun cekmek, tamamlanmamis bir sayiyi tam sanmak demek. SettlingDays bunu engelliyor."
     }
   ],
   "_routing_comment": "Sirali yedekleme: ilk calisani kullanilir. Anahtar geldiginde ucretli saglayici basa alinir.",

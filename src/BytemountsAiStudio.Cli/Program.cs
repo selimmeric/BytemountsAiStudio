@@ -87,6 +87,8 @@ static int Help()
                              [--izlenme N] [--saniye N]
                                         yayin sonrasi olcumu elle girer
                                         (P5-01 baglanana kadar tek yol)
+          bmai ogrenme cek              YouTube Analytics gunluk olcum cekimi
+                                        (OTURMAMIS gunler atlaniyor)
           bmai ogrenme durum            deneyler, agirliklar, istem surumleri
           bmai ogrenme karar [--uygula] deneyleri karara baglar; --uygula ile
                                         KAZANAN kanal varsayilani olur
@@ -183,6 +185,9 @@ static async Task<int> RunLearningAsync(string[] args)
         case "karar":
             return await DecideAsync(db, Array.IndexOf(args, "--uygula") >= 0).ConfigureAwait(false);
 
+        case "cek":
+            return await CollectMetricsAsync(db).ConfigureAwait(false);
+
         default:
             Console.Error.WriteLine($"Bilinmeyen ogrenme komutu: {subcommand}");
             return 2;
@@ -223,6 +228,29 @@ static async Task<int> RecordMetricAsync(StudioDbContext db, string[] args)
 
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
         $"Olcum yazildi: run {runId:N}, gun {day}."));
+
+    return 0;
+}
+
+/// Analytics cekimi (P5-01).
+///
+/// AYNI TABLOYA YAZIYOR: `bmai ogrenme olcum` ile elle girilen kayitla
+/// ayni sutunlar, ayni kisit. Degisen tek sey verinin KAYNAGI --
+/// karar zinciri ayni kaliyor.
+static async Task<int> CollectMetricsAsync(StudioDbContext db)
+{
+    using var http = new HttpClient();
+
+    var collector = new MetricsCollector(db, new YouTubeAnalyticsProvider(http));
+    var summary = await collector.CollectAsync(CancellationToken.None).ConfigureAwait(false);
+
+    if (summary.IsFailure)
+    {
+        Console.Error.WriteLine(summary.Error.Message);
+        return 1;
+    }
+
+    Console.WriteLine(summary.Value.ToString());
 
     return 0;
 }

@@ -422,7 +422,16 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
 
 ## Faz 5 — Öğrenen sistem
 
-- [ ] **P5-01** `4p` — YouTube Analytics günlük çekim + `publication_metrics` zaman serisi
+- [~] **P5-01** `4p` — YouTube Analytics günlük çekim + `publication_metrics` zaman serisi
+  - *Kısmen:* ✔ 29 Ağu 2026 — Sağlayıcı ve toplayıcı tam, **anahtarsız sınandı**; gerçek API'ye hiç bağlanmadı. 15 test.
+  - ***Erken çekim, sessiz bir tuzak.*** YouTube'un raporları **iki güne kadar geriden** geliyor: yedinci günün sayılarını yedinci gün çekmek, tamamlanmamış bir sayıyı tam sanmak demek. Sayı makul görünüyor, kimse şüphelenmiyor ve deney o eksik sayıyla karar veriyor. Oturmamış günler **atlanıyor** ve API'ye hiç gidilmiyor — boşuna kota harcamak, oturmamış bir günü sormanın ikinci bedeli olurdu. Oturma payı ayarlanabilir: platform gecikmesi değişebiliyor.
+  - ***Veri yoksa sıfır yazılmıyor.*** "O gün hiç izlenme yok" ile "o günün verisi gelmedi" farklı iki şey; sıfır yazmak, gelmemiş bir günü ölçülmüş saymak ve bütün ortalamaları aşağı çekmek olurdu. Eksik sütunlu satır da okunmuyor: ölçüt listesi değişirse satır kısalıyor ve eksik sütunu sıfır saymak, hiç istenmemiş bir ölçütü "sıfır ölçüldü" diye kaydetmek olurdu.
+  - *Dakika saniyeye çevriliyor:* Analytics dakika veriyor, tablo saniye tutuyor. Birim karışması tutma oranını **altmış kat** yanlış gösterirdi.
+  - *Ölçüm günü deney değerlendirmesiyle **aynı sabitten***: iki ayrı sayı olsaydı çekilen gün ile okunan gün ayrışır ve deney "veri yok" derken tabloda veri dururdu.
+  - *Aynı gün ikinci kez çekilmiyor ve eski değer korunuyor:* üzerine yazsaydı "sabit bir yaştan okuma" iddiası (7. gün) bozulurdu.
+  - *Toplayıcı somut sağlayıcıya bağlı değil* (`IDailyMetricsSource`): bağlansaydı depolama katmanı sağlayıcı katmanına bağımlı olur ve toplama mantığı gerçek bir API olmadan sınanamazdı. TikTok/Instagram ölçümü aynı arayüzün arkasına girecek.
+  - ***Aynı tabloya yazıyor:*** `bmai ogrenme olcum` ile elle girilen kayıtla aynı sütunlar, aynı kısıt. Değişen tek şey verinin **kaynağı** — karar zinciri aynı kalıyor, ki P5-07'de söz verilen buydu.
+  - *Kalan:* Gerçek Analytics API'sine tek bir çağrı bile yapılmadı — OAuth kapsamı (`yt-analytics.readonly`) ve anahtar bekliyor. Bu yüzden `[~]`.
 - [x] **P5-02** `5p` — Deney çerçevesi: tek değişkenli varyantlar, minimum örneklem, sonuç testi
   - *Bitti:* ✔ 29 Ağu 2026 — İki oran z-testi, hesaplanan örneklem, deterministik atama ve gerekçeli karar. 32 test.
   - ***"Yeterli veri yok" ile "fark yok" ayrı sonuçlar*** — ve bu, çerçevenin var olma sebebi. Üç videodan sonra "fark yok" demek denemeyi bırakmak demek; oysa henüz hiçbir şey ölçülmemiş. Örneklem yetmiyorsa teste hiç girilmiyor: testi koşturup "anlamlı değil" demek teknik olarak doğru ama **yanlış anlaşılır**.

@@ -80,6 +80,10 @@ public sealed class ProviderEndpointTests
                 Open.YouTubeOptions.DefaultEndpoint.ToString(),
                 Open.YouTubeOptions.EndpointVariable),
 
+            ["youtube-analytics"] = (
+                Open.YouTubeAnalyticsOptions.DefaultEndpoint.ToString(),
+                Open.YouTubeAnalyticsOptions.EndpointVariable),
+
             ["tiktok"] = (
                 Open.TikTokOptions.DefaultEndpoint.ToString(),
                 Open.TikTokOptions.EndpointVariable),
