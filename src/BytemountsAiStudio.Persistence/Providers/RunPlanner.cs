@@ -133,10 +133,35 @@ public sealed class RunPlanner(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // ***KOTA GERÇEK DEFTERDEN OKUNUYOR, KOŞU SAYISINDAN TAHMİN
+        // EDİLMİYOR.***
+        //
+        // Önceki hâli harcamayı `todaysRuns.Count * maliyet` diye
+        // TAHMİN ediyordu ve üç yerden birden yanlıştı:
+        //
+        //   1. QC'de düşen bir koşu kota HARCAMIYOR ama sayılıyordu.
+        //   2. Yeniden denenen bir yükleme iki kez harcıyor ama tek
+        //      koşu görünüyordu.
+        //   3. Gün sınırı UTC'ydi; YouTube kotayı PASİFİK gece
+        //      yarısında sıfırlıyor. Günün yedi-sekiz saatinde yanlış
+        //      güne bakılıyordu.
+        //
+        // Havuz aynı soruyu gerçek rezervasyon defterinden ve doğru gün
+        // anahtarıyla cevaplıyor. Kapasite sıfırsa üretime hiç
+        // başlanmıyor: videoyu üretip yükleyememek, harcanan her şeyi
+        // ertesi güne taşımak ve o gün yeniden ödemek demek.
+        var cost = QuotaLedger.CostOf(withThumbnail: true, withPlaylist: false);
+
+        var capacity = await new QuotaPoolService(db, _time)
+            .CapacityAsync("youtube", channel.Id, cost, cancellationToken)
+            .ConfigureAwait(false);
+
+        // KAPASİTE YAYIN SAYISI, BİRİM DEĞİL: `Reserve` birim
+        // bekliyor, o yüzden geri çevriliyor. Havuzun toplamını
+        // doğrudan vermek, parçalanmış bir havuzda olmayan bir
+        // kapasiteyi raporlamak olurdu (`QuotaPool.Capacity`).
         var quota = QuotaLedger.Reserve(
-            todaysRuns.Count * QuotaLedger.CostOf(withThumbnail: true, withPlaylist: false),
-            QuotaLedger.CostOf(withThumbnail: true, withPlaylist: false),
-            now);
+            spentToday: 0, cost, now, dailyLimit: capacity * cost);
 
         var schedule = PublishSchedule.Decide(
             settings.Pacing,
