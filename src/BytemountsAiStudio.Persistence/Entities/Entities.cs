@@ -125,6 +125,14 @@ public sealed class Run : EntityBase
 
     public Guid? TopicId { get; set; }
 
+    /// Bu koşu hangi koşudan türetildi (P6-06).
+    ///
+    /// Çok dilli türevde iki koşu aynı araştırmayı paylaşıyor ama ayrı
+    /// videolar üretiyor. Bağ olmadan "bu konunun hangi dillerde
+    /// sürümü var" sorusu cevaplanamıyor ve iki koşu birbirinden
+    /// bağımsız görünüyor.
+    public Guid? DerivedFromRunId { get; set; }
+
     public RunState State { get; set; } = RunState.Pending;
 
     public int Priority { get; set; }

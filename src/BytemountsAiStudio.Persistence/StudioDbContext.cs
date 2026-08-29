@@ -176,6 +176,12 @@ public class StudioDbContext : DbContext
             e.Property(x => x.EstimatedCost).HasPrecision(12, 4);
             e.Property(x => x.ActualCost).HasPrecision(12, 4);
 
+            // TÜREV BAĞI (P6-06): "bu konunun hangi dillerde sürümü var"
+            // sorgusu bu indeksten geçiyor. Kısmi: türev koşular
+            // azınlıkta ve tam indeks çoğunluğu boşuna taşırdı.
+            e.HasIndex(x => x.DerivedFromRunId)
+                .HasFilter("derived_from_run_id IS NOT NULL");
+
             // Panoda "çalışan run'lar" sorgusu; bitmişler indekste yer kaplamasın.
             e.HasIndex(x => new { x.State, x.CreatedAt })
                 .HasFilter("state IN ('Pending', 'Running', 'WaitingApproval', 'WaitingResource')");

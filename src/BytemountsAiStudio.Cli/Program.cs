@@ -39,6 +39,7 @@ return command switch
     "thumb" => RunThumbnail(args),
     "db" => await RunDatabaseAsync(args).ConfigureAwait(false),
     "ogrenme" => await RunLearningAsync(args).ConfigureAwait(false),
+    "turev" => await RunDerivationAsync(args).ConfigureAwait(false),
     "help" or "--help" or "-h" => Help(),
     _ => Unknown(command),
 };
@@ -89,6 +90,10 @@ static int Help()
           bmai ogrenme durum            deneyler, agirliklar, istem surumleri
           bmai ogrenme karar [--uygula] deneyleri karara baglar; --uygula ile
                                         KAZANAN kanal varsayilani olur
+          bmai turev --run <id> --lang en-US
+                                        AYNI ARASTIRMADAN baska dilde
+                                        icerik: senaryo cevrilmiyor,
+                                        hedef dilde sifirdan yaziliyor
           bmai version                  surum
           bmai help                     bu yardim
 
@@ -312,6 +317,81 @@ static async Task<int> DecideAsync(StudioDbContext db, bool apply)
 
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
         $"{running.Count} deney degerlendirildi, {changed} strateji degisikligi uygulandi."));
+
+    return 0;
+}
+
+/// Cok dilli turev (P6-06).
+///
+/// CEVIRI TUREV DEGIL. Turkce senaryoyu Ingilizceye cevirmek, Ingilizce
+/// kelimelerle Turkce cumle ritmi uretiyor: acilis cumlesi Turk
+/// izleyici icin kurulmus, ornekler Turkiye'den. Metin "Ingilizce"
+/// oluyor ama Ingilizce konusan biri icin yazilmamis oluyor.
+///
+/// Bu komut ARASTIRMAYI tasiyor, senaryoyu hedef dilde SIFIRDAN
+/// yazdiriyor. Pahali olan arastirma zaten yapilmis.
+static async Task<int> RunDerivationAsync(string[] args)
+{
+    if (!Guid.TryParse(OptionOrNull(args, "--run"), out var sourceRunId))
+    {
+        Console.Error.WriteLine("--run gecerli bir GUID olmali.");
+        return 2;
+    }
+
+    var target = LanguageTag.Create(Option(args, "--lang", "en-US"));
+
+    await using var db = CreateContext();
+
+    var source = await db.Runs.AsNoTracking()
+        .Where(r => r.Id == sourceRunId)
+        .Select(r => new { r.Id, r.ContextJson, r.ChannelId, r.TopicId, r.WorkflowVersionId })
+        .FirstOrDefaultAsync()
+        .ConfigureAwait(false);
+
+    if (source is null)
+    {
+        Console.Error.WriteLine($"Kosu yok: {sourceRunId}");
+        return 1;
+    }
+
+    var context = MultilingualDerivation.InitialContext(source.ContextJson, target);
+
+    if (context.IsFailure)
+    {
+        Console.Error.WriteLine(context.Error.Message);
+        return 1;
+    }
+
+    var storage = StorageSelection.Build(db, StorageRoot());
+    await StorageSelection.EnsureReadyAsync(storage, CancellationToken.None).ConfigureAwait(false);
+
+    var registry = NodeHandlerRegistration.BuildFakeRegistry(
+        storage,
+        Environment.GetEnvironmentVariable("BMAI_OUTPUT") ?? "output",
+        uniqueness: new TitleUniqueness(db),
+        channels: new ChannelPolicy(db));
+
+    var engine = new WorkflowEngine(db, new JobQueue(db), registry);
+
+    var run = await engine.StartRunAsync(
+        source.WorkflowVersionId,
+        source.ChannelId,
+        source.TopicId,
+        CancellationToken.None,
+        context.Value,
+
+        // TUREV BAGI: "bu konunun hangi dillerde surumu var" sorusu
+        // ancak bu bagla cevaplanabiliyor.
+        derivedFromRunId: source.Id).ConfigureAwait(false);
+
+    if (run.IsFailure)
+    {
+        Console.Error.WriteLine(run.Error.Message);
+        return 1;
+    }
+
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"Turev kosu basladi: {run.Value:N} ({target.Value}), kaynak {source.Id:N}."));
 
     return 0;
 }

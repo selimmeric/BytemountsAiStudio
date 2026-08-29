@@ -27,7 +27,8 @@ public interface IWorkflowEngine
     /// bilgiyi (konu, dil) node'lara ulaştırmanın yolu olmazdı.
     Task<Result<Guid>> StartRunAsync(
         Guid workflowVersionId, Guid? channelId, Guid? topicId,
-        CancellationToken cancellationToken, string? initialContext = null);
+        CancellationToken cancellationToken, string? initialContext = null,
+        Guid? derivedFromRunId = null);
 
     Task<Result> ExecuteNextAsync(string workerId, QueueClass queue, CancellationToken cancellationToken);
 
@@ -75,7 +76,8 @@ public sealed class WorkflowEngine(
 
     public async Task<Result<Guid>> StartRunAsync(
         Guid workflowVersionId, Guid? channelId, Guid? topicId,
-        CancellationToken cancellationToken, string? initialContext = null)
+        CancellationToken cancellationToken, string? initialContext = null,
+        Guid? derivedFromRunId = null)
     {
         var version = await db.WorkflowVersions
             .AsNoTracking()
@@ -105,6 +107,13 @@ public sealed class WorkflowEngine(
             WorkflowVersionId = workflowVersionId,
             ChannelId = channelId,
             TopicId = topicId,
+
+            // TÜREV BAĞI RUN'LA BİRLİKTE YAZILIYOR (P6-06).
+            //
+            // Sonradan güncellemek, iki yazma arasında çöken bir
+            // süreçte bağsız bir türev bırakırdı: koşu var, nereden
+            // geldiği yok.
+            DerivedFromRunId = derivedFromRunId,
             State = RunState.Running,
             StartedAt = _time.GetUtcNow(),
             ContextJson = initialContext ?? "{}",

@@ -543,7 +543,15 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
     | `kare` | kare-1080x1080 | 1080×1080 h264 · 1,73 MB | 33,9 sn |
     | `yatay` | video-1920x1080 | 1920×1080 h264 · 2,84 MB | 54,5 sn |
     | `ses` | podcast-m4a | **video akışı yok** · aac · 653 KB | 7,3 sn |
-- [ ] **P6-06** `4p` — Çok dilli türev: tek knowledge base → N dilde içerik (§20.7)
+- [x] **P6-06** `4p` — Çok dilli türev: tek knowledge base → N dilde içerik (§20.7)
+  - *Bitti:* ✔ 29 Ağu 2026 — `bmai turev --run <id> --lang en-US`, türev bağı ve taşıma kuralları. 15 test.
+  - ***Çeviri türev değil — ve bütün mesele bu.*** Türkçe senaryoyu İngilizceye çevirmek, İngilizce kelimelerle **Türkçe cümle ritmi** üretiyor: açılış cümlesi Türk izleyici için kurulmuş, örnekler Türkiye'den, esprinin çevirisi espri değil. Metin "İngilizce" oluyor ama İngilizce konuşan biri için yazılmamış oluyor — ve bunu ancak izlenme oranı söylüyor. Doğrusu: **araştırmayı yeniden kullanmak, senaryoyu hedef dilde sıfırdan yazdırmak.** Pahalı olan araştırma zaten yapılmış; ucuz olan senaryo yeniden yazılıyor.
+  - *Taşınan:* konu kimliği (dil değişiyor, konu aynı) ve araştırma — kaynaklar dilden bağımsız, bir Wikipedia sayfası iki koşuda da aynı sayfa.
+  - ***Taşınmayan ve bilinçli olarak taşınmayan: doğrulanmış iddialar.*** Doğrulama bir **cümleye** yapılıyor, bir olguya değil: "1453'te fethedildi" cümlesi doğrulandıysa İngilizce karşılığı henüz doğrulanmadı. Taşımak, hiç kimsenin okumadığı bir cümleyi "kaynakla desteklendi" diye işaretlemek olurdu.
+  - *Senaryo da taşınmıyor* — taşınsaydı türev koşu onu hazır bulur, senaryo adımını atlar ve Türkçe cümlelerle İngilizce video üretirdi. Ses, altyazı, timeline, görsel, render, SEO ve **deney kolu** da taşınmıyor: kol ataması `run_id`'den deterministik (P5-02) ve taşınan bir kol iki run'ı aynı kolda sayardı.
+  - *Aynı dile türev reddediliyor:* tekillik kontrolü kanal+dil kapsamında (§20.5), yani ikinci koşu tekrar sayılmaz ve sessizce **aynı videoyu ikinci kez** üretirdi.
+  - *Araştırmasız türev reddediliyor:* türetmenin tek kazancı araştırmayı yeniden kullanmak; o yoksa yapılacak şey yeni bir koşu başlatmak, "türev" demek değil.
+  - *Türev olduğu iki yere yazılıyor:* run bağlamına (`derivation.method = regenerated` — sonradan "çeviri miydi" sorusunu cevaplıyor) ve `runs.derived_from_run_id` kolonuna. Bağ olmadan "bu konunun hangi dillerde sürümü var" sorusu cevaplanamıyor. Bağ **run ile birlikte** yazılıyor: sonradan güncellemek, iki yazma arasında çöken bir süreçte bağsız bir türev bırakırdı.
 
 ---
 
