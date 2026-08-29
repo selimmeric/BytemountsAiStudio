@@ -255,9 +255,31 @@ public static class NodeHandlerRegistration
         ProviderPipeline? pipeline,
         IQuotaPool quota,
         string? ffmpegPath = null,
-        string? ffprobePath = null)
+        string? ffprobePath = null,
+        ProviderCatalog? catalog = null,
+        ICredentialSource? credentials = null,
+        Action<string>? onWarning = null)
     {
         ArgumentNullException.ThrowIfNull(quota);
+
+        // ***SAGLAYICI SIRASI ARTIK KATALOGDAN (ADR-015).***
+        //
+        // `routing` blogu hicbir kurulum kodundan OKUNMUYORDU --
+        // yalnizca `bmai providers` ekrani onu gosteriyordu.
+        // Saglayicilar burada elle, sabit bir sirayla kuruluyordu ve
+        // ADR-015'in "anahtar geldiginde yapilacak tek sey `enabled`
+        // alanini acip yonlendirme listesinin basina almak" iddiasi
+        // YANLISTI: gereken sey bir kod degisikligiydi.
+        //
+        // Olculebilir bedeli: BES ADAPTOR hicbir yerden kurulmuyordu
+        // (Searxng, DuckDuckGo, Gemini, ElevenLabs, Pexels) -- hepsi
+        // yazilmis, testlenmis ve erisilemezdi.
+        //
+        // KATALOG YOKSA ESKI SABIT ZINCIRLER: dosyanin bulunamamasi
+        // uretimi durdurmak icin sebep degil. Ama sessiz de degil.
+        var factory = catalog is null
+            ? null
+            : new ProviderFactory(http, catalog, credentials, onWarning);
 
         // FFMPEG YOLU ORTAMDAN DA GELEBILIYOR (`BMAI_FFMPEG`).
         //
@@ -297,12 +319,21 @@ public static class NodeHandlerRegistration
         //
         // Katman başına iki sağlayıcı: yedeğe düşüş `ProviderRouter`
         // içinde ve hangi sağlayıcının ürettiği çıktıya yazılıyor.
+        // ZINCIR KATALOGDAN; katalog yoksa ya da bos donduyse eski
+        // sabit siradan. Bos donmesi bir YAPILANDIRMA hatasi ve
+        // sessiz gecilmiyor.
+        var llmChain = Fallback(factory?.Llm(), () => Chain(http), "llm", onWarning);
+
         var llm = new TieredLlmProvider(
             new Dictionary<ModelTier, IReadOnlyList<ILlmProvider>>
             {
-                [ModelTier.Cheap] = Chain(http, ModelTier.Cheap),
-                [ModelTier.Standard] = Chain(http, ModelTier.Standard),
-                [ModelTier.Strong] = Chain(http, ModelTier.Strong),
+                // UC KATMAN AYNI ZINCIRI PAYLASIYOR: katalog katman
+                // ayrimi tasimiyor (model adlari ortam degiskeninden
+                // geliyor). Ayri listeler tutmak, katalogda olmayan
+                // bir ayrimi varmis gibi gostermekti.
+                [ModelTier.Cheap] = llmChain,
+                [ModelTier.Standard] = llmChain,
+                [ModelTier.Strong] = llmChain,
             }).Wrap(pipeline);
 
         // Araclar yan-servisi (P1-04). Kapali olabilir ve bu NORMAL:
@@ -363,11 +394,20 @@ public static class NodeHandlerRegistration
             // veriyor. Ikinci dilde Kaynak hatasi donuyor ve sira
             // Piper'a geciyor; Piper cevrimdisi ve istenen dili
             // konusuyor.
+            // TTS ZINCIRI KATALOGDAN: sira `routing.tts` icinde.
+            // Windows'un yerel sesi yalnizca Windows'ta ses veriyor ve
+            // Linux kabinda Kaynak hatasi donup siradakine (Piper)
+            // geciyor. Sirayi koda gommek, kabin farkli bir sira
+            // istemesi halinde KOD degistirmek demekti.
             .Register(new TtsSynthesizeHandler(
-                new FallbackTtsProvider([
-                    new WindowsSpeechTtsProvider(),
-                    new SidecarTtsProvider(http, ToolsSidecarOptions.FromEnvironment()),
-                ]).Wrap(pipeline),
+                new FallbackTtsProvider(Fallback(
+                    factory?.Tts(),
+                    () =>
+                    [
+                        new WindowsSpeechTtsProvider(),
+                        new SidecarTtsProvider(http, ToolsSidecarOptions.FromEnvironment()),
+                    ],
+                    "tts", onWarning)).Wrap(pipeline),
                 storage,
                 ffprobePath,
                 sidecar,
@@ -380,9 +420,14 @@ public static class NodeHandlerRegistration
             // Ama soyut bir cumlenin stok karsiligi yok - orada
             // Pollinations devreye giriyor.
             .Register(new VisualResolveHandler(
+                // STOK VE URETICI GORSEL DE KATALOGDAN. Pexels
+                // adaptoru yazilmis ve HICBIR YERDEN kurulmuyordu:
+                // anahtar gelse bile kullanilamazdi.
                 new StockFirstImageProvider(
-                    new OpenverseImageProvider(http),
-                    new PollinationsImageProvider(http),
+                    Fallback(factory?.StockImages(),
+                        () => [new OpenverseImageProvider(http)], "image.stock", onWarning)[0],
+                    Fallback(factory?.GenerativeImages(),
+                        () => [new PollinationsImageProvider(http)], "image.generative", onWarning)[0],
                     StockFirstImageProvider.HttpDownloader(http)).Wrap(pipeline),
                 storage))
             // MUZIK TIMELINE'DAN ONCE: derleme adimi baglamdan muzigi
@@ -391,7 +436,8 @@ public static class NodeHandlerRegistration
             // cikardi ve bunu kimse fark etmezdi - muziksiz video da
             // gecerli gorundugu icin.
             .Register(new MusicSelectHandler(
-                new OpenverseMusicProvider(http).Wrap(pipeline),
+                Fallback(factory?.Music(), () => [new OpenverseMusicProvider(http)],
+                    "music", onWarning)[0].Wrap(pipeline),
                 storage,
                 MusicSelectHandler.HttpDownloader(http)))
             .Register(new TimelineCompileHandler(storage, channels))
@@ -455,9 +501,24 @@ public static class NodeHandlerRegistration
             // "yayınlandı" saymaktansa açık bir hata vermek gerekiyor.
             .Register(new PublishHandler(
                 [
-                    new YouTubePublisher(http).Wrap(pipeline),
-                    new TikTokPublisher(http).Wrap(pipeline),
-                    new InstagramPublisher(http).Wrap(pipeline),
+                    // GERCEK YAYINCILAR KATALOGDAN. Katalogda hepsi
+                    // `enabled: false` (anahtar yok) ve o yuzden bugun
+                    // liste bos donuyor -- sabit varsayilan devrede.
+                    // Anahtar geldiginde degisecek tek sey katalog
+                    // satiri olacak, bu dosya degil.
+                    .. Fallback(
+                        factory?.Publishers(),
+                        () =>
+                        [
+                            new YouTubePublisher(http, credentials: credentials),
+                            new TikTokPublisher(http, credentials: credentials),
+                            new InstagramPublisher(http, credentials: credentials),
+                        ],
+                        "publish", onWarning).Select(p => p.Wrap(pipeline)),
+
+                    // SAHTE YAYINCI KATALOGDAN GELMIYOR ve gelmemeli:
+                    // katalog gercek servisleri tarif ediyor, bu bir
+                    // TEST ARACI. Secim graftaki `platform` alanindan.
                     new Providers.Fake.FakePublisher().Wrap(pipeline),
                 ],
                 quota));
@@ -469,11 +530,36 @@ public static class NodeHandlerRegistration
     /// ayrı yazılsaydı biri güncellenip diğeri unutulur ve `Strong`
     /// katmanı sessizce başka bir sağlayıcıya giderdi — çıktıda
     /// görünürdü ama kimse bakmazdı.
-    private static IReadOnlyList<ILlmProvider> Chain(HttpClient http, ModelTier tier)
+    private static IReadOnlyList<ILlmProvider> Chain(HttpClient http)
         => [
             new OpenAiCompatibleLlmProvider(http, OpenAiCompatibleOptions.Pollinations()),
             new OllamaLlmProvider(http, OllamaOptions.FromEnvironment()),
         ];
+
+    /// Katalogdan gelen liste bossa sabit varsayilana dusuyor.
+    ///
+    /// ***BOS LISTE SESSIZ GECILMIYOR.*** Katalogda o rolun butun
+    /// saglayicilari kapaliysa ya da hepsi anahtar bekliyorsa, hattin
+    /// o adimi hic calisamaz. Uyari olmadan, "neden senaryo
+    /// uretilmiyor" sorusunun cevabi hicbir yerde olmazdi.
+    private static IReadOnlyList<T> Fallback<T>(
+        IReadOnlyList<T>? fromCatalog, Func<IReadOnlyList<T>> builtIn,
+        string role, Action<string>? onWarning)
+    {
+        if (fromCatalog is { Count: > 0 })
+        {
+            return fromCatalog;
+        }
+
+        if (fromCatalog is not null)
+        {
+            onWarning?.Invoke(
+                $"Katalogda '{role}' rolu icin kullanilabilir saglayici yok; "
+                + "kodun sabit varsayilani kullaniliyor.");
+        }
+
+        return builtIn();
+    }
 
     /// Yalnızca graf doğrulaması için: hangi node tipleri tanınıyor.
     /// Depolama gerektirmediği için konfigürasyon aşamasında kullanılabilir.

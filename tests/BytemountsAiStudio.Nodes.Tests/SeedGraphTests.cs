@@ -312,4 +312,90 @@ public sealed class SeedGraphTests
         Assert.DoesNotContain("script", resolved);
         Assert.DoesNotContain("research", resolved);
     }
+
+    /* ---- yayin grafi ---- */
+
+    private static WorkflowGraph PublishSeed()
+    {
+        var graph = WorkflowGraph.Parse(DatabaseSeeder.PublishGraphJson);
+
+        Assert.NotNull(graph);
+
+        return graph;
+    }
+
+    /// ***HATTIN UCU BIR IS AKISINA BAGLI.***
+    ///
+    /// `publish.upload` node'u yazildi, testlendi ve HICBIR TOHUM
+    /// GRAFINDA KULLANILMIYORDU: butun graflar `human.approval` ile
+    /// bitiyordu. Boru hattinin ucu hicbir is akisindan
+    /// erisilemiyordu -- yayin yapabilmek icin once elle bir graf
+    /// duzenlemek gerekiyordu.
+    [Fact]
+    public void YayinGrafi_YayinNodeuIceriyor()
+        => Assert.Contains("publish.upload", PublishSeed().Nodes.Select(n => n.Type), StringComparer.Ordinal);
+
+    /// Yayin grafi da dogrulamadan geciyor.
+    [Fact]
+    public void YayinGrafi_DogrulamadanGeciyor()
+        => Assert.Empty(WorkflowValidator.Validate(PublishSeed(), NodeHandlerRegistration.KnownNodeTypes));
+
+    /// ***YAYIN ONAYDAN SONRA.***
+    ///
+    /// Once gelseydi onay kapisinin hicbir anlami kalmazdi: video
+    /// zaten yayinda olurdu ve "onaylamiyorum" demek GERI CEKMEK
+    /// anlamina gelirdi.
+    [Fact]
+    public void YayinGrafi_YayinOnaydanSonra()
+    {
+        var graph = PublishSeed();
+
+        var approval = graph.Nodes.Single(n => n.Type == "human.approval").Id;
+        var publish = graph.Nodes.Single(n => n.Type == "publish.upload").Id;
+
+        Assert.Contains(graph.Edges, e =>
+            string.Equals(e.From, approval, StringComparison.Ordinal)
+            && string.Equals(e.To, publish, StringComparison.Ordinal));
+
+        // YAYINDAN SONRA HICBIR SEY YOK: hattin ucu burasi.
+        Assert.DoesNotContain(graph.Edges, e =>
+            string.Equals(e.From, publish, StringComparison.Ordinal));
+    }
+
+    /// ***MEVCUT GRAFLAR DEGISMEDI.***
+    ///
+    /// Onay ile biten bir graf EKSIK degil: "uret ve incelemeye birak"
+    /// tam ve gecerli bir is akisi. Onlara yayin eklemek, bugune kadar
+    /// insanin baktigi her videoyu habersizce yayina vermek olurdu.
+    [Fact]
+    public void EskiGraflar_YayinIcermiyor()
+    {
+        foreach (var json in new[]
+                 {
+                     DatabaseSeeder.FakeGraphJson,
+                     DatabaseSeeder.LongGraphJson,
+                     DatabaseSeeder.RenditionGraphJson,
+                     DatabaseSeeder.BlogGraphJson,
+                 })
+        {
+            var graph = WorkflowGraph.Parse(json);
+
+            Assert.NotNull(graph);
+            Assert.DoesNotContain("publish.upload", graph.Nodes.Select(n => n.Type), StringComparer.Ordinal);
+        }
+    }
+
+    /// PLATFORM ACIKCA YAZILI.
+    ///
+    /// Bos birakilsaydi node kanal ayarina duserdi ve yayin platformu
+    /// iki yerden gelebilirdi; hangisinin kazandigi ancak koda bakarak
+    /// anlasilirdi.
+    [Fact]
+    public void YayinGrafi_PlatformAcikca_Yazili()
+    {
+        var publish = PublishSeed().Nodes.Single(n => n.Type == "publish.upload");
+
+        Assert.True(publish.Config.TryGetProperty("platform", out var platform));
+        Assert.False(string.IsNullOrWhiteSpace(platform.GetString()));
+    }
 }

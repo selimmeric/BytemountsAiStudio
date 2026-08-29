@@ -10,15 +10,15 @@ namespace BytemountsAiStudio.Nodes;
 /// Üç host üç ayrı karar veriyordu ve hiçbiri bunu söylemiyordu:
 ///
 ///   - `Api`      → `BuildOpenRegistry`  (gerçek hat)
-///   - `Cli`      → `--acik` bayrağıyla seçilebilir, varsayılan sahte
+///   - `Cli`      → `run` sahte, `real` gerçek — iki ayrı komut
 ///   - `Worker`   → `BuildFakeRegistry`, **SABİT, seçenek yok**
 ///
 /// Worker kuyruğu boşaltan taraf: zamanlayıcı (`OrchestratorService`)
 /// koşu başlatıyor, işler kuyruğa giriyor ve `QueueWorker` onları
 /// çalıştırıyor. Yani **otonom fabrika, tasarlandığı gibi koştuğunda
 /// baştan sona SAHTE video üretiyordu.** Gerçek içerik yalnızca elle
-/// `bmai run --acik` çağırarak üretilebiliyordu — ki o da fabrikanın
-/// var oluş sebebinin tersi.
+/// `bmai real` çağırarak üretilebiliyordu — ki o da fabrikanın var
+/// oluş sebebinin tersi.
 ///
 /// Daha kötüsü, `docker-compose.uygulama.yml` bunun tam tersini
 /// söylüyordu: *"zamanlayıcı varsayılan kapalı, çünkü bu döngü gerçek
@@ -77,10 +77,11 @@ public static class RegistrySelection
 
     /// Kaydı kurar.
     ///
-    /// `override` AÇIK BİR SEÇİMİ ORTAMIN ÖNÜNE GEÇİRİYOR: CLI'nin
-    /// `--acik` bayrağı böyle çalışıyor. Sıra tersine olsaydı,
-    /// makinedeki bir ortam değişkeni kullanıcının o çağrıda yazdığı
-    /// bayrağı sessizce yok sayardı (`MediaTools` ile aynı gerekçe).
+    /// `kindOverride` AÇIK BİR SEÇİMİ ORTAMIN ÖNÜNE GEÇİRİYOR:
+    /// CLI'nin `run` ve `real` komutları böyle çalışıyor. Sıra tersine
+    /// olsaydı, makinedeki bir ortam değişkeni kullanıcının o çağrıda
+    /// yazdığı komutu sessizce yok sayardı (`MediaTools` ile aynı
+    /// gerekçe).
     public static NodeRegistry Build(
         IStorageProvider storage,
         HttpClient http,
@@ -92,7 +93,8 @@ public static class RegistrySelection
         PipelineKind? kindOverride = null,
         Action<string>? onWarning = null,
         string? ffmpegPath = null,
-        string? ffprobePath = null)
+        string? ffprobePath = null,
+        ICredentialSource? credentials = null)
     {
         PipelineKind kind;
 
@@ -123,9 +125,42 @@ public static class RegistrySelection
         return kind == PipelineKind.Open
             ? NodeHandlerRegistration.BuildOpenRegistry(
                 storage, http, outputDirectory, uniqueness, channels, pipeline, quota,
-                ffmpegPath, ffprobePath)
+                ffmpegPath, ffprobePath,
+                // ***SAGLAYICI SIRASI KATALOGDAN (ADR-015).***
+                //
+                // Katalog TEK YERDEN okunuyor -- zincirin okudugu
+                // dosyanin aynisi (`PipelineSelection.CatalogPath`).
+                // Iki ayri yol olsaydi hiz sinirlari bir dosyadan,
+                // saglayici sirasi baskasindan gelirdi.
+                catalog: Catalog(onWarning),
+                credentials: credentials,
+                onWarning: onWarning)
             : NodeHandlerRegistration.BuildFakeRegistry(
                 storage, outputDirectory, uniqueness, channels, pipeline,
                 ffmpegPath, ffprobePath);
+    }
+
+    /// Katalogu okur; okunamazsa `null`.
+    ///
+    /// OKUNAMAMASI URETIMI DURDURMUYOR: kayit sabit varsayilanlarla
+    /// kuruluyor. Ama sessiz de degil -- sebep loglaniyor, cunku
+    /// katalogsuz bir kurulumda `routing` degisiklikleri hicbir sey
+    /// yapmaz ve bunu fark etmenin baska yolu yok.
+    private static ProviderCatalog? Catalog(Action<string>? onWarning)
+    {
+        var path = Persistence.Providers.PipelineSelection.CatalogPath();
+        var loaded = ProviderCatalog.Load(path);
+
+        if (loaded.IsSuccess)
+        {
+            return loaded.Value;
+        }
+
+        onWarning?.Invoke(
+            $"Saglayici katalogu okunamadi ({path}): {loaded.Error.Message}. "
+            + "Saglayici sirasi KODUN sabit varsayilanindan geliyor; "
+            + "`routing` degisiklikleri etkisiz.");
+
+        return null;
     }
 }

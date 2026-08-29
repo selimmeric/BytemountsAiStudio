@@ -93,6 +93,73 @@ public static class DatabaseSeeder
     /// olmayan şeyler. Metin için ayrı bir QC yazılana kadar karar
     /// İNSANA gidiyor — `human.approval` skor bulamadığında zaten
     /// insana soruyor ve bu, uydurma bir skor üretmekten dürüst.
+    /// ***YAYIN GRAFI — HATTIN UCUNU BIR IS AKISINA BAGLAYAN TEK YER.***
+    ///
+    /// `publish.upload` node'u yazildi, testlendi ve HICBIR TOHUM
+    /// GRAFINDA KULLANILMIYORDU: butun graflar `human.approval` ile
+    /// bitiyordu. Yani boru hattinin ucu hicbir is akisindan
+    /// erisilemiyordu -- yayin yapabilmek icin once elle bir graf
+    /// duzenlemek gerekiyordu.
+    ///
+    /// ***MEVCUT GRAFLAR DEGISTIRILMEDI, YENISI EKLENDI.*** Onay ile
+    /// biten bir graf EKSIK degil: "uret ve incelemeye birak" tam ve
+    /// gecerli bir is akisi. Onlara yayin eklemek, bugune kadar
+    /// insanin baktigi her videoyu habersizce yayina verirdi.
+    ///
+    /// ***YAYIN ONAYDAN SONRA.*** Once gelseydi onay kapisinin hicbir
+    /// anlami kalmazdi: video zaten yayinda olurdu ve "onaylamiyorum"
+    /// demek geri cekmek anlamina gelirdi. Kanal otomatik kipteyse
+    /// (`ChannelMode.Auto`) kapi zaten kendiliginden geciyor -- karar
+    /// grafta degil kanalda.
+    ///
+    /// `platform` alani ACIKCA yaziliyor. Bos birakilsaydi node kanal
+    /// ayarina duserdi ve yayin platformu iki yerden gelebilirdi;
+    /// hangisinin kazandigi ancak koda bakarak anlasilirdi.
+    public const string PublishWorkflowKey = "shorts-yayin";
+
+    public const string PublishGraphJson = """
+        {
+          "schema_version": 1,
+          "key": "shorts-yayin",
+          "name": "Shorts + yayin (onaydan sonra)",
+          "content_kind": "Short",
+          "nodes": [
+            { "id": "topic",    "type": "topic.select",     "config": { "min_score": 0 } },
+            { "id": "research", "type": "research.deep",    "config": { "max_sources": 3 } },
+            { "id": "script",   "type": "script.generate",  "config": { "target_seconds": 30 } },
+            { "id": "tts",      "type": "tts.synthesize",   "config": {} },
+            { "id": "timeline", "type": "timeline.compile", "config": { "aspect": "9:16" } },
+            { "id": "visuals",  "type": "visual.resolve",   "config": {} },
+            { "id": "music",    "type": "music.select",     "config": { "mood": "ambient" } },
+            { "id": "render",   "type": "media.render",     "config": { "preset": "shorts-1080x1920" } },
+            { "id": "claims",   "type": "claim.check",      "config": {} },
+            { "id": "seo",      "type": "seo.generate",     "config": {} },
+            { "id": "thumbnail","type": "thumbnail.render", "config": {} },
+            { "id": "qc",       "type": "qc.mechanical",    "config": {} },
+            { "id": "qcs",      "type": "qc.semantic",      "config": {} },
+            { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } },
+            { "id": "yayin",    "type": "publish.upload",   "config": { "platform": "youtube" } }
+          ],
+          "edges": [
+            { "from": "topic",    "to": "research" },
+            { "from": "research", "to": "script" },
+            { "from": "script",   "to": "claims" },
+            { "from": "claims",   "to": "tts" },
+            { "from": "tts",      "to": "visuals" },
+            { "from": "tts",      "to": "music" },
+            { "from": "visuals",  "to": "timeline" },
+            { "from": "music",    "to": "timeline" },
+            { "from": "timeline", "to": "render" },
+            { "from": "render",   "to": "seo" },
+            { "from": "seo",      "to": "thumbnail" },
+            { "from": "thumbnail","to": "qc" },
+            { "from": "qc",       "to": "qcs" },
+            { "from": "qcs",      "to": "onay" },
+            { "from": "onay",     "to": "yayin" }
+          ]
+        }
+        """;
+
     public const string BlogWorkflowKey = "blog-makale";
 
     public const string BlogGraphJson = """
@@ -261,6 +328,11 @@ public static class DatabaseSeeder
         added += await EnsureWorkflowAsync(
             db, BlogWorkflowKey, "Blog makalesi (kaynakli)", ContentKind.Blog,
             BlogGraphJson, cancellationToken).ConfigureAwait(false);
+
+        // YAYIN GRAFI: hattin ucunu bir is akisina baglayan tek yer.
+        added += await EnsureWorkflowAsync(
+            db, PublishWorkflowKey, "Shorts + yayin (onaydan sonra)", ContentKind.Short,
+            PublishGraphJson, cancellationToken).ConfigureAwait(false);
 
         if (added > 0)
         {
