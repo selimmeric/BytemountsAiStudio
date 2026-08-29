@@ -18,6 +18,19 @@ public sealed record ProviderInvocation<T>
     /// Çağrı yapılmadan önceki maliyet tahmini (USD). Bütçe kapısı buna bakar.
     /// Bilinmiyorsa 0 — tahmin edememek, çağrıyı engellemek için sebep değil.
     public decimal EstimatedCost { get; init; }
+
+    /// Sonuç önbelleğe yazılabilir mi.
+    ///
+    /// VARSAYILAN EVET, çünkü idempotency ADR-010'un tek mekanizması ve
+    /// istisna olması gereken şey ONU KAPATMAK.
+    ///
+    /// İSTİSNA HAM BAYT TAŞIYAN ÇAĞRILAR: `TtsResponse.Audio` ve
+    /// `GeneratedImage.Data`. Üç dakikalık bir ses ~5 MB ve JSON'da
+    /// base64 olarak ~7 MB; cümle başına bir kayıtla önbellek dakikalar
+    /// içinde gigabaytlara çıkar. Idempotency'nin amacı ikinci kez
+    /// ÖDEME yapmamak, üretilen medyayı saklamak değil — medyanın yeri
+    /// depo (`assets`), önbellek değil.
+    public bool Cacheable { get; init; } = true;
 }
 
 /// Sağlayıcı çağrısının çevresindeki kesişen kaygılardan biri.

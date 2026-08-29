@@ -135,6 +135,79 @@ public sealed record ProviderCatalog
     /// Anahtar bekleyenler. Rapor ve kurulum rehberi bundan üretiliyor.
     public IReadOnlyList<ProviderDescriptor> AwaitingKeys()
         => Providers.Where(p => p.RequiresKey && !p.Enabled).ToList();
+
+    /// Katalogdaki hız sınırlarının çalışır karşılığı.
+    ///
+    /// ***BU METOT UZUN SÜRE YOKTU VE `limits` SESSİZCE ÖLÜ VERİYDİ.***
+    ///
+    /// Katalogda "bu servis dakikada 10 istek kaldırır" yazmak hiçbir
+    /// şey yapmıyordu: istekler doğrudan çıkıyor, sağlayıcı 429
+    /// dönünce ancak kuyruk geri çekilmesi devreye giriyordu. Sınır
+    /// yazıp güvende sanmak, gerçekte sınırsız istek demekti.
+    ///
+    /// DÖRT PENCERE DE OKUNUYOR (`per_second`, `per_minute`,
+    /// `per_hour`, `per_month`) çünkü katalogda dördü de kullanılıyor:
+    /// Wikipedia saniye, Pollinations dakika, Openverse saat, Brave ay
+    /// bazında sınırlıyor. Yalnızca dakikayı okumak, üçünü sessizce
+    /// atmak olurdu — düzeltilen `endpoint_env` hatasının aynısı.
+    ///
+    /// AYLIK SINIR DA KOVAYA GİRİYOR ve bu bilinçli bir yaklaşıklık:
+    /// token bucket ayı bir pencere olarak taşıyor, yani 2.000 istek
+    /// ay başında bir anda harcanabilir. Doğru davranış değil ama
+    /// hiç sınır olmamasından iyi ve sınırın nerede yazılı olduğu
+    /// tek yerde kalıyor.
+    ///
+    /// SINIRSIZ SAĞLAYICI LİSTEYE GİRMİYOR: `requests_per_minute:
+    /// null` yazan yerel servisler (Ollama, Piper, yan servis) için
+    /// kova kurmak, olmayan bir sınırı uygulamak olurdu.
+    public IReadOnlyDictionary<string, RateLimitPolicy> RateLimitPolicies()
+    {
+        var policies = new Dictionary<string, RateLimitPolicy>(StringComparer.Ordinal);
+
+        foreach (var provider in Providers)
+        {
+            if (provider.Limits is not { } limits)
+            {
+                continue;
+            }
+
+            var policy = Window(limits, "requests_per_second", TimeSpan.FromSeconds(1))
+                ?? Window(limits, "requests_per_minute", TimeSpan.FromMinutes(1))
+                ?? Window(limits, "requests_per_hour", TimeSpan.FromHours(1))
+                ?? Window(limits, "requests_per_month", TimeSpan.FromDays(30));
+
+            if (policy is not null)
+            {
+                policies[provider.Key] = policy;
+            }
+        }
+
+        return policies;
+    }
+
+    /// Bir sağlayıcının katalogdaki tam sayı sınırı.
+    ///
+    /// YouTube günlük kota havuzu (`quota_units_per_day`) ve yükleme
+    /// başına birim (`quota_units_per_publish`) buradan okunuyor:
+    /// Google kota artırımı verdiğinde (10.000 → 1.000.000 mümkün)
+    /// değişecek tek şey katalog satırı olmalı, kod değil.
+    public int? Limit(string providerKey, string name)
+        => Providers.FirstOrDefault(p => p.Key == providerKey)?.Limits is { } limits
+            ? Number(limits, name)
+            : null;
+
+    private static RateLimitPolicy? Window(
+        IReadOnlyDictionary<string, JsonElement> limits, string name, TimeSpan window)
+        => Number(limits, name) is { } permits and > 0 ? new RateLimitPolicy(permits, window) : null;
+
+    /// `null` yazan alan SINIRSIZ demek, sıfır değil — `TryGetInt32`
+    /// zaten `Null` üzerinde patlıyor, o yüzden tür açıkça sınanıyor.
+    private static int? Number(IReadOnlyDictionary<string, JsonElement> limits, string name)
+        => limits.TryGetValue(name, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var number)
+                ? number
+                : null;
 }
 
 public sealed record ProviderDescriptor

@@ -451,7 +451,9 @@ static async Task<int> RunDerivationAsync(string[] args)
         storage,
         Environment.GetEnvironmentVariable("BMAI_OUTPUT") ?? "output",
         uniqueness: new TitleUniqueness(db),
-        channels: new ChannelPolicy(db));
+        channels: new ChannelPolicy(db),
+        pipeline: PipelineSelection.BuildFrom(
+            db, reason => Console.Error.WriteLine($"UYARI: {reason}")));
 
     var engine = new WorkflowEngine(db, new JobQueue(db), registry);
 
@@ -596,11 +598,18 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     // yayina vermekti.
     var channelPolicy = new ChannelPolicy(db);
 
+    // SAGLAYICI ZINCIRI (P0-14): olcum, butce, hiz siniri, devre
+    // kesici. Uc host da ayni satiri cagiriyor.
+    var pipeline = PipelineSelection.BuildFrom(
+        db, reason => Console.Error.WriteLine($"UYARI: {reason}"));
+
     var registry = open
         ? NodeHandlerRegistration.BuildOpenRegistry(
-            storage, http, outputDirectory, uniqueness: uniqueness, channels: channelPolicy)
+            storage, http, outputDirectory, uniqueness: uniqueness, channels: channelPolicy,
+            pipeline: pipeline)
         : NodeHandlerRegistration.BuildFakeRegistry(
-            storage, outputDirectory, uniqueness: uniqueness, channels: channelPolicy);
+            storage, outputDirectory, uniqueness: uniqueness, channels: channelPolicy,
+            pipeline: pipeline);
 
     var queue = new JobQueue(db);
     var engine = new WorkflowEngine(db, queue, registry);

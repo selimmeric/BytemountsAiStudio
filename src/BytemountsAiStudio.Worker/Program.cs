@@ -64,7 +64,14 @@ builder.Services.AddScoped(sp =>
         sp.GetRequiredService<IStorageProvider>(),
         outputRoot,
         new TitleUniqueness(sp.GetRequiredService<StudioDbContext>()),
-        new ChannelPolicy(sp.GetRequiredService<StudioDbContext>())));
+        new ChannelPolicy(sp.GetRequiredService<StudioDbContext>()),
+        // SAGLAYICI ZINCIRI (P0-14): olcum, butce, hiz siniri, devre
+        // kesici. Sahte hatta da takili -- para harcamayan bir hatta
+        // zincirin dogru kuruldugunu sinamak, ucret odemeden dogrulama
+        // yapabilmenin tek yolu.
+        PipelineSelection.BuildFrom(
+            sp.GetRequiredService<StudioDbContext>(),
+            reason => Log.Warning("Saglayici zinciri eksik kuruldu: {Sebep}", reason))));
 
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 // WORKER ROLU (P4-01): `BMAI_ROLE` -- all | render | light.

@@ -223,7 +223,11 @@ public sealed class ArticleGenerateHandlerTests
             storage,
             Path.GetTempPath(),
             uniqueness: new AlwaysUnique(),
-            channels: new NoChannels());
+            channels: new NoChannels(),
+            // ZİNCİRSİZ: zincir maliyet defterine, defter veritabanına
+            // bağlı. Bu test yalnızca makale üretimini sınıyor ve
+            // veritabanı istemiyor.
+            pipeline: null);
 
         var handler = registry.Find("article.generate");
         Assert.NotNull(handler);

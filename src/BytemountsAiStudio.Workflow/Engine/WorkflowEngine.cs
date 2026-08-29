@@ -265,7 +265,13 @@ public sealed class WorkflowEngine(
 
         // Bu noktadan sonraki tum loglar run ve node kimligini tasiyor;
         // her cagriya elle parametre eklemek er gec bir yerde unutulurdu.
-        using var correlation = CorrelationScope.Begin(run.Id.ToString("N"), node.Id);
+        //
+        // KANAL DA KAPSAMA GIRIYOR ve bu yalnizca log icin degil:
+        // maliyet defteri harcamanin kanalini buradan okuyor, butce
+        // kapisi da "bu kanal bugun ne harcadi" sorusunu ondan
+        // cevapliyor. Kanali motordan saglayici cagrisina kadar elle
+        // tasimak, yoldaki her imzaya bir parametre eklemek olurdu.
+        using var correlation = CorrelationScope.Begin(run.Id.ToString("N"), node.Id, run.ChannelId);
 
         var runContext = JsonDocument.Parse(run.ContextJson).RootElement;
         var idempotencyKey = IdempotencyKey.Compute(run.Id, node.Id, node.Config, runContext);

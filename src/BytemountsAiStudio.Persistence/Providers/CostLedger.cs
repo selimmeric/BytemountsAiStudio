@@ -14,11 +14,42 @@ public sealed class CostLedger(StudioDbContext db, TimeProvider? timeProvider = 
 {
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 
-    public Guid? RunId { get; set; }
+    private Guid? _runId;
+    private string? _nodeId;
+    private Guid? _channelId;
 
-    public string? NodeId { get; set; }
+    /// Bağlam ELLE VERİLMEZSE ORTAMDAN OKUNUYOR (`CorrelationScope`).
+    ///
+    /// ***BU, DEFTERİN BOŞ KALMASINI ÖNLEYEN ŞEY.***
+    ///
+    /// Alanlar önceden yalnızca elle set edilebiliyordu ve hiçbir yerden
+    /// set edilmiyordu: yazılan her satırın koşusu, node'u ve kanalı
+    /// boştu. Kanal boş olunca bütçe kapısının "bu kanal bugün ne
+    /// harcadı" sorgusu her zaman sıfır dönüyordu — yani günlük limit
+    /// hiçbir zaman dolmuyordu.
+    ///
+    /// Motordan buraya kadar parametre taşımak yerine kapsam okunuyor:
+    /// `CorrelationScope` node çalışmadan hemen önce açılıyor ve
+    /// `AsyncLocal` olduğu için sağlayıcı çağrısına kendiliğinden
+    /// iniyor. Elle set edilen değer yine ÖNCELİKLİ — kapsam dışında
+    /// (bakım işleri, deneme) çağıran taraf kendi bağlamını verebiliyor.
+    public Guid? RunId
+    {
+        get => _runId ?? Core.Observability.CorrelationScope.RunGuid;
+        set => _runId = value;
+    }
 
-    public Guid? ChannelId { get; set; }
+    public string? NodeId
+    {
+        get => _nodeId ?? Core.Observability.CorrelationScope.NodeId;
+        set => _nodeId = value;
+    }
+
+    public Guid? ChannelId
+    {
+        get => _channelId ?? Core.Observability.CorrelationScope.ChannelId;
+        set => _channelId = value;
+    }
 
     public async Task RecordAsync(ProviderCallRecord record, CancellationToken cancellationToken)
     {

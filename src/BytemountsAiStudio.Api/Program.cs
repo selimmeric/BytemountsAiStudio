@@ -65,7 +65,12 @@ builder.Services.AddScoped<NodeRegistry>(services =>
         http,
         outputDirectory,
         new TitleUniqueness(db),
-        new ChannelPolicy(db));
+        new ChannelPolicy(db),
+        // SAĞLAYICI ZİNCİRİ (P0-14): ölçüm, bütçe, hız sınırı, devre
+        // kesici. Zincir tek yerde kuruluyor (`PipelineSelection`) ki
+        // API, Worker ve CLI aynı davranışı göstersin.
+        PipelineSelection.BuildFrom(
+            db, reason => Console.Error.WriteLine($"UYARI: {reason}")));
 });
 
 // Somut sinif DEGIL arayuz: ADR-004'un "motor arayuz arkasinda"

@@ -36,15 +36,29 @@ public static class NodeHandlerRegistration
     /// Zorunlu olduklarında derleyici bütün çağrı yerlerini
     /// sayıyor. Bir çağıranın gerçekten ihtiyacı yoksa bunu AÇIKÇA
     /// yazması gerekiyor; unutmak artık mümkün değil.
+    /// ***`pipeline` ZORUNLU VE NULL OLABİLİR — ikisi birden.***
+    ///
+    /// Opsiyonel olsaydı bu dosyanın en pahalı dersi bir kez daha
+    /// ödenirdi: `uniqueness` ve `channels` bir süre `= null`
+    /// varsayılanlıydı ve API ile Worker ikisini de vermiyordu.
+    /// Derleyici bir şey söylemedi çünkü unutmak geçerli bir çağrıydı.
+    /// Zorunlu olduğunda derleyici bütün çağrı yerlerini sayıyor;
+    /// zinciri istemeyen taraf `null` yazmak ZORUNDA ve bu bir karar
+    /// olarak görünüyor.
+    ///
+    /// `null` geçmek gerçek bir seçenek: zincir maliyet defterine
+    /// bağlı, defter veritabanına. Veritabanı olmayan bir testte
+    /// zincirsiz kurmak doğru davranış.
     public static NodeRegistry BuildFakeRegistry(
         IStorageProvider storage,
         string outputDirectory,
         ITopicUniqueness uniqueness,
         IChannelPolicy channels,
+        ProviderPipeline? pipeline,
         string ffmpegPath = "ffmpeg",
         string ffprobePath = "ffprobe")
     {
-        var llm = new FakeLlmProvider
+        var fakeLlm = new FakeLlmProvider
         {
             // SAHTE MAKALE, GEÇERLİ BİÇİMDE (P6-04). Denetim başlık,
             // uzunluk ve atıf istiyor; bunları sağlamayan bir sahte
@@ -139,6 +153,16 @@ public static class NodeHandlerRegistration
             },
         };
 
+        // ZINCIR SAHTE HATTA DA TAKILI.
+        //
+        // Sahte saglayicilar para harcamiyor ve tam da bu yuzden
+        // gerekli: olcumun, butce kapisinin ve devre kesicinin
+        // calistigi tek yerde -- yani ucret olmadan -- sinanabilmesi
+        // lazim. Yalnizca gercek hatta takili olsaydi, zincirin
+        // dogru kurulup kurulmadigi ancak para harcayarak
+        // ogrenilirdi.
+        var llm = fakeLlm.Wrap(pipeline);
+
         return new NodeRegistry()
             .Register(new TopicSelectHandler(uniqueness))
             .Register(new ResearchHandler())
@@ -156,15 +180,16 @@ public static class NodeHandlerRegistration
             .Register(new ChapterPlanHandler(llm))
             .Register(new LongScriptHandler(llm))
             .Register(new TtsSynthesizeHandler(
-                new FakeTtsProvider(), storage, ffprobePath, channels: channels))
-            .Register(new VisualResolveHandler(new FakeImageProvider(ImageProviderKind.Generative), storage))
+                new FakeTtsProvider().Wrap(pipeline), storage, ffprobePath, channels: channels))
+            .Register(new VisualResolveHandler(
+                new FakeImageProvider(ImageProviderKind.Generative).Wrap(pipeline), storage))
             // MUZIK TIMELINE'DAN ONCE: derleme adimi bagladan muzigi
             // okuyor ve o sirada indirilmis olmasi gerekiyor.
             // Sonrasinda kosulsaydi her videonun ilk turu muziksiz
             // cikardi ve bunu kimse fark etmezdi - muziksiz video da
             // gecerli goründuğu icin.
             .Register(new MusicSelectHandler(
-                new FakeMusicProvider(), storage, FakeMusicDownloader()))
+                new FakeMusicProvider().Wrap(pipeline), storage, FakeMusicDownloader()))
             .Register(new TimelineCompileHandler(storage, channels))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             // Cikarim ve dogrulama AYNI sahte modelden; gercek hatta
@@ -196,7 +221,7 @@ public static class NodeHandlerRegistration
             // videoyu iki kez yayınlama" kuralı sahte hatta da
             // sınanabiliyor.
             .Register(new PublishHandler(
-                [new Providers.Fake.FakePublisher()],
+                [new Providers.Fake.FakePublisher().Wrap(pipeline)],
                 new Providers.Fake.UnlimitedQuotaPool()));
     }
 
@@ -217,6 +242,7 @@ public static class NodeHandlerRegistration
         string outputDirectory,
         ITopicUniqueness uniqueness,
         IChannelPolicy channels,
+        ProviderPipeline? pipeline,
         string ffmpegPath = "ffmpeg",
         string ffprobePath = "ffprobe")
     {
@@ -225,8 +251,14 @@ public static class NodeHandlerRegistration
         // Dort ayri yerde `new OllamaLlmProvider(http)` yazmak, ortam
         // degiskeni degistiginde birinin unutulmasi demekti - ve o biri
         // sessizce localhost'a baglanmaya devam ederdi.
+        //
+        // ZINCIR KATMANLI SAGLAYICININ DISINDA, ICINDE DEGIL: icine
+        // koymak, yedege dusen her cagriyi ikinci kez olcmek ve ayni
+        // isi iki kez saymak olurdu. Disarida oldugunda "bir senaryo
+        // uretildi" tek satir, hangi saglayicinin urettigi ise o
+        // satirin icinde.
         var llm = TieredLlmProvider.Single(
-            new OllamaLlmProvider(http, OllamaOptions.FromEnvironment()));
+            new OllamaLlmProvider(http, OllamaOptions.FromEnvironment())).Wrap(pipeline);
 
         // Araclar yan-servisi (P1-04). Kapali olabilir ve bu NORMAL:
         // ilk cagri Kaynak hatasi donuyor, TTS isleyicisi karakter
@@ -234,6 +266,19 @@ public static class NodeHandlerRegistration
         // denemiyor. Yan-servis acikken ayni hat kelime zamanlarini
         // sesten OLCUYOR (P1-15).
         var sidecar = new ToolsSidecar(http, ToolsSidecarOptions.FromEnvironment());
+
+        // ARAMA ZINCIRDEN GECIYOR, SAYFA CEKME GECMIYOR.
+        //
+        // Adaptor iki arayuzu tek nesnede tasiyor ve zincir yalnizca
+        // `ISearchProvider` tarafini sarabiliyor: `IWebFetchProvider`
+        // `ProviderResponse` dondurmuyor, yani olculecek bir birimi de
+        // yok. Wikipedia'nin saniyede on istek siniri boylece aramada
+        // uygulaniyor, sayfa cekmede uygulanmiyor -- eksik, ve gizli
+        // degil.
+        var wikipediaProvider = new WikipediaProvider(http);
+
+        var wikipedia = new WikipediaProviderAdapter(
+            wikipediaProvider.Wrap(pipeline), wikipediaProvider);
 
         return new NodeRegistry()
             .Register(new TopicSelectHandler(uniqueness))
@@ -246,7 +291,7 @@ public static class NodeHandlerRegistration
             // vermedigini soyleyecek bir sey yoktu.
             .Register(new ResearchAgentHandler(
                 llm,
-                WikipediaProviderAdapter.From(new WikipediaProvider(http)),
+                wikipedia,
                 new WikidataProvider(http)))
             // Katmanlı sağlayıcı TEK sağlayıcıyla bile devrede (P1-03):
             // anahtar geldiğinde değişen tek şey bu sözlük olsun, çağıran
@@ -277,7 +322,7 @@ public static class NodeHandlerRegistration
                 new FallbackTtsProvider([
                     new WindowsSpeechTtsProvider(),
                     new SidecarTtsProvider(http, ToolsSidecarOptions.FromEnvironment()),
-                ]),
+                ]).Wrap(pipeline),
                 storage,
                 ffprobePath,
                 sidecar,
@@ -293,7 +338,7 @@ public static class NodeHandlerRegistration
                 new StockFirstImageProvider(
                     new OpenverseImageProvider(http),
                     new PollinationsImageProvider(http),
-                    StockFirstImageProvider.HttpDownloader(http)),
+                    StockFirstImageProvider.HttpDownloader(http)).Wrap(pipeline),
                 storage))
             // MUZIK TIMELINE'DAN ONCE: derleme adimi baglamdan muzigi
             // okuyor ve o sirada indirilmis olmasi gerekiyor.
@@ -301,7 +346,9 @@ public static class NodeHandlerRegistration
             // cikardi ve bunu kimse fark etmezdi - muziksiz video da
             // gecerli gorundugu icin.
             .Register(new MusicSelectHandler(
-                new OpenverseMusicProvider(http), storage, MusicSelectHandler.HttpDownloader(http)))
+                new OpenverseMusicProvider(http).Wrap(pipeline),
+                storage,
+                MusicSelectHandler.HttpDownloader(http)))
             .Register(new TimelineCompileHandler(storage, channels))
             .Register(new MediaRenderHandler(storage, outputDirectory, ffmpegPath, ffprobePath))
             .Register(new ClaimCheckHandler(llm))
@@ -337,7 +384,7 @@ public static class NodeHandlerRegistration
             // videoyu iki kez yayınlama" kuralı sahte hatta da
             // sınanabiliyor.
             .Register(new PublishHandler(
-                [new Providers.Fake.FakePublisher()],
+                [new Providers.Fake.FakePublisher().Wrap(pipeline)],
                 new Providers.Fake.UnlimitedQuotaPool()));
     }
 

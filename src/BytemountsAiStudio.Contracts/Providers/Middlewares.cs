@@ -22,6 +22,14 @@ public sealed class IdempotencyMiddleware(IProviderResultCache cache) : IProvide
         ArgumentNullException.ThrowIfNull(invocation);
         ArgumentNullException.ThrowIfNull(next);
 
+        // ÖNBELLEKLENEMEYEN ÇAĞRI ZİNCİRİN GERİ KALANINI ATLAMIYOR:
+        // yalnızca bu katman devre dışı. Bütçe, hız sınırı, devre
+        // kesici ve ölçüm aynen çalışıyor.
+        if (!invocation.Cacheable)
+        {
+            return await next(cancellationToken).ConfigureAwait(false);
+        }
+
         var key = invocation.Context.IdempotencyKey;
 
         var cached = await cache.TryGetAsync(key, invocation.Operation, cancellationToken)
