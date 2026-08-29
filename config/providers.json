@@ -7,7 +7,21 @@
     "",
     "requires_key=false olanlar HICBIR anahtar istemiyor; sistem su an yalnizca",
     "onlarla calisiyor (ADR-015). Anahtar geldiginde ilgili kaydin enabled",
-    "degeri true yapilip routing listesinin basina alinir - kod degismez."
+    "degeri true yapilip routing listesinin basina alinir - kod degismez.",
+    "",
+    "HANGI ALAN DAVRANISI DEGISTIRIYOR, HANGISI BELGE:",
+    "  DAVRANIS -> key, role, enabled, requires_key, key_env, endpoint,",
+    "              endpoint_env, limits, routing. Bunlari degistirmek",
+    "              sistemin ne yaptigini degistirir.",
+    "  BELGE    -> display_name, cost, quality, setup, notes, models,",
+    "              voices. Bunlar insan icin; kod okumuyor.",
+    "",
+    "AYRIM YAZILI CUNKU BIR KEZ PAHALIYA PATLADI: endpoint_env alani",
+    "dosyada vardi, kod onu TANIMIYORDU ve JSON ayristirici bilmedigi",
+    "alani sessizce atiyordu. Katalogu okuyup degiskeni tanimlayan biri,",
+    "hicbir seyin degismedigini ancak deneyerek anlardi. models ve voices",
+    "bugun BELGE tarafinda; birini davranisa baglamak isteyen once bu",
+    "listeyi guncellemeli."
   ],
   "providers": [
     {
