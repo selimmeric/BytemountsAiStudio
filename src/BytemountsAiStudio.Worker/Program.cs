@@ -59,9 +59,21 @@ builder.Services.AddScoped<IStorageProvider>(sp =>
 //
 // Yalnizca CLI ikisini de veriyordu ve butun dogrulama CLI uzerinden
 // yapilmisti. Parametreler artik zorunlu; unutmak derlenmiyor.
+// ***HAT SECIMI ARTIK BURADA SABIT DEGIL.***
+//
+// Worker `BuildFakeRegistry`'yi SABIT cagiriyordu ve secenek yoktu:
+// zamanlayici kosu baslatiyor, isler kuyruga giriyor ve bu worker
+// onlari calistiriyor -- yani OTONOM FABRIKA, tasarlandigi gibi
+// kostugunda bastan sona SAHTE video uretiyordu. Gercek icerik
+// yalnizca elle `bmai run --acik` cagirarak uretilebiliyordu, ki o da
+// fabrikanin var olus sebebinin tersi.
+//
+// Karar tek yerde (`RegistrySelection`) ve Api ile Cli ayni yeri
+// cagiriyor: uc host'un uc ayri karar vermesi, ayrismanin kendisiydi.
 builder.Services.AddScoped(sp =>
-    NodeHandlerRegistration.BuildFakeRegistry(
+    RegistrySelection.Build(
         sp.GetRequiredService<IStorageProvider>(),
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("nodes"),
         outputRoot,
         new TitleUniqueness(sp.GetRequiredService<StudioDbContext>()),
         new ChannelPolicy(sp.GetRequiredService<StudioDbContext>()),
@@ -71,7 +83,9 @@ builder.Services.AddScoped(sp =>
         // yapabilmenin tek yolu.
         PipelineSelection.BuildFrom(
             sp.GetRequiredService<StudioDbContext>(),
-            reason => Log.Warning("Saglayici zinciri eksik kuruldu: {Sebep}", reason))));
+            reason => Log.Warning("Saglayici zinciri eksik kuruldu: {Sebep}", reason)),
+        new QuotaPoolService(sp.GetRequiredService<StudioDbContext>()),
+        onWarning: mesaj => Log.Information("{Mesaj}", mesaj)));
 
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 // WORKER ROLU (P4-01): `BMAI_ROLE` -- all | render | light.

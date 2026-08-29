@@ -61,9 +61,35 @@ public interface INodeHandler
 }
 
 /// Node tipi → işleyici eşlemesi.
+/// Kaydın hangi hattı taşıdığı.
+///
+/// ***BU AYRIM KAYIT ALTINA ALINMAK ZORUNDA.*** Sahte hat gerçek bir
+/// video dosyası üretiyor: doğru süre, doğru çözünürlük, doğru
+/// altyazı. Bir insan çıktı dizinine baktığında ikisini ayırt
+/// edemiyor. Ayrım yalnızca sağlayıcı anahtarlarında (`fake-llm`)
+/// yaşarsa, "bu video gerçek mi" sorusunun cevabı maliyet defterine
+/// bakmayı gerektirir — ve kimse bakmaz.
+public enum PipelineKind
+{
+    /// Ağa çıkmayan, para harcamayan hat. Test ve gösterim için.
+    Fake = 0,
+
+    /// Anahtarsız GERÇEK hat: Wikipedia, Openverse, Pollinations,
+    /// yerel konuşma sentezi (ADR-015).
+    Open = 1,
+}
+
 public sealed class NodeRegistry
 {
     private readonly Dictionary<string, INodeHandler> _handlers = new(StringComparer.Ordinal);
+
+    /// Bu kaydın hangi hat olduğu.
+    ///
+    /// Motor bunu koşu bağlamına yazıyor, yani her videonun kaydında
+    /// hangi hattın ürettiği duruyor. Yazılmasaydı sahte bir video
+    /// gerçek sanılabilirdi — ve bu depoda "sessizce yanlış" en pahalı
+    /// hata sınıfı.
+    public PipelineKind Kind { get; init; } = PipelineKind.Fake;
 
     public NodeRegistry Register(INodeHandler handler)
     {

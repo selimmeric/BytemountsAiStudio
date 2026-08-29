@@ -14,13 +14,17 @@ zincirini paralel ve otomatik yürütür.
 | [docs/Icerik-Fabrikasi-Mimarisi.md](docs/Icerik-Fabrikasi-Mimarisi.md) | Mimari, ADR'ler, veri modeli, timeline şeması |
 | [docs/IS-PLANI.md](docs/IS-PLANI.md) | Görev kırılımı — ilerlemenin tek gerçek kaynağı |
 | [docs/plan-dashboard.html](docs/plan-dashboard.html) | Plandan üretilen ilerleme panosu (elle düzenlenmez) |
+| [docs/AYARLAR.md](docs/AYARLAR.md) | **Bütün ortam değişkenleri** — hat seçimi, kuyruk, saklama, adresler |
+| [docs/DONANIM-VE-MODEL.md](docs/DONANIM-VE-MODEL.md) | Hangi makinede hangi model, GPU'suz kip |
+| [docs/UCRETSIZ-SAGLAYICILAR.md](docs/UCRETSIZ-SAGLAYICILAR.md) | Anahtar istemeyen servisler ve sınırları |
+| [docs/DAGITIM.md](docs/DAGITIM.md) | Docker ile ayağa kaldırma |
 
 ## Gereksinimler
 
 | Araç | Sürüm | Not |
 |---|---|---|
 | .NET SDK | 10.0.400+ | `global.json` ile sabitlendi |
-| FFmpeg / ffprobe | 7+ | PATH üzerinde erişilebilir olmalı |
+| FFmpeg / ffprobe | 7+ | PATH üzerinde ya da `BMAI_FFMPEG` ile |
 | Docker Desktop | 4.8+ | PostgreSQL ve Seq kapları için (zorunlu değil — `scripts/yerel-postgres.ps1`) |
 | Python | 3.11–3.12 | `tools-sidecar` ve betikler için |
 

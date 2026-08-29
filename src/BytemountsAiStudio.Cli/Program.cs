@@ -603,15 +603,27 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     var pipeline = PipelineSelection.BuildFrom(
         db, reason => Console.Error.WriteLine($"UYARI: {reason}"));
 
-    var registry = open
-        ? NodeHandlerRegistration.BuildOpenRegistry(
-            storage, http, outputDirectory, uniqueness: uniqueness, channels: channelPolicy,
-            pipeline: pipeline,
-            // GERCEK KOTA HAVUZU (P4-04).
-            quota: new QuotaPoolService(db))
-        : NodeHandlerRegistration.BuildFakeRegistry(
-            storage, outputDirectory, uniqueness: uniqueness, channels: channelPolicy,
-            pipeline: pipeline);
+    // HAT SECIMI TEK YERDE (`RegistrySelection`): Api, Cli ve Worker
+    // ayni kararin ayni yerinden geciyor.
+    //
+    // ***CLI'DE ORTAM DEGISKENI OKUNMUYOR ve bu kasitli.*** `bmai run`
+    // ile `bmai real` iki ayri KOMUT: kullanici hangisini yazdiysa
+    // onu istiyor. Makinedeki bir `BMAI_PIPELINE` degeri yazilan
+    // komutun anlamini degistirseydi, `bmai run` bazi makinelerde
+    // sahte bazilarinda gercek video uretirdi -- ve fark yalnizca
+    // cikti dosyasina bakarak anlasilamazdi.
+    //
+    // Ortam degiskeni yalnizca ACIK BIR SECIMIN OLMADIGI yerlerde
+    // (Worker ve Api) karar veriyor.
+    var registry = RegistrySelection.Build(
+        storage, http, outputDirectory,
+        uniqueness: uniqueness,
+        channels: channelPolicy,
+        pipeline: pipeline,
+        // GERCEK KOTA HAVUZU (P4-04).
+        quota: new QuotaPoolService(db),
+        kindOverride: open ? PipelineKind.Open : PipelineKind.Fake,
+        onWarning: Console.Error.WriteLine);
 
     var queue = new JobQueue(db);
     var engine = new WorkflowEngine(db, queue, registry);

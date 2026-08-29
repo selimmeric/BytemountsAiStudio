@@ -76,6 +76,26 @@ services:
       # başlatmamalı, çünkü bu döngü gerçek para harcayabiliyor.
       # Açmak bilinçli bir hareket: `BMAI_ORCHESTRATOR=on`.
       BMAI_ORCHESTRATOR: "${BMAI_ORCHESTRATOR:-off}"
+
+      # ***HAT SEÇİMİ AÇIKÇA YAZILI.***
+      #
+      # Worker uzun süre `BuildFakeRegistry`'yi SABİT çağırıyordu ve
+      # seçenek yoktu: zamanlayıcı açıldığında fabrika baştan sona
+      # SAHTE video üretiyordu. Üstelik hemen üstteki yorum "bu döngü
+      # gerçek para harcayabiliyor" diyordu — harcayamazdı, o worker'da
+      # para harcayan tek bir sağlayıcı yoktu. Yorum ile kod
+      # ayrışmıştı ve okuyan yorumun dediğine inanıyordu.
+      #
+      # KAPTA VARSAYILAN SAHTE ve sebebi kabın kendisi: gerçek hattın
+      # konuşma sentezi Windows'un yerel sesini kullanıyor
+      # (`WindowsSpeechTtsProvider`) ve Linux kabında o yok. Yedek
+      # Piper, `tools-sidecar` ayaktayken çalışıyor; o servis
+      # kalkmadan gerçek hat TTS adımında düşer.
+      #
+      # Yan servisi kaldırdıktan sonra: `BMAI_PIPELINE=acik`.
+      # Kodun kendi varsayılanı GERÇEK hat — burada kap yüzünden
+      # eziliyor, sessizce değil.
+      BMAI_PIPELINE: "${BMAI_PIPELINE:-sahte}"
     volumes:
       - fabrika-storage:/veri/storage
       - fabrika-output:/veri/output

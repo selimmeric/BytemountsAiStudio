@@ -116,7 +116,20 @@ public sealed class WorkflowEngine(
             DerivedFromRunId = derivedFromRunId,
             State = RunState.Running,
             StartedAt = _time.GetUtcNow(),
-            ContextJson = initialContext ?? "{}",
+
+            // ***HANGI HATTIN URETTIGI KOSUNUN KAYDINA GIRIYOR.***
+            //
+            // Sahte hat GERCEK bir video dosyasi uretiyor: dogru sure,
+            // dogru cozunurluk, dogru altyazi. Cikti dizinine bakan bir
+            // insan ikisini ayirt edemiyor. Bu alan olmasaydi "bu video
+            // gercek mi" sorusunun cevabi maliyet defterindeki
+            // saglayici anahtarlarina (`fake-llm`) bakmayi gerektirirdi
+            // -- ve kimse bakmaz.
+            //
+            // MOTORDA YAZILIYOR, HOST'TA DEGIL: host'a birakilsaydi uc
+            // host'tan biri unuturdu ve tam da o host'un ciktisi
+            // isaretsiz kalirdi.
+            ContextJson = WithPipeline(initialContext, registry.Kind),
         };
 
         db.Runs.Add(run);
@@ -906,6 +919,56 @@ public sealed class WorkflowEngine(
         entry.OriginalValue = merged;
         entry.CurrentValue = merged;
         entry.IsModified = false;
+    }
+
+    /// Baslangic baglamina hattin adini ekler.
+    ///
+    /// BOZUK YA DA BOS BAGLAM CAGRIYI DUSURMUYOR: baglam disaridan
+    /// geliyor (CLI, API, zamanlayici) ve okunamayan bir baglam
+    /// yuzunden kosuyu hic baslatmamak, isaretin kendisinden pahali
+    /// olurdu. O durumda yalnizca isaret yaziliyor.
+    internal static string WithPipeline(string? initialContext, PipelineKind kind)
+    {
+        var name = kind == PipelineKind.Open ? "acik" : "sahte";
+        var bare = "{\"pipeline\":\"" + name + "\"}";
+
+        try
+        {
+            using var document = JsonDocument.Parse(
+                string.IsNullOrWhiteSpace(initialContext) ? "{}" : initialContext);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return bare;
+            }
+
+            using var buffer = new MemoryStream();
+
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+
+                foreach (var property in document.RootElement.EnumerateObject())
+                {
+                    // DISARIDAN GELEN `pipeline` EZILIYOR: bu alanin
+                    // tek sahibi motor. Cagiranin yazdigi bir deger,
+                    // sahte bir kosuyu "acik" gosterebilirdi.
+                    if (!string.Equals(property.Name, "pipeline", StringComparison.Ordinal))
+                    {
+                        property.WriteTo(writer);
+                    }
+                }
+
+                writer.WriteString("pipeline", name);
+                writer.WriteEndObject();
+            }
+
+            return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        catch (JsonException)
+        {
+            return bare;
+        }
     }
 
     /// Node ciktisindaki kaynak ve iddialari kalici bilgi tabanina

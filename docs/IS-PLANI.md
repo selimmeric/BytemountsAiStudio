@@ -576,7 +576,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *Boş izin listesi "her şey serbest" değil,* "cevabı anlamadım" demek — o hâlde yayınlamak görünürlüğü şansa bırakmak olurdu.
   - *Üç adım da koşuyor:* `init` → parça yükleme → durum yoklama. İkinci adımı atlayıp "yayınlandı" demek, TikTok'un hiç görmediği bir videoyu yayınlanmış saymak olurdu; test yüklemenin gerçekten yapıldığını ölçüyor.
   - *Yoklama sınırı **erteleme**, başarısızlık değil* (ADR-011 Resource): video muhtemelen hâlâ işleniyor ve kalıcı hata saymak, gerçekte yayınlanmış bir videoyu "düştü" diye işaretleyip yeniden yükletmek olurdu.
-  - *Kalan:* Gerçek API'ye hiç çağrı yapılmadı (anahtar yok) ve **yayın node'u yok** — `IPublisher`'ı çağıran hat P1-25 ile gelecek. Bu yüzden `[~]`.
+  - *29 Ağu 2026 — **yayın node'u artık var ve bu adaptör ona kayıtlı**.* Bu satır "yayın node'u yok, `IPublisher`'ı çağıran hat P1-25 ile gelecek" diyordu ve **eskimişti**: `publish.upload` node'u yazıldı, TikTok yayıncısı gerçek hat kaydına girdi ve kota havuzu bağlandı. Platform seçimi graftaki `platform` alanından yapılıyor.
+  - *Kalan:* Gerçek API'ye hiç çağrı yapılmadı — TikTok geliştirici hesabı ve `client_key`/`client_secret` bekliyor. Bu yüzden `[~]`.
 - [~] **P6-02** `4p` — Instagram Reels (Graph API)
   - *Kısmen:* ✔ 29 Ağu 2026 — Adaptör tam, **anahtarsız sınandı**; gerçek API'ye hiç bağlanmadı. 6 test.
   - ***Video yüklenmiyor, çekiliyor — adaptörün en önemli sınırı bu.*** Graph API dosya kabul etmiyor: `video_url` veriliyor ve Meta o adresi **kendi sunucularından indiriyor**. Yerel bir dosya yolu ya da yalnızca iç ağdan erişilebilen bir MinIO adresi orada işe yaramıyor; Meta "medya indirilemedi" diye anlaşılmaz bir kodla düşüyor ve sebebini bulmak saatler alıyor. Adresin varlığı yayından **önce** kontrol ediliyor ve hata ne yapılması gerektiğini söylüyor.
@@ -584,7 +585,8 @@ Bu komut yüzdeleri yeniden hesaplar ve `docs/plan-dashboard.html`'i günceller.
   - *İki adım:* konteyner → `FINISHED` olana kadar yoklama → yayın. Konteyner hazır olmadan yayınlamak Meta tarafında hata veriyor ve hata metni sebebi söylemiyor.
   - *Hata sınıfları ayrılmış:* `ERROR` kalıcı (biçim desteklenmiyor), `EXPIRED` geçici (konteyner 24 saatte düşüyor, yenisi açılabilir), yoklama sınırı ve hız sınırı **kaynak** (erteleme). Hepsini kalıcı saymak, düzelebilir durumları ölü mektuba göndermek olurdu.
   - *API sürümü ayarda:* Meta sürümü yılda birkaç kez yükseltip eskisini kapatıyor; `v21.0` kodda sabit olsaydı her sürüm yeni bir derleme demekti.
-  - *Kalan:* Gerçek API'ye hiç çağrı yapılmadı ve yayın node'u yok. Bu yüzden `[~]`.
+  - *29 Ağu 2026 — **yayın node'u artık var ve bu adaptör ona kayıtlı**.* "Yayın node'u yok" notu eskimişti; `publish.upload` yazıldı ve Instagram yayıncısı gerçek hat kaydına girdi.
+  - *Kalan:* Gerçek API'ye hiç çağrı yapılmadı — Facebook/Instagram iş hesabı ve Graph API jetonu bekliyor. Bu yüzden `[~]`.
 - [x] **P6-03** `3p` — Aynı içerikten rendition'lar (9:16 / 1:1 / 16:9, süre kırpma)
   - *Bitti:* ✔ 29 Ağu 2026 — Tek timeline'dan üç gerçek video: 1080×1920, 1080×1080, 1920×1080 (hepsi 46,8 sn, ffprobe ile ölçüldü). 18 test.
   - ***Türev timeline'dan, bitmiş videodan değil.*** Hazır mp4'ü kırpmak ucuz görünüyor ve yanlış: 9:16'lık bir videodan 16:9 kesmek karenin dörtte üçünü atıyor ve **altyazının tam ortasından** geçiyor. Doldurmak (letterbox) ise ekranın yarısını siyah bant yapıyor. İkisi de "aynı içerik başka orana uyarlandı" değil, "aynı içerik bozuldu".

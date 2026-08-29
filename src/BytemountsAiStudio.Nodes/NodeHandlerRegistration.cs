@@ -173,7 +173,7 @@ public static class NodeHandlerRegistration
         // ogrenilirdi.
         var llm = fakeLlm.Wrap(pipeline);
 
-        return new NodeRegistry()
+        return new NodeRegistry { Kind = PipelineKind.Fake }
             .Register(new TopicSelectHandler(uniqueness))
             .Register(new ResearchHandler())
             .Register(new ScriptGenerateHandler(llm))
@@ -325,7 +325,7 @@ public static class NodeHandlerRegistration
         var wikipedia = new WikipediaProviderAdapter(
             wikipediaProvider.Wrap(pipeline), wikipediaProvider);
 
-        return new NodeRegistry()
+        return new NodeRegistry { Kind = PipelineKind.Open }
             .Register(new TopicSelectHandler(uniqueness))
             // Wikipedia METIN, Wikidata OLGU veriyor. Ikisi birlikte:
             // metinden cikarilan bir tarih yanlis olabilir, alandan

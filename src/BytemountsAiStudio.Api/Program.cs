@@ -59,7 +59,10 @@ builder.Services.AddScoped<NodeRegistry>(services =>
     // atlanmıştı ve atlandıklarında tekillik ölçülmüyor, kanal
     // kimliği (ses, yazı tipi, en-boy, onay modu) varsayılana
     // düşüyordu — sessizce.
-    return NodeHandlerRegistration.BuildOpenRegistry(
+    // HAT SEÇİMİ TEK YERDE (`RegistrySelection`): Api, Cli ve Worker
+    // aynı kararı vermeli. Üç ayrı `if` yazmak, birinin sahte
+    // diğerinin gerçek hat koşması demekti — ve tam olarak o oldu.
+    return RegistrySelection.Build(
         // Depo seçimi tek yerde (P4-02).
         StorageSelection.Build(db, storageRoot),
         http,
@@ -74,7 +77,8 @@ builder.Services.AddScoped<NodeRegistry>(services =>
         // GERÇEK KOTA HAVUZU (P4-04): hesaplar kimlik kayıtlarından
         // geliyor ve rezervasyon atomik. Sınırsız havuz vermek, on
         // yedi projelik bir kurulumda kotanın hiç sayılmaması demekti.
-        new QuotaPoolService(db));
+        new QuotaPoolService(db),
+        onWarning: mesaj => Console.Error.WriteLine(mesaj));
 });
 
 // Somut sinif DEGIL arayuz: ADR-004'un "motor arayuz arkasinda"
