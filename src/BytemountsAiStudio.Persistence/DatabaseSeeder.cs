@@ -77,6 +77,46 @@ public static class DatabaseSeeder
         }
         """;
 
+    /// Blog makalesi iş akışı (P6-04).
+    ///
+    /// AYNI ARAŞTIRMA, BAŞKA BİÇİM. Konu seçimi ve araştırma video
+    /// hattıyla aynı node'lar; ayrışma `article.generate` ile
+    /// başlıyor. Araştırmayı iki kez yazmak, aynı bilgi tabanından
+    /// üretme iddiasını kâğıt üstünde bırakırdı.
+    ///
+    /// TTS, GÖRSEL, TIMELINE VE RENDER YOK: makalenin sesi ve karesi
+    /// yok. Bu node'ları "zararsız" diye bırakmak, her makale için
+    /// dakikalarca ffmpeg koşturmak olurdu.
+    ///
+    /// MEKANİK QC DE YOK ve bu bir eksik: `qc.mechanical` videonun
+    /// çözünürlüğüne ve ses seviyesine bakıyor, makalede karşılığı
+    /// olmayan şeyler. Metin için ayrı bir QC yazılana kadar karar
+    /// İNSANA gidiyor — `human.approval` skor bulamadığında zaten
+    /// insana soruyor ve bu, uydurma bir skor üretmekten dürüst.
+    public const string BlogWorkflowKey = "blog-makale";
+
+    public const string BlogGraphJson = """
+        {
+          "schema_version": 1,
+          "key": "blog-makale",
+          "name": "Blog makalesi (kaynakli)",
+          "content_kind": "Blog",
+          "nodes": [
+            { "id": "topic",    "type": "topic.select",     "config": { "min_score": 0 } },
+            { "id": "research", "type": "research.deep",    "config": { "max_sources": 5 } },
+            { "id": "article",  "type": "article.generate", "config": { "word_count": 800 } },
+            { "id": "claims",   "type": "claim.check",      "config": {} },
+            { "id": "onay",     "type": "human.approval",   "config": { "min_score": 0.75 } }
+          ],
+          "edges": [
+            { "from": "topic",    "to": "research" },
+            { "from": "research", "to": "article" },
+            { "from": "article",  "to": "claims" },
+            { "from": "claims",   "to": "onay" }
+          ]
+        }
+        """;
+
     /// Çok biçimli iş akışı (P6-03, P6-05).
     ///
     /// AYRI BİR AKIŞ, VARSAYILANA EKLENTİ DEĞİL. Her videoya üç render
@@ -217,6 +257,10 @@ public static class DatabaseSeeder
         added += await EnsureWorkflowAsync(
             db, RenditionWorkflowKey, "Coklu bicim (9:16 + 1:1 + 16:9 + ses)", ContentKind.Short,
             RenditionGraphJson, cancellationToken).ConfigureAwait(false);
+
+        added += await EnsureWorkflowAsync(
+            db, BlogWorkflowKey, "Blog makalesi (kaynakli)", ContentKind.Blog,
+            BlogGraphJson, cancellationToken).ConfigureAwait(false);
 
         if (added > 0)
         {

@@ -1,0 +1,15 @@
+{
+  "prompt_key": "article.generate",
+  "values": {
+    "topic": "Göbeklitepe",
+    "language": "tr-TR",
+    "word_count": "800",
+    "sources": "[1] Göbeklitepe kazıları — https://ornek.test/1\n[2] Neolitik dönem — https://ornek.test/2"
+  },
+  "expect": {
+    "contains": ["Göbeklitepe", "tr-TR", "SENARYO DEĞİL", "RAKAMLA", "[1]"],
+    "not_contains": ["{{"],
+    "max_chars": 3000,
+    "min_chars": 400
+  }
+}

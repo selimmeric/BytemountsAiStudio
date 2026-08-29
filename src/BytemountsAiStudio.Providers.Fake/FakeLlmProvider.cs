@@ -88,13 +88,28 @@ public sealed class FakeLlmProvider : ILlmProvider
                 UsageUnits.Tokens(EstimateTokens(prompt), EstimateTokens(json)))));
         }
 
-        var text = Determinism.Format(
-            $"[fake:{request.Tier}] {Determinism.Token(hash, 8)} — {prompt.Length} karakterlik istem alındı.");
+        // SERBEST METİN CEVAPLAYICI (P6-04).
+        //
+        // Varsayılan tek satırlık yer tutucu, biçim denetimi olan
+        // node'larda (makale: başlık, uzunluk, atıf) haklı olarak
+        // düşüyor. Sahte hattın işi denetimi atlatmak değil, GEÇERLİ
+        // bir çıktı üretmek — denetimi atlatan bir sahte, denetimin
+        // çalışıp çalışmadığını da gizlerdi.
+        var text = TextResponder?.Invoke(request)
+            ?? Determinism.Format(
+                $"[fake:{request.Tier}] {Determinism.Token(hash, 8)} — {prompt.Length} karakterlik istem alındı.");
 
         return Task.FromResult(Result.Success(new ProviderResponse<LlmResponse>(
             new LlmResponse { Text = text, ModelId = ModelIdFor(request.Tier) },
             UsageUnits.Tokens(EstimateTokens(prompt), EstimateTokens(text)))));
     }
+
+    /// Serbest metin isteklerine cevap veren isteğe bağlı işlev.
+    ///
+    /// `ToolResponder`'ın metin karşılığı: zorunlu araç kullanmayan
+    /// node'lar (makale) için sahte ama BİÇİMİ GEÇERLİ çıktı üretmeye
+    /// yarıyor.
+    public Func<LlmRequest, string?>? TextResponder { get; init; }
 
     public Task<Result<ProviderResponse<IReadOnlyList<float>>>> EmbedAsync(
         string text,

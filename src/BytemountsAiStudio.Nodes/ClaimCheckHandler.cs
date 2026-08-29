@@ -79,7 +79,7 @@ public sealed class ClaimCheckHandler(
 
         if (sentences.Count == 0)
         {
-            return Error.Permanent("claim.no_script", "Senaryo bulunamadı.");
+            return Error.Permanent("claim.no_script", "Doğrulanacak metin yok (senaryo ya da makale).");
         }
 
         var sources = Sources(context.RunContext);
@@ -373,13 +373,22 @@ public sealed class ClaimCheckHandler(
         }
     }
 
+    /// Doğrulanacak cümleler — senaryodan YA DA makaleden (P6-04).
+    ///
+    /// İddia doğrulama içerik türünden bağımsız: girdisi cümleler ve
+    /// kaynaklar. Yalnızca `script`'e bakmak, blog hattında doğrulamayı
+    /// sessizce kapatmak olurdu — makale kaynaksız yayınlanır ve
+    /// hiçbir kontrol bunu söylemezdi.
     private static List<string> Sentences(JsonElement runContext)
     {
         var sentences = new List<string>();
 
-        if (!runContext.TryGetProperty("script", out var script)
-            || !script.TryGetProperty("sentences", out var array)
-            || array.ValueKind != JsonValueKind.Array)
+        if ((!runContext.TryGetProperty("script", out var script)
+                || !script.TryGetProperty("sentences", out var array)
+                || array.ValueKind != JsonValueKind.Array)
+            && (!runContext.TryGetProperty("article", out script)
+                || !script.TryGetProperty("sentences", out array)
+                || array.ValueKind != JsonValueKind.Array))
         {
             return sentences;
         }

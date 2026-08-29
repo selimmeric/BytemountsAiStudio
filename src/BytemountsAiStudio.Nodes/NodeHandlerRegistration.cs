@@ -46,6 +46,19 @@ public static class NodeHandlerRegistration
     {
         var llm = new FakeLlmProvider
         {
+            // SAHTE MAKALE, GEÇERLİ BİÇİMDE (P6-04). Denetim başlık,
+            // uzunluk ve atıf istiyor; bunları sağlamayan bir sahte
+            // çıktı, blog hattını sahte koşuda hiç sınayamaz hâle
+            // getirirdi.
+            TextResponder = request =>
+            {
+                var text = string.Concat(request.Messages.Select(m => m.Content));
+
+                return text.Contains("MAKALE SENARYO DEĞİL", StringComparison.Ordinal)
+                    ? FakeArticle(text)
+                    : null;
+            },
+
             // Sahte model senaryoyu istemden turetiyor: handler'in sahte
             // saglayiciyi onceden doldurmasi gerekmiyor.
             ToolResponder = (tool, messages) =>
@@ -130,6 +143,10 @@ public static class NodeHandlerRegistration
             .Register(new TopicSelectHandler(uniqueness))
             .Register(new ResearchHandler())
             .Register(new ScriptGenerateHandler(llm))
+            // Makale node'u HER İKİ hatta da kayıtlı: sahte hatta
+            // kayıtlı olmasaydı blog grafı sahte koşuda "bilinmeyen
+            // node tipi" diye reddedilirdi (onay kapısıyla aynı ders).
+            .Register(new ArticleGenerateHandler(llm))
             // UZUN VIDEO: bolum plani + bolum bolum senaryo (P3-02).
             //
             // Ayni kayitta duruyorlar ama ayni GRAFTA degil: kisa
@@ -229,6 +246,10 @@ public static class NodeHandlerRegistration
             // senaryo isteği Cheap'e düşüyor ve bu çıktıya yazılıyor —
             // "senaryo yerel modelle üretildi" bilgisi kayda geçsin.
             .Register(new ScriptGenerateHandler(llm))
+            // Makale node'u HER İKİ hatta da kayıtlı: sahte hatta
+            // kayıtlı olmasaydı blog grafı sahte koşuda "bilinmeyen
+            // node tipi" diye reddedilirdi (onay kapısıyla aynı ders).
+            .Register(new ArticleGenerateHandler(llm))
             // UZUN VIDEO: bolum plani + bolum bolum senaryo (P3-02).
             //
             // Ayni kayitta duruyorlar ama ayni GRAFTA degil: kisa
@@ -311,6 +332,7 @@ public static class NodeHandlerRegistration
         "topic.select",
         "research.deep",
         "script.generate",
+        "article.generate",
         "chapter.plan",
         "script.long",
         "tts.synthesize",
@@ -325,6 +347,43 @@ public static class NodeHandlerRegistration
         "qc.semantic",
         "human.approval",
     };
+
+    /// Sahte ama BİÇİMİ GEÇERLİ makale (P6-04).
+    ///
+    /// İki başlık, iki yüzden fazla kelime ve `[1]` atfı: denetimin
+    /// istediği her şey. Denetimi atlatan bir sahte çıktı, denetimin
+    /// çalışıp çalışmadığını da gizlerdi.
+    private static string FakeArticle(string prompt)
+    {
+        var turkish = prompt.Contains("tr-TR", StringComparison.Ordinal);
+        var builder = new System.Text.StringBuilder();
+
+        builder.AppendLine(turkish ? "# Sahte makale" : "# Fake article").AppendLine();
+        builder.AppendLine(turkish
+            ? "Bu metin sahte hat tarafından üretildi ve yalnızca boru hattını sınıyor [1]."
+            : "This text was produced by the fake pipeline and only exercises the pipeline [1].");
+
+        for (var section = 1; section <= 2; section++)
+        {
+            builder.AppendLine();
+            builder.Append("## ").AppendLine(turkish ? $"Bolum {section}" : $"Section {section}");
+            builder.AppendLine();
+
+            for (var paragraph = 0; paragraph < 6; paragraph++)
+            {
+                builder.Append(turkish
+                    ? "Kaynaklara gore bu bolumde anlatilan sey dogrulanabilir bir olgudur"
+                    : "According to the sources this section states a verifiable fact");
+
+                builder.Append(" [1]. ");
+                builder.AppendLine(turkish
+                    ? "Ayrintilar arastirma adiminda toplanan belgelerden geliyor ve metin bunlarin disina cikmiyor."
+                    : "Details come from documents gathered in the research step and the text stays within them.");
+            }
+        }
+
+        return builder.ToString();
+    }
 
     /// Sahte hattın müzik indiricisi.
     ///
