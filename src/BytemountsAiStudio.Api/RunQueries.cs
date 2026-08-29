@@ -210,10 +210,38 @@ internal static class RunQueries
         {
             using var document = System.Text.Json.JsonDocument.Parse(json);
 
-            return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
-                   && document.RootElement.TryGetProperty(name, out var value)
-                ? value.GetString()
-                : null;
+            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            // ***ALAN ADI BUYUK/KUCUK HARFTEN BAGIMSIZ ARANIYOR.***
+            //
+            // `TryGetProperty` HARFE DUYARLI ve motor hatayi
+            // `JsonSerializer.Serialize(error)` ile secenek VERMEDEN
+            // yaziyor: cikan JSON `{"Code":...,"Message":...}`. Burasi
+            // `"code"` ariyordu ve ikisi HICBIR ZAMAN eslesmiyordu --
+            // yani kosu detayindaki hata kodu ve mesaji HER ZAMAN
+            // bostu, tam da onlara ihtiyac duyulan anda.
+            //
+            // Mevcut test bunu yakalayamiyordu cunku ELLE yazilmis
+            // kucuk harfli JSON besliyordu: uretimin hic uretmedigi
+            // bir sekli sinamak.
+            //
+            // OKUYAN TARAF DUZELTILDI, YAZAN DEGIL: veritabaninda
+            // zaten `Code` ile yazilmis satirlar var ve yazani
+            // degistirmek onlari kalici olarak okunamaz kilardi.
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return property.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? property.Value.GetString()
+                        : null;
+                }
+            }
+
+            return null;
         }
         catch (System.Text.Json.JsonException)
         {

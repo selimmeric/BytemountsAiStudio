@@ -68,6 +68,30 @@ public sealed class ErrorFieldTests
         Assert.Equal("ses yok", RunQueries.ErrorMessageOf(json));
     }
 
+    /// ***MOTORUN GERCEKTEN YAZDIGI SEKIL OKUNUYOR.***
+    ///
+    /// BU TESTIN VAR OLMA SEBEBI BIR HATA: yukaridaki test ELLE
+    /// yazilmis kucuk harfli JSON besliyordu ve geciyordu. Motor ise
+    /// hatayi `JsonSerializer.Serialize(error)` ile secenek VERMEDEN
+    /// yaziyor, yani `{"Code":...,"Message":...}`. Okuyan taraf
+    /// harfe duyarli arama yapiyordu ve ikisi HICBIR ZAMAN
+    /// eslesmiyordu -- kosu detayindaki hata kodu ve mesaji HER ZAMAN
+    /// bostu.
+    ///
+    /// Test artik ELLE JSON YAZMIYOR: gercek `Error` nesnesini gercek
+    /// serilestiriciyle yaziyor. Uretimin uretmedigi bir sekli
+    /// sinamak, sinamamakla ayni sey.
+    [Fact]
+    public void MotorunYazdigiSekil_Okunuyor()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            BytemountsAiStudio.Core.Errors.Error.Resource(
+                "tts.no_voice", "ses yok", TimeSpan.FromMinutes(5)));
+
+        Assert.Equal("tts.no_voice", RunQueries.ErrorCodeOf(json));
+        Assert.Equal("ses yok", RunQueries.ErrorMessageOf(json));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
