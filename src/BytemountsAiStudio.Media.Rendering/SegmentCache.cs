@@ -41,7 +41,12 @@ public static class SegmentCache
     /// oluyor. Olmasaydı, düzeltilen bir hata eski segmentlerde
     /// yaşamaya devam ederdi — ve o hata artık kodda görünmediği için
     /// teşhis edilemezdi.
-    public const int Version = 1;
+    ///
+    /// SURUM 2 (29 Agu 2026): Ken Burns hareketinin VARIS noktasi
+    /// (`ToX`/`ToY`) ve yumusatma egrisi (`Easing`) anahtara
+    /// eklendi -- onceki surumle uretilmis segmentler eksik
+    /// anahtarla saklanmis durumda ve yeniden uretilmeleri gerekiyor.
+    public const int Version = 2;
 
     /// Bir sahnenin önbellek anahtarı.
     public static SegmentKey KeyFor(Scene scene, Canvas canvas, IReadOnlyList<string>? fontStack = null)
@@ -71,9 +76,21 @@ public static class SegmentCache
         builder.Append(CultureInfo.InvariantCulture, $"a{scene.Visual.Asset.Sha256}|");
         builder.Append(CultureInfo.InvariantCulture, $"f{scene.Visual.Fit}|");
 
+        // ***HAREKETIN VARIS NOKTASI VE EGRISI DE ANAHTARDA.***
+        //
+        // `ToX`, `ToY` ve `Easing` EKSIKTI: ayni gorsel, ayni sure,
+        // ayni baslangic olcegi ve konumuyla ama FARKLI YONE panning
+        // yapan iki sahne AYNI anahtari uretiyordu. Onbellek yanlis
+        // segmenti donuyordu ve hata sessizdi -- video geciyor,
+        // suresi dogru, yalnizca kamera baska yone gidiyor.
+        //
+        // Retry'da daha da sinsi: hedefli bir duzeltme hareketi
+        // degistirse bile eski segment yeniden kullanilirdi, yani
+        // duzeltme HICBIR SEY yapmazdi.
         builder.Append(scene.Visual.Motion is { } motion
             ? string.Create(CultureInfo.InvariantCulture,
-                $"m{motion.FromScale}/{motion.ToScale}/{motion.FromX}/{motion.FromY}|")
+                $"m{motion.FromScale}/{motion.ToScale}/{motion.FromX}/{motion.FromY}/"
+                + $"{motion.ToX}/{motion.ToY}/{motion.Easing}|")
             : "m-|");
 
         // ÜSTÜNDEKİ YAZI: aynı görsel üzerinde farklı metin, farklı

@@ -223,6 +223,89 @@ public sealed class SegmentCacheTests
             SegmentCache.KeyFor(Scene(0, 0, 3000), Shorts).Value,
             StringComparison.Ordinal);
 
-        Assert.Equal(1, SegmentCache.Version);
+        // ***SURUM SABIT BIR SAYIYA BAGLANMIYOR.***
+        //
+        // Once `Assert.Equal(1, ...)` yaziyordu ve render mantigi
+        // degistiginde surumu artirmak bu testi dusuruyordu -- yani
+        // test, dogru davranisi CEZALANDIRIYORDU. Surumun artmasi
+        // beklenen bir olay; sinanacak sey anahtarin surumu TASIMASI.
+        Assert.True(SegmentCache.Version >= 1);
     }
+
+    /* ---- Ken Burns hareketi ---- */
+
+    private static Scene Moving(
+        double toX, double toY, Easing easing = Easing.EaseInOut)
+        => new()
+        {
+            Index = 0,
+            Range = TimeRange.FromDuration(new Ms(0), new Ms(3000)),
+            VoiceSegmentIds = ["s0"],
+            Visual = new SceneVisual
+            {
+                Asset = Asset("a1"),
+                Motion = new KenBurns
+                {
+                    FromScale = 1.0,
+                    ToScale = 1.2,
+                    FromX = 0,
+                    FromY = 0,
+                    ToX = toX,
+                    ToY = toY,
+                    Easing = easing,
+                },
+            },
+        };
+
+    /// ***FARKLI YONE PANNING FARKLI ANAHTAR URETIYOR.***
+    ///
+    /// BU TESTIN VAR OLMA SEBEBI BIR HATA: anahtar `ToX` ve `ToY`
+    /// alanlarini ICERMIYORDU. Ayni gorsel, ayni sure, ayni baslangic
+    /// olcegi ve konumuyla ama FARKLI YONE panning yapan iki sahne
+    /// AYNI anahtari uretiyordu -- onbellek yanlis segmenti donuyordu.
+    ///
+    /// Hata sessizdi: video geciyor, suresi dogru, yalnizca kamera
+    /// baska yone gidiyor. Retry'da daha da sinsi -- hedefli bir
+    /// duzeltme hareketi degistirse bile eski segment yeniden
+    /// kullanilirdi, yani duzeltme HICBIR SEY yapmazdi.
+    [Fact]
+    public void FarkliVarisNoktasi_FarkliAnahtar()
+        => Assert.NotEqual(
+            SegmentCache.KeyFor(Moving(0.2, 0), Shorts).Value,
+            SegmentCache.KeyFor(Moving(-0.2, 0), Shorts).Value);
+
+    /// DIKEY PANNING DE AYIRT EDILIYOR.
+    [Fact]
+    public void FarkliDikeyVaris_FarkliAnahtar()
+        => Assert.NotEqual(
+            SegmentCache.KeyFor(Moving(0, 0.2), Shorts).Value,
+            SegmentCache.KeyFor(Moving(0, -0.2), Shorts).Value);
+
+    /// ***YUMUSATMA EGRISI DE ANAHTARDA.***
+    ///
+    /// Ayni iki nokta arasinda dogrusal ve yumusatilmis hareket
+    /// FARKLI kareler uretiyor; anahtar ayni olsaydi onbellek
+    /// birini digerinin yerine dondururdu.
+    [Fact]
+    public void FarkliEgri_FarkliAnahtar()
+        => Assert.NotEqual(
+            SegmentCache.KeyFor(Moving(0.2, 0, Easing.Linear), Shorts).Value,
+            SegmentCache.KeyFor(Moving(0.2, 0, Easing.EaseInOut), Shorts).Value);
+
+    /// AYNI HAREKET AYNI ANAHTAR.
+    [Fact]
+    public void AyniHareket_AyniAnahtar()
+        => Assert.Equal(
+            SegmentCache.KeyFor(Moving(0.2, 0.1), Shorts).Value,
+            SegmentCache.KeyFor(Moving(0.2, 0.1), Shorts).Value);
+
+    /// ***ANAHTAR SURUMU ARTTI: ESKI SEGMENTLER GECERSIZ.***
+    ///
+    /// Eksik anahtarla saklanmis segmentler yeniden uretilmek
+    /// zorunda; olmasaydi duzeltilen hata eski segmentlerde yasamaya
+    /// devam ederdi ve artik kodda gorunmedigi icin teshis
+    /// edilemezdi.
+    [Fact]
+    public void HareketDuzeltmesi_SurumuArtirdi()
+        => Assert.True(SegmentCache.Version >= 2);
 }
