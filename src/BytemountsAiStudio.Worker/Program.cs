@@ -71,7 +71,7 @@ builder.Services.AddScoped<IStorageProvider>(sp =>
 // Karar tek yerde (`RegistrySelection`) ve Api ile Cli ayni yeri
 // cagiriyor: uc host'un uc ayri karar vermesi, ayrismanin kendisiydi.
 builder.Services.AddScoped(sp =>
-    RegistrySelection.Build(
+    RegistrySelection.BuildFromStore(
         sp.GetRequiredService<IStorageProvider>(),
         sp.GetRequiredService<IHttpClientFactory>().CreateClient("nodes"),
         outputRoot,
@@ -85,6 +85,10 @@ builder.Services.AddScoped(sp =>
             sp.GetRequiredService<StudioDbContext>(),
             reason => Log.Warning("Saglayici zinciri eksik kuruldu: {Sebep}", reason)),
         new QuotaPoolService(sp.GetRequiredService<StudioDbContext>()),
+        // SIFRELI KIMLIK DEPOSU: `bmai credential set` ile girilen
+        // anahtarlar buradan saglayicilara ulasiyor. Kopru yoktu ve
+        // her anahtar ortam degiskeninden geliyordu.
+        new CredentialStore(sp.GetRequiredService<StudioDbContext>(), KeyRing.Create()),
         onWarning: mesaj => Log.Information("{Mesaj}", mesaj)));
 
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();

@@ -22,6 +22,28 @@ public static class Credentials
     /// TEK YERDE: kod bir yerde `default`, göç dosyası başka bir yerde
     /// boş dizge yazsaydı, mevcut kayıtlar havuzda GÖRÜNMEZ olurdu.
     public const string DefaultAccount = "default";
+
+    /// Hesaba göre ortam değişkeni adı (P4-04).
+    ///
+    /// ***KURAL BURADA, YAYINCININ İÇİNDE DEĞİL.*** Önce
+    /// `YouTubePublisher` içindeydi ve orada tek kullanıcısı vardı.
+    /// Şifreli kimlik deposu köprüsü (`DatabaseCredentialSource`) aynı
+    /// kuralı uygulamak zorunda: depo hesaba göre saklıyor, yayıncı
+    /// hesaba göre okuyor. İki yerde ayrı yazılsalardı, birinin
+    /// `PROJE_02` diğerinin `PROJE-02` üretmesi yeterdi — ve sonuç
+    /// "anahtar kayıtlı ama bulunamıyor" olurdu.
+    ///
+    /// KURAL: varsayılan hesap için `YOUTUBE_REFRESH_TOKEN`,
+    /// `proje-02` hesabı için `YOUTUBE_REFRESH_TOKEN_PROJE_02`.
+    ///
+    /// Büyük harf çevirisi `InvariantCulture` ile: Türkçe kültürde
+    /// `"i"` → `"İ"` olur ve değişken adı hiçbir zaman eşleşmezdi —
+    /// bu depoda birkaç kez ödenmiş bir hata.
+    public static string VariableFor(string name, string? account)
+        => string.IsNullOrWhiteSpace(account)
+           || string.Equals(account, DefaultAccount, StringComparison.Ordinal)
+            ? name
+            : name + "_" + account.ToUpperInvariant().Replace('-', '_');
 }
 
 public interface ICredentialStore

@@ -172,6 +172,82 @@ public sealed class CredentialStore : ICredentialStore
         })];
     }
 
+    /// Senkron listeleme — DI fabrikasindan cagriliyor.
+    ///
+    /// ***`.Result` DEGIL, GERCEK SENKRON SORGU.*** Kayit bir DI
+    /// fabrikasindan kuruluyor ve o fabrika senkron; asenkron bir
+    /// cagriyi beklemek worker is parcacigini bloke eder ve klasik
+    /// kilitlenmeyi uretir. EF'in kendi senkron sorgusu oyle bir risk
+    /// tasimiyor -- bekleyen bir `Task` yok.
+    ///
+    /// Asenkron esi (`ListAsync`) duruyor ve CLI onu kullaniyor: orada
+    /// senkron olmasi icin bir sebep yok.
+    public IReadOnlyList<CredentialInfo> List(Guid? channelId)
+        => [.. _db.Credentials
+            .AsNoTracking()
+            .Where(c => c.ChannelId == null || c.ChannelId == channelId)
+            .OrderBy(c => c.ProviderKey)
+            .ToList()
+            .Select(c => new CredentialInfo
+            {
+                ProviderKey = c.ProviderKey,
+                Account = c.Account,
+                ChannelId = c.ChannelId,
+                Source = "db",
+                Masked = c.Masked,
+                UpdatedAt = c.UpdatedAt,
+                LastUsedAt = c.LastUsedAt,
+            })];
+
+    /// Senkron okuma — ayni gerekce.
+    ///
+    /// KAPSAM SIRASI ASENKRON ESIYLE AYNI: once kanala ozel, sonra
+    /// genel. Iki ayri oncelik kurali olsaydi ayni anahtar iki yoldan
+    /// farkli deger verirdi.
+    public Result<string> Get(string providerKey, Guid? channelId, string account)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
+
+        var credential = channelId is { } id
+            ? Find(providerKey, id, account) ?? Find(providerKey, null, account)
+            : Find(providerKey, null, account);
+
+        return credential is null
+            ? Error.Permanent("credential.not_found",
+                $"'{providerKey}' icin kimlik yok (hesap: {account}).")
+            : Unprotect(credential);
+    }
+
+    private Credential? Find(string providerKey, Guid? channelId, string account)
+        => _db.Credentials.AsNoTracking().FirstOrDefault(
+            c => c.ProviderKey == providerKey && c.ChannelId == channelId && c.Account == account);
+
+    /// Senkron cozme.
+    ///
+    /// SON KULLANIM DAMGASI YAZILMIYOR: bu yol kayit kurulurken
+    /// KOSUYOR, anahtar gercekten kullanilirken degil. Damgayi burada
+    /// atmak, hic cagrilmayan bir saglayicinin anahtarini
+    /// "kullanildi" gostermekti -- ve o damga "hangi anahtar olu"
+    /// sorusunun tek cevabi.
+    private Result<string> Unprotect(Credential credential)
+    {
+        try
+        {
+            var plain = _protector.Unprotect(credential.CipherText);
+
+            SecretRedactor.Register(plain);
+
+            return Result.Success(plain);
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            return Error.Permanent(
+                "credential.undecryptable",
+                $"'{credential.ProviderKey}' anahtari cozulemedi.",
+                "Data Protection anahtar halkasi degismis olabilir; anahtari yeniden girin. " + ex.Message);
+        }
+    }
+
     private Task<Credential?> FindAsync(
         string providerKey, Guid? channelId, string account, CancellationToken cancellationToken)
         => _db.Credentials.FirstOrDefaultAsync(

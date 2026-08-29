@@ -615,13 +615,16 @@ static async Task<int> RunWorkflowAsync(string[] args, bool open)
     //
     // Ortam degiskeni yalnizca ACIK BIR SECIMIN OLMADIGI yerlerde
     // (Worker ve Api) karar veriyor.
-    var registry = RegistrySelection.Build(
+    var registry = RegistrySelection.BuildFromStore(
         storage, http, outputDirectory,
         uniqueness: uniqueness,
         channels: channelPolicy,
         pipeline: pipeline,
         // GERCEK KOTA HAVUZU (P4-04).
         quota: new QuotaPoolService(db),
+        // SIFRELI KIMLIK DEPOSU: `bmai credential set` ile girilen
+        // anahtarlar buradan saglayicilara ulasiyor.
+        store: new CredentialStore(db, KeyRing.Create()),
         kindOverride: open ? PipelineKind.Open : PipelineKind.Fake,
         onWarning: Console.Error.WriteLine);
 

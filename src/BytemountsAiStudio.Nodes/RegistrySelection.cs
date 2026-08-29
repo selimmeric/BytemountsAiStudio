@@ -140,6 +140,46 @@ public static class RegistrySelection
                 ffmpegPath, ffprobePath);
     }
 
+    /// Kimlik kaynagini SIFRELI DEPODAN yukleyip kaydi kurar.
+    ///
+    /// ***`bmai credential set` KOMUTUNU ANLAMLI KILAN YER BURASI.***
+    /// `ICredentialSource`'un uretim gerceklemesi YOKTU ve her
+    /// saglayici `credentials?.Get(...) ?? Environment...` yazdigi
+    /// icin HER ANAHTAR ORTAM DEGISKENINDEN geliyordu. Sifreli depo
+    /// yaz-bir-daha-okunmaz bir kutuydu: komut calisiyor, satiri
+    /// sifreliyor, kaydediyor -- ve hicbir yayin o degeri gormuyordu.
+    ///
+    /// SIFRELI DEPO ORTAM DEGISKENINI EZIYOR: deponun kendi oncelik
+    /// sirasiyla ayni. Ters olsaydi, makinede unutulmus eski bir
+    /// degisken yeni girilen anahtari sessizce gecersiz kilardi.
+    public static NodeRegistry BuildFromStore(
+        IStorageProvider storage,
+        HttpClient http,
+        string outputDirectory,
+        ITopicUniqueness uniqueness,
+        IChannelPolicy channels,
+        ProviderPipeline? pipeline,
+        IQuotaPool quota,
+        Persistence.Providers.CredentialStore store,
+        Guid? channelId = null,
+        PipelineKind? kindOverride = null,
+        Action<string>? onWarning = null)
+    {
+        var credentials = Persistence.Providers.DatabaseCredentialSource
+            .Load(store, Catalog(onWarning), channelId, onWarning);
+
+        // KAC ANAHTAR YUKLENDIGI SOYLENIYOR. Sifir gormek, "anahtari
+        // kaydettim ama calismiyor" sorusunun ilk cevabi -- ve o soru
+        // aksi halde saatler yiyor.
+        onWarning?.Invoke(credentials.Count > 0
+            ? $"Sifreli depodan {credentials.Count} anahtar yuklendi."
+            : "Sifreli depoda anahtar yok; saglayicilar ortam degiskenlerine bakiyor.");
+
+        return Build(
+            storage, http, outputDirectory, uniqueness, channels, pipeline, quota,
+            kindOverride, onWarning, credentials: credentials);
+    }
+
     /// Katalogu okur; okunamazsa `null`.
     ///
     /// OKUNAMAMASI URETIMI DURDURMUYOR: kayit sabit varsayilanlarla

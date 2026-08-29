@@ -30,6 +30,26 @@ COPY src/ ./src/
 # olarak görüldü. Artık boş glob derlemeyi düşürüyor.
 COPY prompts/ ./prompts/
 
+# ***SAGLAYICI KATALOGU DA GEREKIYOR -- AYNI HATANIN IKINCI TEKRARI.***
+#
+# Yukaridaki istem dosyasi notu bu hatayi bir kez anlatiyor ve
+# `config/providers.json` ayni sinifta ikinci ornekti: imajda dosya
+# yoktu, `ProviderCatalog.Load` her kosuda dusuyor ve sonuc SESSIZ
+# BIR KAYIP oluyordu --
+#
+#   - katalogdaki 11 hiz siniri hic uygulanmiyor,
+#   - saglayici sirasi (`routing`) okunamadigi icin kodun sabit
+#     varsayilanina dusuluyor: anahtar girilse bile yeni saglayici
+#     devreye girmiyor,
+#   - YouTube gunluk kotasi katalogdan degil kod sabitinden geliyor,
+#     yani Google kota artirimi verse konteynerde hicbir sey
+#     degismiyor.
+#
+# Imaj yine SAGLIKLI basliyor ve video da uretiyor -- eksik olan sey
+# yalnizca sinirlar ve yonlendirme. Tam da bu yuzden aylarca fark
+# edilmezdi.
+COPY config/ ./config/
+
 RUN dotnet restore "src/${PROJECT}/${PROJECT}.csproj"
 
 RUN dotnet publish "src/${PROJECT}/${PROJECT}.csproj" \
@@ -84,6 +104,15 @@ RUN useradd --create-home --uid 10001 fabrika \
 
 WORKDIR /app
 COPY --from=build --chown=fabrika:fabrika /app ./
+
+# KATALOG CALISMA DIZININE: `PipelineSelection.CatalogPath()` onu
+# `<calisma dizini>/config/providers.json` altinda ariyor ve calisma
+# dizini `/app`. Yayin ciktisina kendiliginden girmiyor -- derleme
+# agacindan ayrica kopyalaniyor.
+#
+# `BMAI_PROVIDERS` ile baska bir yola baglanabiliyor; kapta bir birim
+# baglayip katalogu disaridan yonetmek isteyen kurulumlar icin.
+COPY --from=build --chown=fabrika:fabrika /src/config ./config
 
 ENV BMAI_STORAGE=/veri/storage \
     BMAI_OUTPUT=/veri/output \

@@ -36,6 +36,58 @@ public static class PipelineSelection
     /// scoped (deftere bağlı), ama önbellek süreç ömrü boyunca yaşıyor.
     private static readonly InMemoryResultCache SharedCache = new();
 
+    /// ***HIZ SINIRI VE DEVRE KESICI SUREC OMURLU OLMAK ZORUNDA.***
+    ///
+    /// Onceden her cagrida yeniden kuruluyorlardi ve zincir SCOPED:
+    /// `QueueWorker` her is icin yeni bir kapsam aciyor, yani kapsam =
+    /// TEK NODE CALISTIRMASI. Sonucu sessiz ve tam da onlemeye
+    /// calistiklari seydi:
+    ///
+    ///   - Jeton kovasi her iste DOLU basliyordu. Sinir "hesap basina"
+    ///     degil "node calistirmasi basina" uygulaniyordu -- yani hic
+    ///     uygulanmiyordu. `ResilienceSelection`'in kendi yorumu
+    ///     "sinir WORKER basina degil HESAP basina" diyor; gercekte
+    ///     worker basina bile degildi.
+    ///   - Devre kesici her iste KAPALI basliyordu. Bes ardisik hata
+    ///     esigi TEK node icinde dolmadikca devre hicbir zaman
+    ///     acilmiyordu.
+    ///   - `BMAI_REDIS` tanimliysa her is yeni bir
+    ///     `ConnectionMultiplexer` aciyor ve hicbiri kapanmiyordu.
+    ///
+    /// Maliyet defteri ve butce kapisi SCOPED KALIYOR: ikisi de
+    /// veritabanina bagli ve `DbContext` kapsam omurlu.
+    private static readonly Lazy<Resilience> Shared = new(CreateResilience, isThreadSafe: true);
+
+    private sealed record Resilience(IRateLimiter Limiter, ICircuitBreaker Breaker, string? Warning);
+
+    private static Resilience CreateResilience()
+    {
+        string? warning = null;
+
+        var catalog = ProviderCatalog.Load(CatalogPath());
+
+        if (catalog.IsFailure)
+        {
+            warning = $"Saglayici katalogu okunamadi ({CatalogPath()}): {catalog.Error.Message}. "
+                + "Hiz sinirlari UYGULANMIYOR.";
+        }
+
+        var policies = catalog.IsSuccess
+            ? catalog.Value.RateLimitPolicies()
+            : new Dictionary<string, RateLimitPolicy>(StringComparer.Ordinal);
+
+        // BAGLANTI BIR KEZ, IKI TUKETICIYE: hiz siniri ve devre kesici
+        // ayni Redis'i kullaniyor. Iki baglanti acmak, birinin dusup
+        // digerinin ayakta kalmasi ve sistemin yari dagitik davranmasi
+        // demekti.
+        var redis = ResilienceSelection.TryConnect();
+
+        return new Resilience(
+            ResilienceSelection.RateLimiter(redis, policies),
+            ResilienceSelection.CircuitBreaker(redis, BreakerThreshold()),
+            warning);
+    }
+
     /// Zinciri kurar.
     ///
     /// `ledger` AYNI ZAMANDA bağlam taşıyıcısı: `RunId`/`NodeId`/
@@ -105,33 +157,22 @@ public static class PipelineSelection
         ArgumentNullException.ThrowIfNull(db);
 
         var ledger = new CostLedger(db, timeProvider);
-        var catalog = ProviderCatalog.Load(CatalogPath());
 
-        if (catalog.IsFailure)
+        // SUREC OMURLU BOLUM BIR KEZ KURULUYOR; buradaki cagri onu
+        // yalnizca OKUYOR. Uyari her kapsamda tekrar edilmiyor --
+        // is basina bir satir, gunde binlerce satir demekti.
+        var shared = Shared.Value;
+
+        if (shared.Warning is { } warning && Interlocked.Exchange(ref _warned, 1) == 0)
         {
-            onDegraded?.Invoke(
-                $"Sağlayıcı kataloğu okunamadı ({CatalogPath()}): {catalog.Error.Message}. "
-                + "Hız sınırları UYGULANMIYOR.");
+            onDegraded?.Invoke(warning);
         }
-
-        var policies = catalog.IsSuccess
-            ? catalog.Value.RateLimitPolicies()
-            : new Dictionary<string, RateLimitPolicy>(StringComparer.Ordinal);
-
-        // BAĞLANTI BİR KEZ, İKİ TÜKETİCİYE: hız sınırı ve devre kesici
-        // aynı Redis'i kullanıyor. İki bağlantı açmak, birinin düşüp
-        // diğerinin ayakta kalması ve sistemin yarı dağıtık davranması
-        // demekti.
-        var redis = ResilienceSelection.TryConnect(
-            ex => onDegraded?.Invoke($"Redis'e bağlanılamadı: {ex.Message}. Sınırlar süreç içi."));
 
         return Build(
             ledger,
             new BudgetGate(db, ledger),
-            ResilienceSelection.RateLimiter(redis, policies,
-                ex => onDegraded?.Invoke($"Dağıtık hız sınırı düştü: {ex.Message}")),
-            ResilienceSelection.CircuitBreaker(redis, BreakerThreshold(),
-                onDegraded: ex => onDegraded?.Invoke($"Dağıtık devre kesici düştü: {ex.Message}")),
+            shared.Limiter,
+            shared.Breaker,
             timeProvider: timeProvider);
     }
 
@@ -146,6 +187,8 @@ public static class PipelineSelection
             System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0
                 ? value
                 : 3;
+
+    private static int _warned;
 
     public static int BreakerThreshold()
         => int.TryParse(Environment.GetEnvironmentVariable(BreakerThresholdVariable),

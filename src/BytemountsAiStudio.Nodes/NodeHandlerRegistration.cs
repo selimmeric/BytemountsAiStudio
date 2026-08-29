@@ -322,7 +322,33 @@ public static class NodeHandlerRegistration
         // ZINCIR KATALOGDAN; katalog yoksa ya da bos donduyse eski
         // sabit siradan. Bos donmesi bir YAPILANDIRMA hatasi ve
         // sessiz gecilmiyor.
-        var llmChain = Fallback(factory?.Llm(), () => Chain(http), "llm", onWarning);
+        // ***ZINCIR BILESIGIN ICINE TAKILIYOR, DISINA DEGIL.***
+        //
+        // Once `.Wrap(pipeline)` `TieredLlmProvider`'in KENDISINE
+        // uygulaniyordu ve o bilesigin anahtari `"tiered"`. Sonucu
+        // sessiz ve agirdi:
+        //
+        //   - Hiz sinirlayici `"tiered"` icin kova bulamiyor ve
+        //     KOSULSUZ izin veriyordu: katalogdaki 10/dk sinirlari hic
+        //     uygulanmiyordu.
+        //   - Devre kesici `"tiered"` uzerinden calisiyordu; Pollinations
+        //     402 verip Ollama'ya dusuldugunde BASARI kaydediliyordu --
+        //     devre hicbir zaman acilmiyor ve her cagri 402 bedelini
+        //     yeniden oduyordu.
+        //   - Maliyet defteri butun LLM harcamasini tek satirda
+        //     `"tiered"` yaziyordu ve fiyat listesinde oyle bir anahtar
+        //     yok: ucretli bir saglayici baglandigi an defter SIFIR
+        //     yazacakti ve butce kapisi hic dolmayacakti.
+        //   - Node ciktisi her kosuda `provider: "tiered"` diyordu;
+        //     hangi saglayicinin urettigi ve yedege dusulup
+        //     dusulmedigi hicbir yerde yoktu.
+        //
+        // Ic uyeler sarilinca hepsi gercek anahtarla calisiyor ve
+        // `LastRoute` da gercek adi bildiriyor -- sarmalayici `Key`'i
+        // oldugu gibi geciriyor.
+        var llmChain = Fallback(factory?.Llm(), () => Chain(http), "llm", onWarning)
+            .Select(p => p.Wrap(pipeline))
+            .ToList();
 
         var llm = new TieredLlmProvider(
             new Dictionary<ModelTier, IReadOnlyList<ILlmProvider>>
@@ -334,7 +360,7 @@ public static class NodeHandlerRegistration
                 [ModelTier.Cheap] = llmChain,
                 [ModelTier.Standard] = llmChain,
                 [ModelTier.Strong] = llmChain,
-            }).Wrap(pipeline);
+            });
 
         // Araclar yan-servisi (P1-04). Kapali olabilir ve bu NORMAL:
         // ilk cagri Kaynak hatasi donuyor, TTS isleyicisi karakter
@@ -400,6 +426,8 @@ public static class NodeHandlerRegistration
             // geciyor. Sirayi koda gommek, kabin farkli bir sira
             // istemesi halinde KOD degistirmek demekti.
             .Register(new TtsSynthesizeHandler(
+                // ZINCIR IC UYELERDE: `FallbackTtsProvider`'in anahtari
+                // `"tts-fallback"` ve o anahtar katalogda yok.
                 new FallbackTtsProvider(Fallback(
                     factory?.Tts(),
                     () =>
@@ -407,7 +435,7 @@ public static class NodeHandlerRegistration
                         new WindowsSpeechTtsProvider(),
                         new SidecarTtsProvider(http, ToolsSidecarOptions.FromEnvironment()),
                     ],
-                    "tts", onWarning)).Wrap(pipeline),
+                    "tts", onWarning).Select(p => p.Wrap(pipeline)).ToList()),
                 storage,
                 ffprobePath,
                 sidecar,
@@ -423,12 +451,18 @@ public static class NodeHandlerRegistration
                 // STOK VE URETICI GORSEL DE KATALOGDAN. Pexels
                 // adaptoru yazilmis ve HICBIR YERDEN kurulmuyordu:
                 // anahtar gelse bile kullanilamazdi.
+                // ZINCIR IC UYELERDE: `StockFirstImageProvider`'in
+                // anahtari `"stock-first"` ve `assets.source_provider`
+                // her satirda o yaziyordu -- yani "stok mu, uretilmis
+                // mi" ayrimi hicbir varlik kaydinda YOKTU.
                 new StockFirstImageProvider(
                     Fallback(factory?.StockImages(),
-                        () => [new OpenverseImageProvider(http)], "image.stock", onWarning)[0],
+                        () => [new OpenverseImageProvider(http)], "image.stock", onWarning)[0]
+                        .Wrap(pipeline),
                     Fallback(factory?.GenerativeImages(),
-                        () => [new PollinationsImageProvider(http)], "image.generative", onWarning)[0],
-                    StockFirstImageProvider.HttpDownloader(http)).Wrap(pipeline),
+                        () => [new PollinationsImageProvider(http)], "image.generative", onWarning)[0]
+                        .Wrap(pipeline),
+                    StockFirstImageProvider.HttpDownloader(http)),
                 storage))
             // MUZIK TIMELINE'DAN ONCE: derleme adimi baglamdan muzigi
             // okuyor ve o sirada indirilmis olmasi gerekiyor.

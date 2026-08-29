@@ -587,28 +587,15 @@ public sealed class YouTubePublisher(
     private string? Read(string name)
         => credentials?.Get(name) ?? Environment.GetEnvironmentVariable(name);
 
-    /// Hesaba göre değişken adı (P4-04).
+    /// Hesaba göre değişken adı — kural `Credentials.VariableFor`'da.
     ///
-    /// ***KOTA HAVUZUNUN SEÇTİĞİ HESAP BURADA GERÇEKLEŞİYOR.*** Havuz
-    /// bir hesap seçip defterine yazıyor; yükleme o hesabın kimliğiyle
-    /// gitmezse kota sayılmayan bir projeden harcanır ve defterde
-    /// kullanılmayan bir proje dolar.
-    ///
-    /// KURAL: varsayılan hesap için `YOUTUBE_REFRESH_TOKEN`,
-    /// `proje-02` hesabı için `YOUTUBE_REFRESH_TOKEN_PROJE_02`.
-    /// Büyük harf çevirisi `InvariantCulture` ile: Türkçe kültürde
-    /// `"i"` → `"İ"` olur ve değişken adı hiçbir zaman eşleşmezdi —
-    /// bu depoda birkaç kez ödenmiş bir hata.
-    ///
-    /// ***HESABA ÖZEL DEĞİŞKEN YOKSA VARSAYILANA DÜŞÜLÜYOR.*** Tek
-    /// hesaplı kurulumlarda (bugünkü hâl) hiçbir şey değişmiyor;
-    /// düşülmeseydi havuza ikinci bir hesap eklemek, birincinin de
-    /// çalışmayı bırakması demekti.
+    /// ***KURAL BURADAN TAŞINDI:*** şifreli kimlik deposu köprüsü de
+    /// aynı adı üretmek zorunda (depo hesaba göre saklıyor, yayıncı
+    /// hesaba göre okuyor). İki yerde ayrı yazılsalardı, birinin
+    /// `PROJE_02` diğerinin `PROJE-02` üretmesi yeterdi — ve sonuç
+    /// "anahtar kayıtlı ama bulunamıyor" olurdu.
     public static string VariableFor(string name, string? account)
-        => string.IsNullOrWhiteSpace(account)
-           || string.Equals(account, Credentials.DefaultAccount, StringComparison.Ordinal)
-            ? name
-            : name + "_" + account.ToUpperInvariant().Replace('-', '_');
+        => Credentials.VariableFor(name, account);
 
     private string? ReadFor(string name, string? account)
         => Read(VariableFor(name, account)) ?? Read(name);

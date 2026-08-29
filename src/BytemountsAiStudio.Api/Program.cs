@@ -62,7 +62,7 @@ builder.Services.AddScoped<NodeRegistry>(services =>
     // HAT SEÇİMİ TEK YERDE (`RegistrySelection`): Api, Cli ve Worker
     // aynı kararı vermeli. Üç ayrı `if` yazmak, birinin sahte
     // diğerinin gerçek hat koşması demekti — ve tam olarak o oldu.
-    return RegistrySelection.Build(
+    return RegistrySelection.BuildFromStore(
         // Depo seçimi tek yerde (P4-02).
         StorageSelection.Build(db, storageRoot),
         http,
@@ -78,6 +78,9 @@ builder.Services.AddScoped<NodeRegistry>(services =>
         // geliyor ve rezervasyon atomik. Sınırsız havuz vermek, on
         // yedi projelik bir kurulumda kotanın hiç sayılmaması demekti.
         new QuotaPoolService(db),
+        // ŞİFRELİ KİMLİK DEPOSU: `bmai credential set` ile girilen
+        // anahtarlar buradan sağlayıcılara ulaşıyor.
+        new CredentialStore(db, KeyRing.Create()),
         onWarning: mesaj => Console.Error.WriteLine(mesaj));
 });
 
