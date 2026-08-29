@@ -1,5 +1,6 @@
 using BytemountsAiStudio.Persistence;
 using BytemountsAiStudio.Contracts.Providers;
+using BytemountsAiStudio.Media.Rendering;
 using BytemountsAiStudio.Persistence.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -111,6 +112,34 @@ public sealed partial class PartitionService(
             {
                 LogSwept(logger, swept.Deleted, swept.BytesFreed / (1024 * 1024), swept.Failed);
             }
+
+            // ***SEGMENT ONBELLEGI DE BUDANIYOR.***
+            //
+            // `SegmentRenderer.Prune` yazilmis, testlenmis ve HICBIR
+            // YERDEN CAGRILMIYORDU. Dosyanin kendi yorumu sorunu
+            // tarif ediyordu: "onbellek sinirsiz buyuyemez; her kosu
+            // yeni anahtarlar uretiyor ve eski segmentler bir daha
+            // hic kullanilmiyor. Temizlemeyi unutmak, diskin sessizce
+            // dolmasi demek -- ve bu, uretimi durduran ama sebebi
+            // hicbir logda yazmayan bir ariza."
+            //
+            // Uzun videoda bu hizli birikiyor: bir dokuz dakikalik
+            // video onlarca segment uretiyor ve anahtar surumu
+            // degistiginde (bugun oldugu gibi) hepsi bir anda olu
+            // dosyaya donusuyor.
+            //
+            // PENCERE VARLIK SAKLAMASIYLA AYNI DEGIL ve olmamali:
+            // segmentler yeniden URETILEBILIR ara ciktilar, kaynak
+            // varlik degil. Yedi gun, bir retry dongusunun rahatca
+            // sigacagi sure.
+            var pruned = new SegmentRenderer(
+                Path.Combine(OutputRoot(), "segment-onbellek"))
+                .Prune(TimeSpan.FromDays(7), time);
+
+            if (pruned > 0)
+            {
+                LogPruned(logger, pruned);
+            }
         }
 #pragma warning disable CA1031 // Bakım hatası worker'ı durdurmamalı.
         catch (Exception ex)
@@ -148,6 +177,17 @@ public sealed partial class PartitionService(
             System.Globalization.CultureInfo.InvariantCulture, out var days) && days > 0
                 ? TimeSpan.FromDays(days)
                 : TimeSpan.FromDays(90);
+
+    /// Cikti kokunu ortamdan okuyor -- Worker'in kendi kullandigi
+    /// degiskenin AYNISI. Ayri bir varsayilan yazmak, onbellegin
+    /// bir dizine yazilip baska bir dizinden budanmasi demekti.
+    private static string OutputRoot()
+        => Environment.GetEnvironmentVariable("BMAI_OUTPUT")
+           ?? Path.Combine(Directory.GetCurrentDirectory(), "output");
+
+    [LoggerMessage(EventId = 1225, Level = LogLevel.Information,
+        Message = "{Count} eski render segmenti silindi.")]
+    private static partial void LogPruned(ILogger logger, int count);
 
     [LoggerMessage(EventId = 1223, Level = LogLevel.Information,
         Message = "{Count} eski tablo bölümü düşürüldü.")]

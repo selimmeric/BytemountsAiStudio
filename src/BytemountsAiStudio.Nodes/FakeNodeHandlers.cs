@@ -1096,11 +1096,32 @@ public sealed class MediaRenderHandler(
             return Result.Failure<JsonElement>(probe.Error);
         }
 
+        // ***SES OLCUMU BURADA DA SART -- UC RENDER YOLUNUN UCUNCUSU.***
+        //
+        // Tek gecisli ve bolum bazli yollarda olcum vardi, podcast
+        // yolunda YOKTU. Oysa podcast SADECE sesten ibaret: ses
+        // seviyesi orada yanlissa videoda oldugundan daha onemli.
+        // QC hangi yolun kostugunu bilmiyor ve bilmemeli; uc yolun
+        // ayni alanlari uretmesi bir tercih degil zorunluluk.
+        //
+        // Bolum bazli yolda ayni eksiklik daha once yasandi ve
+        // bedeli olculdu: QC "olculmedi" deyip skoru sifirladi, retry
+        // devreye girdi ve DORT TUR boyunca ayni video yeniden
+        // uretildi.
+        var podcastLoudness = await new LoudnessMeter(ffmpegPath)
+            .MeasureAsync(render.Value.OutputPath, probe.Value.DurationSeconds, cancellationToken)
+            .ConfigureAwait(false);
+
         return Result.Success(NodeJson.From(new
         {
             output_path = render.Value.OutputPath,
             public_url = PublicUrl(render.Value.OutputPath),
             preset = "podcast-m4a",
+            loudness_lufs = podcastLoudness.IsSuccess ? podcastLoudness.Value.IntegratedLufs : (double?)null,
+            true_peak_db = podcastLoudness.IsSuccess ? podcastLoudness.Value.TruePeakDb : (double?)null,
+            loudness_range = podcastLoudness.IsSuccess ? podcastLoudness.Value.LoudnessRange : (double?)null,
+            speech_ratio = podcastLoudness.IsSuccess ? podcastLoudness.Value.SpeechRatio : null,
+            loudness_error = podcastLoudness.IsFailure ? podcastLoudness.Error.Message : null,
             podcast = true,
             duration_seconds = probe.Value.DurationSeconds,
             size_bytes = probe.Value.SizeBytes,

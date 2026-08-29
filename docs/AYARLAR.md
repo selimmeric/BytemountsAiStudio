@@ -52,6 +52,11 @@ kaldırıldığında `BMAI_PIPELINE=acik` yapılabilir.
 | `BMAI_RETENTION_DAYS` | `30` | Ara ürünlerin saklama süresi. Yayınlanmış içerik ve lisanslı varlık **hiç** silinmiyor |
 | `BMAI_EVENT_RETENTION_DAYS` | `90` | `run_events` bölümlerinin düşürülme penceresi |
 
+Bakım ayrıca **render segment önbelleğini** de yedi günde bir buduyor
+(`BMAI_OUTPUT/segment-onbellek`). Pencere varlık saklamasıyla aynı
+değil ve olmamalı: segmentler yeniden **üretilebilir** ara çıktılar,
+kaynak varlık değil.
+
 Bakım günde bir koşuyor (`PartitionService`). Sıfır ve negatif değerler
 reddediliyor: sıfır gün, bugünün bölümünü düşürmeye çalışmak — yani
 koşan sistemin altından tabloyu çekmek — demekti.
