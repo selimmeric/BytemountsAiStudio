@@ -228,7 +228,22 @@ public sealed class QualityCheckHandler(IStorageProvider storage) : INodeHandler
         var total = Number(claims, "total") ?? Number(claims, "claim_count");
         var sourced = Number(claims, "supported") ?? Number(claims, "sourced");
 
-        return total is null ? null : new ClaimCoverage((int)total.Value, (int)(sourced ?? 0));
+        // ***`same_model` ARTIK OKUNUYOR.***
+        //
+        // `ClaimCheckHandler` bu alani ciktisina yaziyor ve
+        // `claims.same_model` kolonuna kaydediyordu; QC girdisine hic
+        // girmiyordu. Yani "bu iddialari uyduran modelin KENDISI
+        // dogruladi" bilgisi hicbir karara dokunmuyordu.
+        //
+        // ALAN YOKSA `false`: eski kosularin baglami bu alani
+        // tasimiyor ve onlari "ayni modelle dogrulandi" diye
+        // isaretlemek, olculmemis bir seyi olculmus gibi gostermekti.
+        var sameModel = claims.TryGetProperty("same_model", out var same)
+                        && same.ValueKind == JsonValueKind.True;
+
+        return total is null
+            ? null
+            : new ClaimCoverage((int)total.Value, (int)(sourced ?? 0)) { SameModel = sameModel };
     }
 
     internal static UniquenessCheck? UniquenessFrom(JsonElement runContext)

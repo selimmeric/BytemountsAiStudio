@@ -70,6 +70,19 @@ public sealed record ThumbnailInfo(int Width, int Height, long SizeBytes);
 
 public sealed record ClaimCoverage(int TotalClaims, int SourcedClaims)
 {
+    /// İddiaları doğrulayan model, senaryoyu YAZAN modelle aynı mı.
+    ///
+    /// ***BU ALAN KAYDEDİLİYOR VE HİÇBİR YERDE OKUNMUYORDU.***
+    /// `claims.same_model` kolonuna yazılıyor, node çıktısında
+    /// duruyor ve QC girdisine hiç girmiyordu — yani "bu iddiaları
+    /// uyduran modelin kendisi doğruladı" bilgisi hiçbir karara
+    /// dokunmuyordu.
+    ///
+    /// Aynı modelin kendi yazdığını doğrulaması ZAYIF bir doğrulama:
+    /// model kendi ürettiği hatayı hata olarak görmüyor. Ayrı bir
+    /// model kullanmak bu bağı kırıyor.
+    public bool SameModel { get; init; }
+
     public bool AllSourced => TotalClaims == 0 || SourcedClaims >= TotalClaims;
 }
 
@@ -118,6 +131,7 @@ public static class MechanicalQc
                 EverySceneHasVisual(input),
                 CaptionsWithinAudio(input),
                 ClaimsAreSourced(input),
+                ClaimsIndependentlyChecked(input),
                 MetadataWithinLimits(input),
                 ThumbnailValid(input),
                 TopicIsUnique(input),
@@ -430,6 +444,44 @@ public static class MechanicalQc
             Target = RetryTarget.Script,
             Detail = FormattableString.Invariant(
                 $"{claims.TotalClaims} iddianın {claims.SourcedClaims} tanesi kaynaklı"),
+        };
+    }
+
+    // 9b — İddialar AYRI bir modelle doğrulandı mı (§2.2/8)
+    private static CheckResult ClaimsIndependentlyChecked(QcInput input)
+    {
+        if (input.Claims is not { } claims)
+        {
+            return Missing(
+                "qc.claims_independent", "İddialar ayrı modelle doğrulandı", RetryTarget.Script);
+        }
+
+        return new CheckResult
+        {
+            Code = "qc.claims_independent",
+            Name = "İddialar ayrı modelle doğrulandı",
+
+            // İDDİA YOKSA GEÇİYOR: doğrulanacak bir şey olmadığında
+            // "bağımsız doğrulanmadı" demek yanlış olurdu.
+            Passed = claims.TotalClaims == 0 || !claims.SameModel,
+
+            // ***BLOKLAYICI DEĞİL, UYARI — VE BU BİLİNÇLİ.***
+            //
+            // Anahtarsız hatta senaryoyu da iddiayı da AYNI model
+            // üretiyor (tek LLM var). Bloklayıcı yapmak, bugün her
+            // videoyu düşürmek demekti — yani kontrolü kapatmak
+            // zorunda kalırdık ve kapalı bir kontrol hiç yokla aynı.
+            //
+            // Uyarı olarak skordan puan götürüyor: zayıflık GÖRÜNÜR
+            // ama üretim durmuyor. İkinci bir model bağlandığında
+            // bloklayıcıya çevrilecek tek şey bu satır.
+            Severity = CheckSeverity.Warning,
+            Weight = 5,
+            Target = RetryTarget.Script,
+            Detail = claims.SameModel
+                ? "İddiaları senaryoyu yazan modelin KENDİSİ doğruladı; "
+                  + "kendi hatasını hata olarak görmüyor."
+                : "İddialar ayrı bir modelle doğrulandı.",
         };
     }
 

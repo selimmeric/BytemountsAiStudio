@@ -53,7 +53,25 @@ internal sealed record RunDetail(
     RunSummary Run,
     IReadOnlyList<NodeTimelineEntry> Timeline,
     IReadOnlyList<RunEventEntry> Events,
-    IReadOnlyList<ProviderCostEntry> Costs);
+    IReadOnlyList<ProviderCostEntry> Costs,
+    IReadOnlyList<ApprovalDecisionEntry> Approvals);
+
+/// Verilmiş bir onay kararı.
+///
+/// ***GEREKÇE UZUN SÜRE HİÇBİR YERDE GÖRÜNMÜYORDU.*** Onaylayan ya da
+/// reddeden kişinin yazdığı not `approvals.note` kolonuna giriyor ve
+/// hiçbir ekran, rapor ya da sorgu onu geri göstermiyordu: bir insan
+/// "bu videoyu şu yüzden reddettim" yazıyor ve o cümle bir daha
+/// kimsenin karşısına çıkmıyordu.
+///
+/// Kaydın kendisi doğruydu; eksik olan GÖSTERİMDİ.
+internal sealed record ApprovalDecisionEntry(
+    string NodeId,
+    string State,
+    string? DecidedBy,
+    string? Note,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? DecidedAt);
 
 internal sealed record TopicSummary(
     Guid Id,

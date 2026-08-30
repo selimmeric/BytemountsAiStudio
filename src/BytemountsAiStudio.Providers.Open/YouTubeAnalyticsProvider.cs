@@ -23,6 +23,24 @@ public sealed record YouTubeAnalyticsOptions
 
     public string AccessTokenVariable { get; init; } = "YOUTUBE_ACCESS_TOKEN";
 
+    /// ***JETON YENİLEME AYARLARI (P5-01).***
+    ///
+    /// Önce yalnızca `AccessTokenVariable` okunuyordu — **statik bir
+    /// jeton**. Google'ın erişim jetonu bir saat ömürlü: gece koşan
+    /// bir ölçüm çekimi ilk saatten sonra `analytics.no_token` ile
+    /// düşerdi ve öğrenme döngüsünün verisi hiç gelmezdi.
+    ///
+    /// Yayıncıyla AYNI değişkenler varsayılan: aynı Google projesi.
+    /// Ayrı bir kimlikle koşturmak isteyen (örneğin analitik için
+    /// yalnızca `yt-analytics.readonly` kapsamı) burayı
+    /// değiştiriyor — kod değişmiyor.
+    public GoogleTokenVariables Token { get; init; } = new();
+
+    /// Jeton ucunun adresi. Yayıncıyla aynı sabit tek yerde olsun
+    /// diye burada da parametrik.
+    public Uri TokenAddress { get; init; } = Endpoints.Resolve(
+        "BMAI_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token");
+
     /// Çekilecek ölçütler.
     ///
     /// GÖSTERİM VE TIKLANMA AYRI BİR RAPORDAN geliyor
@@ -64,6 +82,23 @@ public sealed class YouTubeAnalyticsProvider(
 
     private readonly YouTubeAnalyticsOptions _options = options ?? new YouTubeAnalyticsOptions();
 
+    private readonly GoogleTokenSource _tokens = Tokens(http, options, credentials);
+
+    /// Jeton kaynağı BİR KEZ kuruluyor: önbellek örnek düzeyinde
+    /// yaşıyor ve her çağrıda yeni bir kaynak kurmak önbelleği
+    /// anlamsız kılardı.
+    private static GoogleTokenSource Tokens(
+        HttpClient http, YouTubeAnalyticsOptions? options, ICredentialSource? credentials)
+    {
+        var resolved = options ?? new YouTubeAnalyticsOptions();
+
+        return new GoogleTokenSource(
+            http,
+            resolved.TokenAddress,
+            resolved.Token with { AccessToken = resolved.AccessTokenVariable },
+            credentials);
+    }
+
     public static string Key => "youtube-analytics";
 
     /// Bir günün ölçümü hazır mı.
@@ -79,13 +114,35 @@ public sealed class YouTubeAnalyticsProvider(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(externalId);
 
-        var token = credentials?.Get(_options.AccessTokenVariable)
-            ?? Environment.GetEnvironmentVariable(_options.AccessTokenVariable);
+        // ***JETON YENİLENİYOR, STATİK OKUNMUYOR.***
+        //
+        // Önce yalnızca ortam değişkeni okunuyordu ve Google'ın
+        // erişim jetonu BİR SAAT ömürlü: gece koşan bir çekim ilk
+        // saatten sonra düşerdi. Yenileme yayıncıyla AYNI sınıftan
+        // geliyor — iki kopya er geç ayrışır.
+        var token = await _tokens.GetAsync(null, cancellationToken).ConfigureAwait(false);
 
-        if (token is null)
+        if (token.IsFailure)
         {
-            return Error.Permanent("analytics.no_token",
-                $"YouTube erişim jetonu yok ({_options.AccessTokenVariable}).");
+            // ***HATA KODU BU SAĞLAYICININ ÖNEKİYLE DÖNÜYOR.***
+            //
+            // Ortak kaynak `google.*` diyor; bu sağlayıcının
+            // sözleşmesi `analytics.*`. Ortak kodu olduğu gibi
+            // geçirmek, bir operatörün aradığı dizgiyi sessizce
+            // kaydırmak olurdu — hata kodları bir arayüz.
+            //
+            // `no_token` → `no_credentials`: eski ad "erişim jetonu
+            // yok" diyordu ve artık YENİLEME de deneniyor, yani eksik
+            // olan şey jeton değil KİMLİK olabiliyor. Ad, olanı
+            // anlatmalı.
+            return Result.Failure<DailyMetric?>(
+                token.Error.Code.StartsWith("google.", StringComparison.Ordinal)
+                    ? new Error(
+                        "analytics." + token.Error.Code["google.".Length..],
+                        token.Error.Message,
+                        token.Error.Kind,
+                        token.Error.Detail)
+                    : token.Error);
         }
 
         var day = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -98,7 +155,7 @@ public sealed class YouTubeAnalyticsProvider(
             + $"&filters=video=={Uri.EscapeDataString(externalId)}");
 
         using var message = new HttpRequestMessage(HttpMethod.Get, address);
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
 
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         source.CancelAfter(_options.Timeout);

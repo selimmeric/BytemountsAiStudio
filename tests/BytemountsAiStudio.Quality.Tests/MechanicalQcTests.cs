@@ -114,11 +114,18 @@ public sealed class MechanicalQcTests
         Assert.Equal(RetryTarget.None, report.Target);
     }
 
-    /// §14.1'in on iki kontrolu + muzik lisansi (P2-09).
+    /// §14.1'in on iki kontrolu + muzik lisansi (P2-09) + iddia
+    /// bagimsizligi (30 Agu 2026).
+    ///
+    /// ***SAYI SABIT TUTULUYOR VE BU KASITLI:*** yeni bir kontrol
+    /// eklemek bu testi dusuruyor, yani ekleyen kisi SAYIYI da
+    /// guncellemek zorunda kaliyor. Kontrol listesine sessizce bir
+    /// sey eklemek ya da -- daha tehlikelisi -- bir seyi sessizce
+    /// CIKARMAK boylece imkansiz.
     [Fact]
-    public void OnUcKontrol_Kosuyor()
+    public void OnDortKontrol_Kosuyor()
     {
-        Assert.Equal(13, MechanicalQc.Run(Healthy()).Checks.Count);
+        Assert.Equal(14, MechanicalQc.Run(Healthy()).Checks.Count);
     }
 
     [Fact]
@@ -635,5 +642,70 @@ public sealed class MechanicalQcTests
         Assert.All(
             report.Failures.Where(f => f.Code != "qc.clipping" && f.Code != "qc.speech_ratio"),
             f => Assert.NotEqual(RetryTarget.None, f.Target));
+    }
+
+    /* ---- iddia bagimsizligi ---- */
+
+    /// ***AYNI MODELLE DOGRULAMA SKORDAN PUAN GOTURUYOR.***
+    ///
+    /// BU TESTIN VAR OLMA SEBEBI: `same_model` alani
+    /// `claims.same_model` kolonuna yaziliyor, node ciktisinda
+    /// duruyor ve QC girdisine HIC girmiyordu -- yani "bu iddialari
+    /// uyduran modelin KENDISI dogruladi" bilgisi hicbir karara
+    /// dokunmuyordu.
+    ///
+    /// Ayni modelin kendi yazdigini dogrulamasi ZAYIF bir dogrulama:
+    /// model kendi urettigi hatayi hata olarak gormuyor.
+    [Fact]
+    public void AyniModel_KontroluDusuruyor()
+    {
+        var input = Healthy() with { Claims = new ClaimCoverage(5, 5) { SameModel = true } };
+
+        var check = MechanicalQc.Run(input).Checks
+            .Single(c => c.Code == "qc.claims_independent");
+
+        Assert.False(check.Passed);
+        Assert.Contains("KEND", check.Detail, StringComparison.Ordinal);
+    }
+
+    /// ***BLOKLAYICI DEGIL -- YAYIN DURMUYOR.***
+    ///
+    /// Anahtarsiz hatta senaryoyu da iddiayi da AYNI model uretiyor
+    /// (tek LLM var). Bloklayici yapmak bugun HER videoyu dusurmek
+    /// demekti -- yani kontrolu kapatmak zorunda kalirdik ve kapali
+    /// bir kontrol hic yokla ayni.
+    [Fact]
+    public void AyniModel_YayiniDurdurmuyor()
+    {
+        var report = MechanicalQc.Run(
+            Healthy() with { Claims = new ClaimCoverage(5, 5) { SameModel = true } });
+
+        Assert.False(report.HasBlockingFailure);
+        Assert.True(report.Score < 100, "zayiflik skora yansimali");
+    }
+
+    /// AYRI MODELLE DOGRULAMA GECIYOR.
+    [Fact]
+    public void AyriModel_Geciyor()
+    {
+        var check = MechanicalQc.Run(
+            Healthy() with { Claims = new ClaimCoverage(5, 5) { SameModel = false } })
+            .Checks.Single(c => c.Code == "qc.claims_independent");
+
+        Assert.True(check.Passed);
+    }
+
+    /// ***IDDIA YOKSA GECIYOR.***
+    ///
+    /// Dogrulanacak bir sey olmadiginda "bagimsiz dogrulanmadi"
+    /// demek yanlis olurdu.
+    [Fact]
+    public void IddiaYok_Geciyor()
+    {
+        var check = MechanicalQc.Run(
+            Healthy() with { Claims = new ClaimCoverage(0, 0) { SameModel = true } })
+            .Checks.Single(c => c.Code == "qc.claims_independent");
+
+        Assert.True(check.Passed);
     }
 }

@@ -229,6 +229,23 @@ async function showRun(id) {
       <td class="mono">${esc(money(c.cost))}</td>
     </tr>`);
 
+  /* ***İNSAN KARARI VE GEREKÇESİ.***
+   *
+   * `approvals.note` uzun süre YAZILIP hiçbir yerde
+   * GÖSTERİLMİYORDU: bir insan "bu videoyu şu yüzden reddettim"
+   * yazıyor ve o cümle bir daha kimsenin karşısına çıkmıyordu.
+   *
+   * Bekleyen onaylar ekranında değil BURADA: bekleyen bir onayın
+   * henüz notu yok, not karar anında yazılıyor. */
+  const approvals = detail.approvals.map((a) => `
+    <tr>
+      <td class="mono">${esc(a.nodeId)}</td>
+      <td>${tag(a.state)}</td>
+      <td>${esc(a.decidedBy ?? "—")}</td>
+      <td class="mono">${a.decidedAt ? esc(when(a.decidedAt)) : "bekliyor"}</td>
+      <td>${a.note ? esc(a.note) : `<span class="muted">gerekçe yazılmamış</span>`}</td>
+    </tr>`);
+
   const logs = detail.events.length
     ? detail.events.map((e) => `<div><span class="lvl lvl-${esc(e.level)} mono">${esc(e.level)}</span>
         <span class="muted mono">${esc(when(e.at))}</span>
@@ -249,6 +266,7 @@ async function showRun(id) {
     </section>
     ${panel("Zaman çizelgesi", table(["Node", "Tip", "Durum", "Deneme", "Süre", "Hata"], timeline))}
     ${panel("Maliyet kırılımı", table(["Sağlayıcı", "İşlem", "Çağrı", "Gecikme", "Tutar"], costs))}
+    ${approvals.length ? panel("İnsan kararı", table(["Node", "Karar", "Veren", "Zaman", "Gerekçe"], approvals)) : ""}
     ${panel("Loglar", `<div class="log">${logs}</div>`)}`;
 
   document.getElementById("back").addEventListener("click", () => select("runs"));

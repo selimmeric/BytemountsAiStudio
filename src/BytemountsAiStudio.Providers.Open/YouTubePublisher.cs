@@ -69,6 +69,37 @@ public sealed class YouTubePublisher(
 {
     private readonly YouTubeOptions _options = options ?? new YouTubeOptions();
 
+    /// ***JETON KAYNAĞI ORTAK (`GoogleTokenSource`).***
+    ///
+    /// Yenileme akışı burada yazılmıştı ve `YouTubeAnalyticsProvider`
+    /// aynı işi yapmak yerine **statik bir jeton** okuyordu. İkinci
+    /// kopyayı yazmak yerine bu taraf ortak sınıfa devredildi: iki
+    /// kopya er geç ayrışır ve ayrışan kopya, yalnızca birinin
+    /// bozulduğu bir hataya dönüşür.
+    ///
+    /// Yan kazanç: jeton artık ÖNBELLEKLİ. Önceden her çağrıda
+    /// yeniden yenileniyordu — havuzdaki her hesap için, her yükleme
+    /// ve her kurtarma sorgusunda.
+    private readonly GoogleTokenSource _tokens = Tokens(http, options, credentials);
+
+    private static GoogleTokenSource Tokens(
+        HttpClient http, YouTubeOptions? options, ICredentialSource? credentials)
+    {
+        var resolved = options ?? new YouTubeOptions();
+
+        return new GoogleTokenSource(
+            http,
+            resolved.TokenAddress,
+            new GoogleTokenVariables
+            {
+                AccessToken = resolved.AccessTokenVariable,
+                RefreshToken = resolved.RefreshTokenVariable,
+                ClientId = resolved.ClientIdVariable,
+                ClientSecret = resolved.ClientSecretVariable,
+            },
+            credentials);
+    }
+
     public string Key => "youtube";
 
     public string Platform => "youtube";
@@ -468,59 +499,25 @@ public sealed class YouTubePublisher(
     internal async Task<Result<string>> TokenAsync(
         CancellationToken cancellationToken, string? account = null)
     {
-        if (ReadFor(_options.AccessTokenVariable, account) is { Length: > 0 } direct)
+        var token = await _tokens.GetAsync(account, cancellationToken).ConfigureAwait(false);
+
+        // ***HATA KODU KORUNUYOR.***
+        //
+        // Ortak kaynak `google.no_credentials` diyor; bu sağlayıcının
+        // sözleşmesi `youtube.no_credentials`. Kodu değiştirmek,
+        // ona bakan testleri ve — daha önemlisi — bir operatörün
+        // aradığı dizgiyi sessizce kaydırmak olurdu. Hata kodları
+        // bir arayüz.
+        if (token.IsFailure && token.Error.Code.StartsWith("google.", StringComparison.Ordinal))
         {
-            return Result.Success(direct);
+            return new Error(
+                "youtube." + token.Error.Code["google.".Length..],
+                token.Error.Message,
+                token.Error.Kind,
+                token.Error.Detail);
         }
 
-        var refresh = ReadFor(_options.RefreshTokenVariable, account);
-        var clientId = ReadFor(_options.ClientIdVariable, account);
-        var secret = ReadFor(_options.ClientSecretVariable, account);
-
-        if (refresh is null || clientId is null || secret is null)
-        {
-            return Error.Permanent("youtube.no_credentials",
-                $"YouTube kimliği eksik ({_options.AccessTokenVariable} ya da "
-                + $"{_options.RefreshTokenVariable}+{_options.ClientIdVariable}+"
-                + $"{_options.ClientSecretVariable}).");
-        }
-
-        using var content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["client_id"] = clientId,
-            ["client_secret"] = secret,
-            ["refresh_token"] = refresh,
-            ["grant_type"] = "refresh_token",
-        });
-
-        using var message = new HttpRequestMessage(HttpMethod.Post, _options.TokenAddress)
-        {
-            Content = content,
-        };
-
-        using var source = Linked(cancellationToken);
-
-        try
-        {
-            using var response = await http.SendAsync(message, source.Token).ConfigureAwait(false);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return await FailureAsync<string>(response, source.Token).ConfigureAwait(false);
-            }
-
-            var token = await response.Content
-                .ReadFromJsonAsync<TokenResponse>(Json, source.Token)
-                .ConfigureAwait(false);
-
-            return token?.AccessToken is { Length: > 0 } value
-                ? Result.Success(value)
-                : Error.Transient("youtube.no_token", "Erişim jetonu dönmedi.");
-        }
-        catch (HttpRequestException ex)
-        {
-            return Error.Transient("youtube.network", ex.Message);
-        }
+        return token;
     }
 
     /* ---- ortak ---- */

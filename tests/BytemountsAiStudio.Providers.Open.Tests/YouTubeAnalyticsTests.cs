@@ -189,6 +189,16 @@ public sealed class YouTubeAnalyticsTests
             "v-1", new DateOnly(2026, 8, 20), CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("analytics.no_token", result.Error.Code);
+        // ***KOD `no_token` DEGIL ARTIK `no_credentials`.***
+        //
+        // Eski ad "erisim jetonu yok" diyordu ve saglayici artik
+        // YENILEME de deniyor: eksik olan sey jeton degil KIMLIK
+        // olabiliyor (yenileme jetonu + istemci kimligi + sir).
+        // Ad, olani anlatmali.
+        //
+        // Onek `analytics.` KALIYOR: ortak jeton kaynagi `google.*`
+        // donuyor ve olani oldugu gibi gecirmek, bir operatorun
+        // aradigi dizgiyi sessizce kaydirmak olurdu.
+        Assert.Equal("analytics.no_credentials", result.Error.Code);
     }
 }

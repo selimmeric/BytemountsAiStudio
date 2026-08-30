@@ -29,6 +29,7 @@ public sealed class RunQueriesTests(DatabaseFixture fixture) : IAsyncLifetime
         // birbirinin verisini bozmasi yuzunden CI kirmizi yandi.
         await db.Database.ExecuteSqlRawAsync("DELETE FROM provider_calls");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM run_events");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM approvals");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM node_executions");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM jobs");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM runs");
@@ -236,6 +237,70 @@ public sealed class RunQueriesTests(DatabaseFixture fixture) : IAsyncLifetime
         Assert.Equal(0, progress.Failed);
         Assert.Equal(1, progress.Pending);
         Assert.Equal("a", progress.CurrentNode);
+    }
+
+    /* ---- insan karari ---- */
+
+    /// ***ONAY GEREKÇESİ KOŞU DETAYINDA GÖRÜNÜYOR.***
+    ///
+    /// `approvals.note` uzun süre YAZILIP hiçbir yerde
+    /// GÖSTERİLMİYORDU: bir insan "bu videoyu şu yüzden reddettim"
+    /// yazıyor ve o cümle bir daha kimsenin karşısına çıkmıyordu.
+    /// Öğrenen sistemin (Faz 5) besleneceği veri budur ve okunmayan
+    /// veri, olmayan veriyle aynı şey.
+    ///
+    /// Bekleyen onaylar ekranında DEĞİL burada: bekleyen bir onayın
+    /// henüz notu yok — not karar anında yazılıyor.
+    [Fact]
+    public async Task Detay_OnayGerekcesiniDonduruyor()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var runId = await SeedRunAsync(db, RunState.Failed);
+
+        db.Approvals.Add(new Approval
+        {
+            RunId = runId,
+            NodeId = "onay",
+            Reason = "Kanal onay modunda",
+            State = ApprovalState.Rejected,
+            DecidedBy = "selim",
+            Note = "Üçüncü sahnedeki iddia kaynaksız.",
+            DecidedAt = DateTimeOffset.UtcNow,
+        });
+
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var detail = await RunQueries.DetailAsync(db, runId, CancellationToken.None);
+
+        Assert.NotNull(detail);
+
+        var approval = Assert.Single(detail.Approvals);
+
+        Assert.Equal("onay", approval.NodeId);
+        Assert.Equal("Rejected", approval.State);
+        Assert.Equal("selim", approval.DecidedBy);
+        Assert.Equal("Üçüncü sahnedeki iddia kaynaksız.", approval.Note);
+        Assert.NotNull(approval.DecidedAt);
+    }
+
+    /// ONAYSIZ KOŞUDA LİSTE BOŞ — ve bu bir hata değil.
+    ///
+    /// Otomatik modda hiç onay kaydı oluşmuyor; boş liste "onay
+    /// istenmedi" demek. Null dönseydi panel bunu hata sanardı.
+    [Fact]
+    public async Task Detay_OnayYoksa_BosListe()
+    {
+        RequireDatabase();
+        await using var db = fixture.CreateContext();
+
+        var runId = await SeedRunAsync(db, RunState.Completed);
+
+        var detail = await RunQueries.DetailAsync(db, runId, CancellationToken.None);
+
+        Assert.NotNull(detail);
+        Assert.Empty(detail.Approvals);
     }
 
     [Fact]

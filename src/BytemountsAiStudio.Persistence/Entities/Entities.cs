@@ -235,6 +235,17 @@ public sealed class RunEvent : EntityBase
 
     public required string Message { get; set; }
 
+    /// ***BU KOLON NE YAZILIYOR NE OKUNUYOR (30 Ağu 2026).***
+    ///
+    /// Olay kaydına yapılandırılmış ek veri taşıması için açılmıştı;
+    /// hiçbir yerden doldurulmadı. Bugün olayın taşıdığı her şey
+    /// `Message` içinde düz metin olarak duruyor.
+    ///
+    /// KALDIRILMADI çünkü kaldırmak bir göç dosyası gerektiriyor ve
+    /// `run_events` **bölümlenmiş** bir tablo — kolon düşürmek her
+    /// bölümü dolaşıyor. Ama "doluyor" sanılmasın diye burada
+    /// söyleniyor: bu alana bakan bir sorgu her satırda `null`
+    /// bulur.
     public string? DataJson { get; set; }
 }
 
@@ -414,6 +425,18 @@ public sealed class Source : EntityBase
 
     /// Kaynağın güvenilirliği (0–1). Şimdilik türden türetiliyor;
     /// P5'te gerçek performansla kalibre edilecek.
+    /// ***YAZILIYOR AMA HİÇBİR YERDE OKUNMUYOR (30 Ağu 2026).***
+    ///
+    /// `KnowledgeBase` kaynağın türüne göre bir güven puanı hesaplayıp
+    /// yazıyor (resmî API > ansiklopedi > serbest web) ve **hiçbir
+    /// karar buna bakmıyor**: QC'nin böyle bir girdisi yok, iddia
+    /// doğrulama kaynak türünü ayırmıyor.
+    ///
+    /// Amacı belli ve hâlâ geçerli: düşük güvenli bir kaynağa dayanan
+    /// iddia, yüksek güvenliye dayanandan farklı ağırlık taşımalı.
+    /// Ama o kural yazılmadan puanın kendisi bir karara dönüşmüyor —
+    /// ve "hesaplanıyor" ile "kullanılıyor" farkı tam da bu depoda
+    /// defalarca karıştırıldı.
     public double TrustScore { get; set; }
 
     public DateTimeOffset FetchedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -490,6 +513,16 @@ public sealed class Approval : EntityBase
     /// Reddetme gerekçesi ya da onay notu. Öğrenen sistemin (Faz 5)
     /// besleneceği yer: "neden reddedildi" verisi olmadan model
     /// iyileştirilemez.
+    /// ***UZUN SÜRE YAZILIP GERİ OKUNMUYORDU (30 Ağu 2026'da kapatıldı).***
+    ///
+    /// Gerekçe buraya giriyordu ve hiçbir ekran, rapor ya da sorgu onu
+    /// geri göstermiyordu: bir insan "bu videoyu şu yüzden reddettim"
+    /// yazıyor ve o cümle bir daha kimsenin karşısına çıkmıyordu.
+    ///
+    /// Kaydın kendisi doğruydu; eksik olan GÖSTERİMDİ. Artık koşu
+    /// detayı (`GET /runs/{id}` → `approvals`) kararı, karar vereni ve
+    /// bu notu döndürüyor. Bekleyen onay listesi DEĞİL: bekleyen bir
+    /// onayın henüz notu yok.
     public string? Note { get; set; }
 
     public DateTimeOffset? DecidedAt { get; set; }

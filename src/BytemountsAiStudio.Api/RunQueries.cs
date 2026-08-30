@@ -80,6 +80,18 @@ internal static class RunQueries
 
         var costs = await CostsAsync(db, runId, cancellationToken).ConfigureAwait(false);
 
+        // ***ONAY KARARLARI VE GEREKÇELERİ.***
+        //
+        // `approvals.note` yazılıyor ve GERİ OKUNMUYORDU: bir insan
+        // "bu videoyu şu yüzden reddettim" yazıyor ve o cümle bir daha
+        // kimsenin karşısına çıkmıyordu. Kaydın kendisi doğruydu,
+        // eksik olan gösterimdi.
+        var approvals = await db.Approvals.AsNoTracking()
+            .Where(a => a.RunId == runId)
+            .OrderBy(a => a.CreatedAt)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var summary = new RunSummary(
             run.Id, run.State, run.ChannelId, run.TopicId, run.ActualCost,
             run.StartedAt, run.FinishedAt,
@@ -92,7 +104,9 @@ internal static class RunQueries
                 n.NodeId, n.NodeType, n.State, n.Attempt, n.DurationMs, n.CreatedAt,
                 ErrorCodeOf(n.ErrorJson), ErrorMessageOf(n.ErrorJson)))],
             [.. events.Select(e => new RunEventEntry(e.CreatedAt, e.Level, e.NodeId, e.Message))],
-            costs);
+            costs,
+            [.. approvals.Select(a => new ApprovalDecisionEntry(
+                a.NodeId, a.State.ToString(), a.DecidedBy, a.Note, a.CreatedAt, a.DecidedAt))]);
     }
 
     /// Sağlayıcı × işlem kırılımında maliyet.
