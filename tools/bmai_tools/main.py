@@ -57,7 +57,10 @@ def health() -> HealthResponse:
         version=__version__,
         capabilities=[
             capabilities.search_capability(config.searxng_url),
-            capabilities.fetch_capability(),
+            # DERIN: /health'in isi zaten dogruyu soylemek. Yuzeysel
+            # kontrol "acik" derken cagri "Executable doesn't exist"
+            # ile dusuyordu.
+            capabilities.fetch_capability(deep=True),
             capabilities.align_capability(config.align_model, config.align_device),
             capabilities.tts_capability(config.piper_voices_dir),
             capabilities.ffmpeg_capability(),
@@ -209,6 +212,24 @@ async def robots_for(url: str, config: Settings) -> str | None:
     return response.text
 
 
+def _browser_missing(error: Exception) -> bool:
+    """Hata tarayicinin YOKLUGUNDAN mi geliyor.
+
+    Metne bakiliyor cunku playwright bu durum icin ayri bir istisna
+    tipi vermiyor - hepsi `Error`. Iki kalip da araniyor: ingilizce
+    mesaj surumler arasinda degisebiliyor ama ikisinden biri
+    duruyor.
+
+    ***SURUM UYUSMAZLIGI DA BURAYA DUSUYOR.*** Imajdaki tarayicilar
+    bir playwright surumune ait; pip daha yeni bir surum kurarsa
+    aranan dizin adi (`chromium-<derleme>`) tutmuyor ve hata yine
+    "Executable doesn't exist" oluyor. Sinif ayni: eksik kurulum.
+    """
+    text = str(error).lower()
+
+    return "executable doesn" in text or "playwright install" in text
+
+
 async def render_page(request: FetchRequest, config: Settings) -> FetchResponse:
     """Sayfayi tarayiciyla acar.
 
@@ -250,6 +271,28 @@ async def render_page(request: FetchRequest, config: Settings) -> FetchResponse:
             finally:
                 await browser.close()
     except PlaywrightError as error:
+        # ***TARAYICI EKSIKLIGI SAYFA HATASI DEGIL.***
+        #
+        # `pip install playwright` tarayiciyi GETIRMIYOR; ayri bir
+        # indirme gerekiyor ve en sik atlanan adim bu. Playwright bu
+        # durumda "Executable doesn't exist" diyor ve eski kod onu
+        # 502 ile "sayfa acilamadi" diye bildiriyordu.
+        #
+        # Iki ayri zarar:
+        #   - .NET tarafi 502'yi GECICI okuyor (ADR-011): kuyruk,
+        #     insan mudahalesi olmadan asla duzelmeyecek bir isi
+        #     tekrar tekrar deniyordu.
+        #   - Mesaj URL'yi isaret ediyordu. Teshis eden kisi siteye,
+        #     robots.txt'ye, aga bakar - kurulumu asla akla getirmez.
+        #
+        # 503 KAYNAK: is basarisiz degil, ERTELENMIS. Biri tarayiciyi
+        # kurdugunda ayni is calisacak.
+        if _browser_missing(error):
+            raise HTTPException(
+                status_code=503,
+                detail=f"chromium indirilmemis: python -m playwright install chromium ({error})",
+            ) from error
+
         raise HTTPException(status_code=502, detail=f"sayfa acilamadi: {error}") from error
 
     if status >= 400:

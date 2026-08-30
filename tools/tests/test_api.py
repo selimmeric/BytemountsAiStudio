@@ -83,3 +83,125 @@ def test_bos_sorgu_reddedilir():
 def test_sonuc_siniri_ustten_sinirli():
     """Sinirsiz bir sonuc sayisi, tek cagriyla SearXNG'i zorlamak demekti."""
     assert client.post("/search", json={"query": "x", "max_results": 500}).status_code == 422
+
+
+# ---- tarayici kurulu degilken (30 Agu 2026'da olculdu) ----------------
+#
+# ***PAKETIN KURULU OLMASI TARAYICININ VAR OLMASI DEMEK DEGIL.***
+#
+# `pip install playwright` yalnizca python paketini getiriyor;
+# tarayicinin kendisi ayri bir indirme ve EN SIK ATLANAN adim bu.
+#
+# Eski kod yalnizca ICE AKTARMAYA bakiyordu -- ustundeki yorum tam da
+# bu senaryoyu tarif ettigi halde. Olculdu: tarayici dizini bos
+# birakildiginda /health "fetch: acik" demeye devam etti ve cagri
+# "Executable doesn't exist" ile dustu.
+#
+# Zarar iki katliydi: .NET tarafi 502'yi GECICI okuyor, yani kuyruk
+# insan mudahalesi olmadan asla duzelmeyecek bir isi tekrar tekrar
+# deniyordu; ve mesaj URL'yi isaret ettigi icin teshis eden kisi
+# siteye, robots.txt'ye, aga bakardi -- kuruluma asla.
+
+
+def test_tarayici_yoksa_saglik_acik_demiyor(monkeypatch):
+    """***BU DOSYANIN EN ONEMLI TESTI.***
+
+    Yuzeysel kontrol "acik" diyor; derin kontrol diske bakiyor.
+    """
+    from bmai_tools import capabilities
+
+    monkeypatch.setattr(capabilities, "_BROWSER_PROBE", None)
+    monkeypatch.setattr(
+        capabilities, "browser_probe", lambda *a, **k: (r"C:\yok\chrome.exe", False)
+    )
+
+    capability = capabilities.fetch_capability(deep=True)
+
+    assert not capability.available
+
+    # NE YAPILACAGI YAZIYOR. "chromium yok" tek basina, okuyani
+    # kurulum belgesini aramaya gonderirdi.
+    assert "playwright install" in capability.detail
+
+
+def test_tarayici_varsa_saglik_yolu_yaziyor(monkeypatch):
+    from bmai_tools import capabilities
+
+    monkeypatch.setattr(capabilities, "_BROWSER_PROBE", None)
+    monkeypatch.setattr(
+        capabilities, "browser_probe", lambda *a, **k: (r"C:\var\chrome.exe", True)
+    )
+
+    capability = capabilities.fetch_capability(deep=True)
+
+    assert capability.available
+    assert r"C:\var\chrome.exe" in capability.detail
+
+
+def test_yoklama_yapilamazsa_kapali_denmiyor(monkeypatch):
+    """BILMEMEK, BOZUK OLMAK DEGIL.
+
+    Surucu baslamadiysa tarayicinin durumu hakkinda bir sey
+    bilmiyoruz. "Kapali" demek, calisan bir kurulumu kapatmak olurdu;
+    belirsizlik DETAYDA yaziyor.
+    """
+    from bmai_tools import capabilities
+
+    monkeypatch.setattr(capabilities, "_BROWSER_PROBE", None)
+    monkeypatch.setattr(capabilities, "browser_probe", lambda *a, **k: None)
+
+    capability = capabilities.fetch_capability(deep=True)
+
+    assert capability.available
+    assert "dogrulanamadi" in capability.detail
+
+
+def test_yuzeysel_kontrol_diske_bakmiyor(monkeypatch):
+    """/fetch her cagrida 0,29 sn'lik yoklama odememeli.
+
+    Orada tarayici zaten aciliyor; acilmazsa hata SINIFLANDIRILIYOR.
+    """
+    from bmai_tools import capabilities
+
+    def patla(*args, **kwargs):
+        raise AssertionError("yuzeysel kontrol yoklama yapmamali")
+
+    monkeypatch.setattr(capabilities, "browser_probe", patla)
+
+    capabilities.fetch_capability()
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        r"BrowserType.launch: Executable doesn't exist at C:\yok\chrome.exe",
+        "Looks like Playwright was just installed. Please run playwright install",
+        # SURUM UYUSMAZLIGI: imajdaki tarayicilar bir surume ait, pip
+        # daha yenisini kurmus. Aranan dizin adi tutmuyor ve hata yine
+        # ayni -- sinif da ayni: eksik kurulum.
+        "Executable doesn't exist at /ms-playwright/chromium-1155/chrome",
+    ],
+)
+def test_tarayici_eksikligi_sayfa_hatasindan_ayriliyor(message):
+    from bmai_tools.main import _browser_missing
+
+    assert _browser_missing(Exception(message))
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Timeout 30000ms exceeded",
+        "net::ERR_NAME_NOT_RESOLVED at https://ornek.com",
+        "Target page, context or browser has been closed",
+    ],
+)
+def test_gercek_sayfa_hatalari_kurulum_sanilmiyor(message):
+    """Yanlis yone kaymamali.
+
+    Her playwright hatasini "kurulum eksik" saymak, gercek bir ag
+    hatasini 15 dakika erteler ve sebebini gizlerdi.
+    """
+    from bmai_tools.main import _browser_missing
+
+    assert not _browser_missing(Exception(message))

@@ -18,7 +18,21 @@ COPY bmai_tools ./bmai_tools
 # gerekiyor. Acmak icin:
 #   docker build --build-arg EXTRAS=fetch,align .
 ARG EXTRAS=fetch
-RUN pip install --no-cache-dir ".[${EXTRAS}]"
+
+# ***PLAYWRIGHT SURUMU TABAN IMAJLA AYNI OLMAK ZORUNDA.***
+#
+# Taban imaj tarayicilari kendi surumune gore yerlestiriyor
+# (`chromium-<derleme>`). `pyproject.toml` ise `playwright>=1.45`
+# diyor ve pip EN YENIYI kuruyor -- olculdu (30 Agu 2026): duz
+# `pip install` 1.62.0 getiriyor, imajdaki tarayicilar 1.49.0'a ait.
+# Aranan dizin bulunamiyor ve /fetch "Executable doesn't exist" ile
+# dusuyor. YANI IMAJIN BAS YETENEGI, IMAJ SAGLIKLI GORUNURKEN BOZUK.
+#
+# Alt sinir `pyproject.toml`'da kaliyor (yerel kurulumda kullanici
+# kendi tarayicisini indiriyor); KAPTA surum sabitleniyor. Taban
+# imaj etiketi degistirilirse bu da degismeli.
+ARG PLAYWRIGHT_VERSION=1.49.0
+RUN pip install --no-cache-dir ".[${EXTRAS}]" "playwright==${PLAYWRIGHT_VERSION}"
 
 # ffmpeg hizalama icin gerekiyor (ses cozme). Taban imajda yok.
 RUN apt-get update && apt-get install --no-install-recommends -y ffmpeg \

@@ -54,6 +54,26 @@ Tarayıcıyla çekme için:
 pip install -e "tools[fetch]" && python -m playwright install chromium
 ```
 
+**İkinci komut şart.** `pip install playwright` yalnızca python paketini
+getiriyor; tarayıcının kendisi ayrı bir indirme ve en sık atlanan adım
+bu. Atlanırsa `/health` bunu **söylüyor** (30 Ağu 2026'da eklendi —
+öncesinde "fetch açık" diyordu ve çağrı çalışma anında düşüyordu):
+
+```
+fetch  false  chromium indirilmemis (.../chrome.exe): python -m playwright install chromium
+```
+
+Ve `/fetch` **503** dönüyor, 502 değil: eksik bir kurulum geçici bir ağ
+hatası değil. .NET tarafı 503'ü `Resource` okuyup **erteliyor**
+(ADR-011); 502 olsaydı kuyruk, insan müdahalesi olmadan asla
+düzelmeyecek bir işi tekrar tekrar denerdi.
+
+> **Docker'da playwright sürümü sabit.** Taban imaj tarayıcıları kendi
+> sürümüne göre yerleştiriyor (`chromium-<derleme>`); `pip` en yeniyi
+> kurarsa aranan dizin tutmuyor. `Dockerfile` bu yüzden
+> `PLAYWRIGHT_VERSION` ile sabitliyor — taban imaj etiketi
+> değiştirilirse o da değişmeli.
+
 Hizalama için (ayrıca `ffmpeg` gerekiyor):
 
 ```bash
