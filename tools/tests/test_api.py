@@ -110,6 +110,10 @@ def test_tarayici_yoksa_saglik_acik_demiyor(monkeypatch):
     """
     from bmai_tools import capabilities
 
+    # Paket kurulu SAYILIYOR: sinanan sey derin yoklama dali ve o
+    # dal, paketin kurulu olmadigi bir makinede (CI yalnizca `[dev]`
+    # kuruyor) hic calismazdi.
+    monkeypatch.setattr(capabilities, "playwright_importable", lambda: (True, None))
     monkeypatch.setattr(capabilities, "_BROWSER_PROBE", None)
     monkeypatch.setattr(
         capabilities, "browser_probe", lambda *a, **k: (r"C:\yok\chrome.exe", False)
@@ -127,6 +131,10 @@ def test_tarayici_yoksa_saglik_acik_demiyor(monkeypatch):
 def test_tarayici_varsa_saglik_yolu_yaziyor(monkeypatch):
     from bmai_tools import capabilities
 
+    # Paket kurulu SAYILIYOR: sinanan sey derin yoklama dali ve o
+    # dal, paketin kurulu olmadigi bir makinede (CI yalnizca `[dev]`
+    # kuruyor) hic calismazdi.
+    monkeypatch.setattr(capabilities, "playwright_importable", lambda: (True, None))
     monkeypatch.setattr(capabilities, "_BROWSER_PROBE", None)
     monkeypatch.setattr(
         capabilities, "browser_probe", lambda *a, **k: (r"C:\var\chrome.exe", True)
@@ -147,6 +155,10 @@ def test_yoklama_yapilamazsa_kapali_denmiyor(monkeypatch):
     """
     from bmai_tools import capabilities
 
+    # Paket kurulu SAYILIYOR: sinanan sey derin yoklama dali ve o
+    # dal, paketin kurulu olmadigi bir makinede (CI yalnizca `[dev]`
+    # kuruyor) hic calismazdi.
+    monkeypatch.setattr(capabilities, "playwright_importable", lambda: (True, None))
     monkeypatch.setattr(capabilities, "_BROWSER_PROBE", None)
     monkeypatch.setattr(capabilities, "browser_probe", lambda *a, **k: None)
 
@@ -166,6 +178,7 @@ def test_yuzeysel_kontrol_diske_bakmiyor(monkeypatch):
     def patla(*args, **kwargs):
         raise AssertionError("yuzeysel kontrol yoklama yapmamali")
 
+    monkeypatch.setattr(capabilities, "playwright_importable", lambda: (True, None))
     monkeypatch.setattr(capabilities, "browser_probe", patla)
 
     capabilities.fetch_capability()

@@ -93,6 +93,25 @@ def browser_probe(now: float | None = None) -> tuple[str, bool] | None:
     return path, exists
 
 
+def playwright_importable() -> tuple[bool, str | None]:
+    """Paket kurulu ve ice aktarilabilir mi.
+
+    AYRI BIR ISLEV cunku derin yoklamanin testleri, paketin kurulu
+    OLMADIGI makinede de kosmak zorunda: CI yalnizca `[dev]`
+    kuruyor ve orada `fetch_capability` bu kontrolden erken donerdi.
+    Testin cevabi ortama gore degisiyorsa test bir sey sinamiyor.
+    """
+    if not _module("playwright"):
+        return False, "playwright kurulu degil: pip install 'bmai-tools[fetch]'"
+
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+    except ImportError as error:  # pragma: no cover - kurulum bozuksa
+        return False, f"playwright ice aktarilamadi: {error}"
+
+    return True, None
+
+
 def fetch_capability(deep: bool = False) -> Capability:
     """`deep=True` tarayicinin diskte olup olmadigina da bakiyor.
 
@@ -101,17 +120,10 @@ def fetch_capability(deep: bool = False) -> Capability:
     aciliyor ve acilmazsa hata SINIFLANDIRILIYOR - iki kez bakmak
     her cagriya bedava olmayan bir gecikme eklerdi.
     """
-    if not _module("playwright"):
-        return Capability(
-            name="fetch",
-            available=False,
-            detail="playwright kurulu degil: pip install 'bmai-tools[fetch]'",
-        )
+    importable, problem = playwright_importable()
 
-    try:
-        from playwright.sync_api import sync_playwright  # noqa: F401
-    except ImportError as error:  # pragma: no cover - kurulum bozuksa
-        return Capability(name="fetch", available=False, detail=f"playwright ice aktarilamadi: {error}")
+    if not importable:
+        return Capability(name="fetch", available=False, detail=problem or "playwright yok")
 
     if not deep:
         return Capability(name="fetch", available=True, detail="playwright chromium")
