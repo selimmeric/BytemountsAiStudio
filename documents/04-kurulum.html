@@ -1,0 +1,1684 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sıfırdan Çalışan Fabrika</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+/* ------------------------------------------------------------------
+   RENK: SMPTE renk çubukları.
+   Yayıncılıkta "sinyal doğru mu" sorusunun evrensel testi o yedi
+   çubuktur. Bu sayfa da tam olarak o: kurulum sinyalinin doğru
+   olduğunu adım adım kanıtlayan bir test dizisi. Çubuk cyan'ı yapısal
+   vurgu, çubuk magenta'sı tuzak rengi oldu; ikisi de okunabilir
+   olacak kadar doygunluğu düşürüldü.
+   ------------------------------------------------------------------ */
+:root {
+  --kagit:        #F4F6F6;
+  --yuzey:        #FFFFFF;
+  --yuzey-2:      #EAEEEE;
+  --cizgi:        #D9DFDF;
+  --cizgi-kuvvet: #BCC5C5;
+  --murekkep:     #12171A;
+  --murekkep-2:   #3A4448;
+  --soluk:        #667275;
+
+  --vurgu:        #0B6F7B;
+  --vurgu-zemin:  #DFF0F2;
+  --vurgu-kenar:  #A8D6DC;
+
+  --gecti:        #216B3C;
+  --gecti-zemin:  #E1F0E6;
+  --gecti-kenar:  #A9D3B8;
+
+  --istege:       #8A6008;
+  --istege-zemin: #F7EEDA;
+  --istege-kenar: #E0CB98;
+
+  --tuzak:        #A32350;
+  --tuzak-zemin:  #FAE6EC;
+  --tuzak-kenar:  #EFBACB;
+
+  /* Terminal her iki temada da koyu: bir kabuk penceresi koyudur ve
+     temaya göre renk değiştiren bir terminal, ekrandaki gerçek
+     pencereye benzemez. */
+  --kabuk-zemin:  #14191C;
+  --kabuk-yuzey:  #1C2327;
+  --kabuk-metin:  #DCE4E6;
+  --kabuk-soluk:  #7E8C90;
+  --kabuk-cizgi:  #2C3539;
+  --kabuk-istem:  #4FC3D2;
+
+  --bar-1: #C8CCCB; --bar-2: #C9B84A; --bar-3: #46A9B5; --bar-4: #4E9E5C;
+  --bar-5: #A85A86; --bar-6: #B4544E; --bar-7: #4F6BA8;
+
+  --olcu: 1180px;
+  --yazi: 68ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --kagit:        #0E1214;
+    --yuzey:        #161C1F;
+    --yuzey-2:      #1D2528;
+    --cizgi:        #293336;
+    --cizgi-kuvvet: #3B4749;
+    --murekkep:     #E9EFEF;
+    --murekkep-2:   #BCC7C8;
+    --soluk:        #909D9F;
+
+    --vurgu:        #4BC3D1;
+    --vurgu-zemin:  #0F2C31;
+    --vurgu-kenar:  #1E4C54;
+
+    --gecti:        #6BC287;
+    --gecti-zemin:  #102417;
+    --gecti-kenar:  #23422F;
+
+    --istege:       #DCB253;
+    --istege-zemin: #241D0E;
+    --istege-kenar: #43371A;
+
+    --tuzak:        #EB7C9C;
+    --tuzak-zemin:  #26111A;
+    --tuzak-kenar:  #47202E;
+
+    --bar-1: #6E7676; --bar-2: #8C8036; --bar-3: #2F757E; --bar-4: #366D42;
+    --bar-5: #74405E; --bar-6: #7C3C39; --bar-7: #3A4C74;
+  }
+}
+
+:root[data-theme="dark"] {
+  --kagit:        #0E1214;
+  --yuzey:        #161C1F;
+  --yuzey-2:      #1D2528;
+  --cizgi:        #293336;
+  --cizgi-kuvvet: #3B4749;
+  --murekkep:     #E9EFEF;
+  --murekkep-2:   #BCC7C8;
+  --soluk:        #909D9F;
+
+  --vurgu:        #4BC3D1;
+  --vurgu-zemin:  #0F2C31;
+  --vurgu-kenar:  #1E4C54;
+
+  --gecti:        #6BC287;
+  --gecti-zemin:  #102417;
+  --gecti-kenar:  #23422F;
+
+  --istege:       #DCB253;
+  --istege-zemin: #241D0E;
+  --istege-kenar: #43371A;
+
+  --tuzak:        #EB7C9C;
+  --tuzak-zemin:  #26111A;
+  --tuzak-kenar:  #47202E;
+
+  --bar-1: #6E7676; --bar-2: #8C8036; --bar-3: #2F757E; --bar-4: #366D42;
+  --bar-5: #74405E; --bar-6: #7C3C39; --bar-7: #3A4C74;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--kagit);
+  color: var(--murekkep);
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  font-size: 16.5px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: Archivo, ui-sans-serif, "Segoe UI", sans-serif;
+  text-wrap: balance;
+  margin: 0;
+  letter-spacing: -0.012em;
+}
+
+a { color: var(--vurgu); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--vurgu);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+code, kbd, pre, .mono { font-family: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace; }
+
+.sarmal { max-width: var(--olcu); margin: 0 auto; padding: 0 28px; }
+.yazi   { max-width: var(--yazi); }
+
+/* ---- çubuk şeridi: sayfanın tek gürültülü anı ---- */
+.cubuklar { display: grid; grid-template-columns: repeat(7, 1fr); height: 6px; }
+.cubuklar i { display: block; }
+.cubuklar i:nth-child(1) { background: var(--bar-1); }
+.cubuklar i:nth-child(2) { background: var(--bar-2); }
+.cubuklar i:nth-child(3) { background: var(--bar-3); }
+.cubuklar i:nth-child(4) { background: var(--bar-4); }
+.cubuklar i:nth-child(5) { background: var(--bar-5); }
+.cubuklar i:nth-child(6) { background: var(--bar-6); }
+.cubuklar i:nth-child(7) { background: var(--bar-7); }
+
+/* ---- başlık ---- */
+header.tepe { background: var(--yuzey); border-bottom: 1px solid var(--cizgi); }
+.tepe-ic { padding: 54px 0 46px; display: flex; flex-direction: column; gap: 26px; }
+
+.etiket {
+  font-family: Archivo, sans-serif;
+  font-variation-settings: "wdth" 112;
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vurgu);
+}
+
+h1 {
+  font-size: clamp(2.5rem, 6vw, 4.1rem);
+  font-variation-settings: "wdth" 96;
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.028em;
+  max-width: 15ch;
+}
+
+.girizgah { font-size: 1.14rem; color: var(--murekkep-2); max-width: 60ch; }
+
+.tepe-olcum {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border: 1px solid var(--cizgi); border-radius: 8px; overflow: hidden;
+  background: var(--kagit);
+}
+.tepe-olcum div {
+  padding: 15px 22px; flex: 1 1 165px;
+  border-right: 1px solid var(--cizgi);
+}
+.tepe-olcum div:last-child { border-right: 0; }
+.tepe-olcum b {
+  display: block;
+  font-family: Archivo, sans-serif; font-variation-settings: "wdth" 108;
+  font-weight: 700; font-size: 1.28rem; line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.tepe-olcum span { font-size: 12.5px; color: var(--soluk); letter-spacing: 0.03em; }
+
+/* ---- bölüm ---- */
+section { padding: 62px 0; border-bottom: 1px solid var(--cizgi); }
+section:last-of-type { border-bottom: 0; }
+
+.bolum-basi { display: flex; flex-direction: column; gap: 12px; margin-bottom: 34px; }
+h2 {
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+  font-variation-settings: "wdth" 100;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.bolum-basi p { margin: 0; color: var(--murekkep-2); max-width: var(--yazi); }
+
+/* ---- rozet ---- */
+.rozet {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  padding: 3.5px 9px; border-radius: 4px; white-space: nowrap;
+  border: 1px solid;
+}
+.r-zorunlu { color: var(--vurgu);  background: var(--vurgu-zemin);  border-color: var(--vurgu-kenar); }
+.r-istege  { color: var(--istege); background: var(--istege-zemin); border-color: var(--istege-kenar); }
+.r-yol     { color: var(--soluk);  background: var(--yuzey-2);      border-color: var(--cizgi); }
+
+/* ---- adım ---- */
+.adimlar { display: flex; flex-direction: column; }
+
+.adim {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 0 30px;
+  position: relative;
+}
+
+/* Üretim bandı: adımları birbirine bağlayan sürekli çizgi.
+   Sıra bilgi taşıyor — her adım bir öncekine dayanıyor. */
+.ray { position: relative; display: flex; justify-content: center; padding-top: 4px; }
+.ray::before {
+  content: ""; position: absolute; top: 0; bottom: -4px; left: 50%;
+  width: 1px; background: var(--cizgi); transform: translateX(-50%);
+}
+.adim:last-child .ray::before { bottom: auto; height: 56px; }
+
+.no {
+  position: relative; z-index: 1;
+  width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--yuzey);
+  border: 1px solid var(--cizgi-kuvvet);
+  font-family: Archivo, sans-serif;
+  font-variation-settings: "wdth" 118;
+  font-weight: 700; font-size: 1.16rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--murekkep);
+}
+.adim.opsiyonel .no { border-style: dashed; color: var(--soluk); }
+
+.govde { padding-bottom: 52px; min-width: 0; }
+.adim-basi { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+h3 { font-size: 1.32rem; font-weight: 700; font-variation-settings: "wdth" 100; }
+.govde > p { margin: 0 0 18px; color: var(--murekkep-2); max-width: var(--yazi); }
+.govde > p:last-child { margin-bottom: 0; }
+
+/* ---- terminal ---- */
+.kabuk {
+  background: var(--kabuk-zemin);
+  border: 1px solid var(--kabuk-cizgi);
+  border-radius: 9px;
+  overflow: hidden;
+  margin: 0 0 16px;
+}
+.kabuk-tepe {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 13px;
+  background: var(--kabuk-yuzey);
+  border-bottom: 1px solid var(--kabuk-cizgi);
+}
+.lamba { width: 9px; height: 9px; border-radius: 50%; background: #3A4548; flex: none; }
+.lamba.acik { background: var(--kabuk-istem); }
+.kabuk-ad {
+  font-family: "JetBrains Mono", monospace; font-size: 11px;
+  color: var(--kabuk-soluk); letter-spacing: 0.04em;
+}
+.kabuk-not {
+  margin-left: auto; font-family: "JetBrains Mono", monospace;
+  font-size: 10px; color: var(--kabuk-soluk);
+  border: 1px solid var(--kabuk-cizgi); border-radius: 3px; padding: 1.5px 6px;
+}
+.kabuk pre {
+  margin: 0; padding: 15px 16px;
+  overflow-x: auto;
+  font-size: 13px; line-height: 1.72;
+  color: var(--kabuk-metin);
+  tab-size: 2;
+}
+.kabuk pre .istem { color: var(--kabuk-istem); user-select: none; }
+.kabuk pre .yorum { color: var(--kabuk-soluk); }
+.kabuk pre .ok    { color: #7FCB96; }
+.kabuk pre .uyari { color: #E0B15E; }
+.kabuk pre .hata  { color: #EE8AA6; }
+.kabuk.cikti { background: var(--kabuk-yuzey); }
+.kabuk.cikti pre { color: #B9C4C7; }
+
+/* ---- kontrol / tuzak şeritleri ---- */
+.serit {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px;
+  padding: 13px 15px; border-radius: 8px; border: 1px solid;
+  margin: 0 0 14px; font-size: 14.6px; line-height: 1.55;
+}
+.serit:last-child { margin-bottom: 0; }
+.serit .im {
+  font-family: Archivo, sans-serif; font-weight: 800; font-size: 13px;
+  line-height: 1.7; text-align: center;
+}
+.serit b { display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-family: "JetBrains Mono", monospace; margin-bottom: 3px; }
+.s-kontrol { background: var(--gecti-zemin); border-color: var(--gecti-kenar); color: var(--gecti); }
+.s-tuzak   { background: var(--tuzak-zemin); border-color: var(--tuzak-kenar); color: var(--tuzak); }
+.s-not     { background: var(--vurgu-zemin); border-color: var(--vurgu-kenar); color: var(--vurgu); }
+.serit .metin { color: var(--murekkep); }
+.serit .metin code { background: rgba(128,128,128,.16); padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+
+/* ---- yol kutuları ---- */
+.yollar { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 18px; margin-bottom: 20px; }
+.yol {
+  background: var(--yuzey); border: 1px solid var(--cizgi);
+  border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 12px;
+}
+.yol.secili { border-color: var(--vurgu); box-shadow: 0 0 0 1px var(--vurgu); }
+.yol h4 { font-size: 1.06rem; font-weight: 700; }
+.yol p { margin: 0; font-size: 14.6px; color: var(--murekkep-2); }
+
+/* ---- tablo ---- */
+.tablo-kap { overflow-x: auto; border: 1px solid var(--cizgi); border-radius: 9px; background: var(--yuzey); }
+table { border-collapse: collapse; width: 100%; font-size: 14.6px; min-width: 560px; }
+thead th {
+  text-align: left; padding: 11px 15px;
+  background: var(--yuzey-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--soluk); border-bottom: 1px solid var(--cizgi); white-space: nowrap;
+}
+tbody td { padding: 11px 15px; border-bottom: 1px solid var(--cizgi); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+td code, th code { font-size: 12.6px; color: var(--vurgu); white-space: nowrap; }
+td.dar { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.evet { color: var(--gecti); font-weight: 600; }
+.hayir { color: var(--soluk); }
+
+/* ---- şekil ---- */
+figure { margin: 0 0 20px; }
+figure svg { display: block; width: 100%; height: auto; }
+.sekil-kap {
+  background: var(--yuzey); border: 1px solid var(--cizgi);
+  border-radius: 10px; padding: 22px; overflow-x: auto;
+}
+figcaption {
+  margin-top: 10px; font-size: 13.4px; color: var(--soluk);
+  max-width: var(--yazi);
+}
+figcaption b { color: var(--murekkep-2); font-weight: 600; }
+
+/* ---- sorun giderme ---- */
+.sorunlar { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--cizgi); border-radius: 10px; overflow: hidden; background: var(--yuzey); }
+details { border-bottom: 1px solid var(--cizgi); }
+details:last-child { border-bottom: 0; }
+summary {
+  cursor: pointer; padding: 15px 18px; list-style: none;
+  display: flex; align-items: flex-start; gap: 12px;
+  font-weight: 500;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: "+"; font-family: "JetBrains Mono", monospace; color: var(--vurgu);
+  font-weight: 700; line-height: 1.5; flex: none;
+}
+details[open] summary::before { content: "–"; }
+details[open] summary { background: var(--yuzey-2); }
+.sorun-ic { padding: 4px 18px 20px 42px; }
+.sorun-ic p { margin: 0 0 12px; color: var(--murekkep-2); font-size: 15px; }
+.sorun-ic p:last-child { margin-bottom: 0; }
+.sorun-ic .kabuk { margin-top: 4px; }
+.sebep {
+  font-family: "JetBrains Mono", monospace; font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--soluk);
+  margin-bottom: 4px;
+}
+
+/* ---- alt ---- */
+footer { background: var(--yuzey); border-top: 1px solid var(--cizgi); padding: 40px 0 48px; }
+footer p { margin: 0 0 8px; color: var(--soluk); font-size: 14.4px; max-width: var(--yazi); }
+
+.liste { margin: 0 0 18px; padding-left: 20px; color: var(--murekkep-2); max-width: var(--yazi); }
+.liste li { margin-bottom: 7px; }
+.liste code { background: var(--yuzey-2); padding: 1px 5px; border-radius: 3px; font-size: 0.87em; color: var(--vurgu); }
+
+p code, li code, td code.satiri { background: var(--yuzey-2); padding: 1px 5px; border-radius: 3px; }
+
+@media (max-width: 720px) {
+  .adim { grid-template-columns: 54px minmax(0, 1fr); gap: 0 16px; }
+  .no { width: 40px; height: 40px; font-size: 0.98rem; }
+  .sarmal { padding: 0 18px; }
+  body { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="cubuklar" role="presentation">
+  <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+</div>
+
+<header class="tepe">
+  <div class="sarmal tepe-ic">
+    <div class="etiket">BytemountsAiStudio · Kurulum</div>
+    <h1>Sıfırdan çalışan fabrika</h1>
+    <p class="girizgah">
+      Boş bir Windows makinesinden, kendi kendine video üreten bir hatta.
+      On üç adım, her birinin sonunda <strong>çalıştığını kanıtlayan</strong>
+      bir kontrol — çünkü “kurdum” ile “çalışıyor” bu depoda defalarca
+      farklı çıktı.
+    </p>
+    <div class="tepe-olcum">
+      <div><b>13</b><span>adım (8'i zorunlu)</span></div>
+      <div><b>~45 dk</b><span>indirmeler dahil</span></div>
+      <div><b>0 ₺</b><span>anahtar gerekmiyor</span></div>
+      <div><b>2 yol</b><span>Docker'lı ve Docker'sız</span></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= NE KURUYORSUN ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Önce: ne kuruyorsun?</h2>
+    <p>
+      Tek bir uygulama değil, birbirine bağlı beş parça. Hangisinin
+      hangi portta durduğunu bilmek, sonraki her adımı kolaylaştırıyor.
+    </p>
+  </div>
+
+  <figure>
+    <div class="sekil-kap">
+      <svg viewBox="0 0 1000 430" role="img" aria-label="Bileşen ve port haritası: CLI, API, Worker, PostgreSQL, Seq, yan-servis, SearXNG">
+        <defs>
+          <marker id="ok" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <style>
+          .kutu  { fill: var(--yuzey); stroke: var(--cizgi-kuvvet); stroke-width: 1.2; }
+          .kutu-v{ fill: var(--vurgu-zemin); stroke: var(--vurgu-kenar); stroke-width: 1.2; }
+          .kutu-o{ fill: none; stroke: var(--cizgi-kuvvet); stroke-width: 1.2; stroke-dasharray: 5 4; }
+          .ad    { font: 600 15px Archivo, sans-serif; fill: var(--murekkep); }
+          .alt   { font: 400 11.5px "JetBrains Mono", monospace; fill: var(--soluk); }
+          .port  { font: 500 12px "JetBrains Mono", monospace; fill: var(--vurgu); }
+          .cizgi2{ stroke: var(--cizgi-kuvvet); stroke-width: 1.2; fill: none; color: var(--cizgi-kuvvet); }
+          .kus   { font: 500 10.5px "JetBrains Mono", monospace; fill: var(--soluk); letter-spacing: .08em; }
+        </style>
+
+        <!-- sen -->
+        <rect class="kutu" x="24" y="176" width="150" height="76" rx="9"/>
+        <text class="ad" x="99" y="208" text-anchor="middle">Terminal</text>
+        <text class="alt" x="99" y="228" text-anchor="middle">PowerShell</text>
+
+        <!-- uygulama katmani -->
+        <text class="kus" x="250" y="42">UYGULAMA</text>
+        <rect class="kutu-v" x="250" y="58" width="196" height="82" rx="9"/>
+        <text class="ad" x="348" y="90" text-anchor="middle">API + Panel</text>
+        <text class="port" x="348" y="112" text-anchor="middle">:5223</text>
+        <text class="alt" x="348" y="130" text-anchor="middle">kapta :8080</text>
+
+        <rect class="kutu-v" x="250" y="176" width="196" height="76" rx="9"/>
+        <text class="ad" x="348" y="206" text-anchor="middle">Worker</text>
+        <text class="alt" x="348" y="228" text-anchor="middle">kuyruğu tüketir</text>
+
+        <rect class="kutu-v" x="250" y="288" width="196" height="76" rx="9"/>
+        <text class="ad" x="348" y="318" text-anchor="middle">CLI</text>
+        <text class="alt" x="348" y="340" text-anchor="middle">dotnet run</text>
+
+        <!-- altyapi -->
+        <text class="kus" x="546" y="42">ALTYAPI</text>
+        <rect class="kutu" x="546" y="58" width="196" height="94" rx="9"/>
+        <text class="ad" x="644" y="90" text-anchor="middle">PostgreSQL 16</text>
+        <text class="alt" x="644" y="110" text-anchor="middle">+ pgvector</text>
+        <text class="port" x="644" y="132" text-anchor="middle">:5432</text>
+
+        <rect class="kutu" x="546" y="186" width="196" height="76" rx="9"/>
+        <text class="ad" x="644" y="216" text-anchor="middle">Seq</text>
+        <text class="port" x="644" y="238" text-anchor="middle">:8081 · :5341</text>
+
+        <rect class="kutu-o" x="546" y="296" width="196" height="76" rx="9"/>
+        <text class="ad" x="644" y="326" text-anchor="middle">Redis</text>
+        <text class="alt" x="644" y="348" text-anchor="middle">:6380 · isteğe bağlı</text>
+
+        <!-- yan servisler -->
+        <text class="kus" x="828" y="42">İSTEĞE BAĞLI</text>
+        <rect class="kutu-o" x="828" y="58" width="148" height="94" rx="9"/>
+        <text class="ad" x="902" y="90" text-anchor="middle">Yan-servis</text>
+        <text class="alt" x="902" y="110" text-anchor="middle">Python</text>
+        <text class="port" x="902" y="132" text-anchor="middle">:8099</text>
+
+        <rect class="kutu-o" x="828" y="186" width="148" height="76" rx="9"/>
+        <text class="ad" x="902" y="216" text-anchor="middle">SearXNG</text>
+        <text class="port" x="902" y="238" text-anchor="middle">:8888</text>
+
+        <rect class="kutu-o" x="828" y="296" width="148" height="76" rx="9"/>
+        <text class="ad" x="902" y="326" text-anchor="middle">Ollama</text>
+        <text class="port" x="902" y="348" text-anchor="middle">:11434</text>
+
+        <!-- Terminal -> uygulama -->
+        <path class="cizgi2" d="M174 200 H212 V99 H250" marker-end="url(#ok)"/>
+        <path class="cizgi2" d="M174 214 H250" marker-end="url(#ok)"/>
+        <path class="cizgi2" d="M174 228 H212 V326 H250" marker-end="url(#ok)"/>
+
+        <!-- uygulama -> veritabani: uc host da ayni semaya yaziyor -->
+        <path class="cizgi2" d="M446 99 H546" marker-end="url(#ok)"/>
+        <path class="cizgi2" d="M446 208 H512 V108 H546" marker-end="url(#ok)"/>
+        <path class="cizgi2" d="M446 318 H490 V116 H546" marker-end="url(#ok)"/>
+
+        <!-- Worker/CLI -> istege bagli servisler: alt seritten dolasiyor
+             ki altyapi kutularinin uzerinden gecmesin -->
+        <path class="cizgi2" d="M446 352 H470 V400 H800 V96 H828" marker-end="url(#ok)"/>
+        <path class="cizgi2" d="M800 224 H828" marker-end="url(#ok)"/>
+        <path class="cizgi2" d="M800 334 H828" marker-end="url(#ok)"/>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Kesikli çerçeveler isteğe bağlı.</b> Zorunlu çekirdek üç parça:
+      PostgreSQL, .NET tarafı ve ffmpeg. Geri kalan her şey bir yeteneği
+      açıyor — yokken sistem düşmüyor, o yeteneği kullanmıyor.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ================= ÖN KOŞULLAR ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Ön koşullar</h2>
+    <p>
+      Kuruluma başlamadan önce bu tablodaki her satırı doğrulayın.
+      Üç tanesi zorunlu; kalanlar bir yeteneği açıyor.
+    </p>
+  </div>
+
+  <div class="tablo-kap">
+    <table>
+      <thead>
+        <tr><th>Araç</th><th>Sürüm</th><th class="dar">Zorunlu</th><th>Doğrulama</th><th>Not</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>.NET SDK</b></td>
+          <td class="dar">10.0.4xx</td>
+          <td class="dar evet">evet</td>
+          <td><code>dotnet --version</code></td>
+          <td><code>global.json</code> <code>10.0.400</code> + <code>rollForward: latestFeature</code> yazıyor: 10.0.4xx bandı kabul, 10.0.3xx <em>değil</em>.</td>
+        </tr>
+        <tr>
+          <td><b>FFmpeg + ffprobe</b></td>
+          <td class="dar">7+</td>
+          <td class="dar evet">evet</td>
+          <td><code>ffmpeg -version</code></td>
+          <td>İkisi ayrı ikili, ikisi de gerekiyor. PATH'te olmalı ya da <code>BMAI_FFMPEG</code> / <code>BMAI_FFPROBE</code> ile gösterilmeli.</td>
+        </tr>
+        <tr>
+          <td><b>PostgreSQL 16 + pgvector</b></td>
+          <td class="dar">16</td>
+          <td class="dar evet">evet</td>
+          <td>Adım 3</td>
+          <td>pgvector isteğe bağlı değil: ilk migration <code>CREATE EXTENSION vector</code> çalıştırıyor ve eklenti yoksa <em>tek bir tablo bile</em> oluşmuyor.</td>
+        </tr>
+        <tr>
+          <td><b>Git</b></td>
+          <td class="dar">herhangi</td>
+          <td class="dar evet">evet</td>
+          <td><code>git --version</code></td>
+          <td>Depo için; ayrıca Docker'sız yolda pgvector kaynağını çekmek için.</td>
+        </tr>
+        <tr>
+          <td><b>Docker Desktop</b></td>
+          <td class="dar">4.8+</td>
+          <td class="dar hayir">hayır</td>
+          <td><code>docker version</code></td>
+          <td>Veritabanı için en kolay yol ama tek yol değil — Adım 3'te Docker'sız seçenek var.</td>
+        </tr>
+        <tr>
+          <td><b>Python</b></td>
+          <td class="dar">3.11+</td>
+          <td class="dar hayir">hayır</td>
+          <td><code>python --version</code></td>
+          <td>Yan-servis ve ilerleme panosu betiği için. CI 3.12 koşuyor; 3.14 de çalışıyor.</td>
+        </tr>
+        <tr>
+          <td><b>Ollama</b></td>
+          <td class="dar">herhangi</td>
+          <td class="dar hayir">hayır</td>
+          <td><code>ollama list</code></td>
+          <td>Yalnızca anahtarsız <em>gerçek</em> hat (Adım 11) için. Uzak makinede de olabilir.</td>
+        </tr>
+        <tr>
+          <td><b>Visual Studio</b></td>
+          <td class="dar">17.13+</td>
+          <td class="dar hayir">hayır</td>
+          <td>—</td>
+          <td>Depoda <code>.slnx</code> var, klasik <code>.sln</code> yok. Eski VS açamaz; <em>komut satırı etkilenmiyor</em>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= ADIMLAR ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Adımlar</h2>
+    <p>
+      Sırayla gidin: her adım bir öncekine dayanıyor. Her adımın sonundaki
+      yeşil şerit, o adımın gerçekten çalıştığını gösteren <em>kanıttır</em> —
+      atlanabilir bir süs değil.
+    </p>
+  </div>
+
+  <div class="adimlar">
+
+    <!-- 1 -->
+    <div class="adim">
+      <div class="ray"><div class="no">1</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Depoyu al ve derle</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          İlk derleme aynı zamanda ilk gerçek testtir: bu depoda
+          <strong>uyarılar hata sayılıyor</strong>, yani derleme geçtiyse
+          araç zinciriniz doğru demektir.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> git clone https://github.com/selimmeric/BytemountsAiStudio.git
+<span class="istem">PS&gt;</span> cd BytemountsAiStudio
+<span class="istem">PS&gt;</span> dotnet build BytemountsAiStudio.slnx</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe">
+            <span class="lamba"></span><span class="kabuk-ad">beklenen çıktı</span>
+          </div>
+          <pre>Derleme başarılı.
+    <span class="ok">0 Uyarı</span>
+    <span class="ok">0 Hata</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            <code>0 Hata</code> yazıyor. Uyarı çıkarsa da düşer:
+            <code>TreatWarningsAsErrors</code> açık ve muafiyet listesi boş.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            SDK bandı yanlışsa hata burada çıkar, <code>dotnet --version</code>
+            çıktısında değil — depoda sürümü önceden doğrulayan bir komut yok.
+            <code>10.0.3xx</code> yüklüyse <code>10.0.4xx</code> kurun.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="adim opsiyonel">
+      <div class="ray"><div class="no">2</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Kısayolu tanımla</h3>
+          <span class="rozet r-istege">isteğe bağlı</span>
+        </div>
+        <p>
+          <strong>Depoda <code>bmai</code> diye kurulu bir komut yok.</strong>
+          Bütün belgeler <code>bmai &lt;komut&gt;</code> yazıyor ama bu bir
+          kısaltma; gerçek çağrı her seferinde
+          <code>dotnet run --project src/BytemountsAiStudio.Cli -- …</code>
+          şeklinde. Bu rehberin geri kalanı kısayolun tanımlı olduğunu
+          varsayıyor.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+            <span class="kabuk-not">depo kökünde</span>
+          </div>
+          <pre><span class="yorum"># Yalnızca bu oturum için. Kalıcı olsun isterseniz</span>
+<span class="yorum"># PowerShell profilinize ($PROFILE) yazın.</span>
+<span class="istem">PS&gt;</span> function bmai { dotnet run --project src/BytemountsAiStudio.Cli -- @args }</pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            <code>bmai</code> yazınca komut listesi geliyor
+            (<code>pipeline</code>, <code>run</code>, <code>real</code>,
+            <code>db</code>, <code>providers</code> …).
+          </span>
+        </div>
+
+        <div class="serit s-not">
+          <span class="im">i</span>
+          <span class="metin"><b>Kısayol istemiyorsanız</b>
+            Aşağıdaki her <code>bmai X</code> komutunu
+            <code>dotnet run --project src/BytemountsAiStudio.Cli -- X</code>
+            diye okuyun. Anlamları birebir aynı.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="adim">
+      <div class="ray"><div class="no">3</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>FFmpeg'i yerine koy</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Render motorunun tamamı ffmpeg üzerine kurulu; ffprobe ise
+          seslendirmenin <em>gerçek</em> süresini ölçüyor — sahne süreleri
+          metinden tahmin edilmiyor, sesten ölçülüyor.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> winget install Gyan.FFmpeg
+<span class="yorum"># yeni bir terminal açın, sonra:</span>
+<span class="istem">PS&gt;</span> ffmpeg -version
+<span class="istem">PS&gt;</span> ffprobe -version</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe">
+            <span class="lamba"></span><span class="kabuk-ad">beklenen çıktı</span>
+          </div>
+          <pre>ffmpeg version 8.0.1-essentials_build-www.gyan.dev
+ffprobe version 8.0.1-essentials_build-www.gyan.dev</pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            <strong>İki komut da</strong> sürüm yazıyor. Yalnızca
+            <code>ffmpeg</code>'in çalışması yetmez.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            PATH'e koymak istemiyorsanız <code>BMAI_FFMPEG</code> ve
+            <code>BMAI_FFPROBE</code> ile tam yol verilebilir —
+            <em>ama testler bu değişkenleri okumuyor</em>, doğrudan PATH'e
+            bakıyorlar. Test koşturacaksanız PATH şart.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="adim">
+      <div class="ray"><div class="no">4</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Veritabanını ayağa kaldır</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+          <span class="rozet r-yol">iki yol</span>
+        </div>
+        <p>
+          İki yol da <strong>aynı</strong> PostgreSQL 16 + pgvector'ü veriyor
+          ve <strong>bağlantı dizesi ikisinde de aynı</strong>. Sadece birini
+          seçin — ikisi de 5432 portunu istiyor, aynı anda koşamazlar.
+        </p>
+
+        <div class="yollar">
+          <div class="yol secili">
+            <h4>Yol A · Docker</h4>
+            <p>Docker Desktop çalışıyorsa en kısa yol. Seq log toplayıcısını da beraberinde getiriyor.</p>
+            <div class="kabuk" style="margin:0">
+              <div class="kabuk-tepe"><span class="lamba acik"></span><span class="kabuk-ad">PowerShell</span></div>
+              <pre><span class="istem">PS&gt;</span> docker compose up -d</pre>
+            </div>
+          </div>
+          <div class="yol">
+            <h4>Yol B · Docker'sız</h4>
+            <p>Yönetici yetkisi gerektirmiyor, sisteme hiçbir şey kurmuyor: her şey tek bir klasörde. Yalnızca PostgreSQL veriyor — Seq, SearXNG ve MinIO'nun Docker'sız karşılığı yok.</p>
+            <div class="kabuk" style="margin:0">
+              <div class="kabuk-tepe"><span class="lamba acik"></span><span class="kabuk-ad">PowerShell</span></div>
+              <pre><span class="istem">PS&gt;</span> powershell -NoProfile -ExecutionPolicy Bypass `
+       -File scripts/yerel-postgres.ps1</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Yol A'da <code>docker ps</code> çıktısında <code>bmai-postgres</code>
+            <em>healthy</em> görünüyor. Yol B'de
+            <code>powershell -File scripts/yerel-postgres.ps1 -Action status</code>
+            hem sunucuyu hem pgvector'ü doğruluyor.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak · Yol B</b>
+            Betik pgvector'ü <strong>kaynaktan derliyor</strong> ve bunun için
+            MSVC Build Tools + Windows SDK gerekiyor. Hazır bir
+            <code>vector.dll</code> indirmek bilerek reddedilmiş: kaynağı
+            doğrulanmamış bir ikiliyi veritabanı sürecine koymak, kazandığı
+            zamana değmiyor. Eksikse:
+            <code>winget install Microsoft.VisualStudio.2022.BuildTools</code>
+            (VCTools iş yüküyle).
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="adim">
+      <div class="ray"><div class="no">5</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Şemayı kur</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Bu, kurulumun <strong>ilk gerçek doğrulama noktası</strong>: hem
+          veritabanına bağlanabildiğinizi hem pgvector'ün yerinde olduğunu
+          tek komutta kanıtlıyor.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+            <span class="kabuk-not">bmai = adım 2</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> bmai db migrate</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">beklenen çıktı</span></div>
+          <pre><span class="ok">Sema guncel.</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Ekranda tam olarak <code>Sema guncel.</code> yazıyor.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            <code>extension "vector" is not available</code>
+            (<code>SqlState: 0A000</code>) görüyorsanız PostgreSQL ayakta ama
+            pgvector kurulu değil. Bu hâlde <em>hiçbir tablo oluşmaz</em> —
+            yarım bir şema değil, boş bir veritabanı kalır.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="adim">
+      <div class="ray"><div class="no">6</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Başlangıç verisini yükle</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Beş iş akışı ve iki kanal geliyor. Bunlar olmadan çalıştıracak bir
+          graf yok — sonraki adımların hepsi bu veriye dayanıyor.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> bmai db seed</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">beklenen çıktı</span></div>
+          <pre><span class="ok">Seed tamam (N yeni kayit).</span>
+
+<span class="yorum"># İş akışları : shorts-fake · video-uzun · shorts-cok-oran
+#               blog-makale · shorts-yayin
+# Kanallar    : "Sahte Kanal (TR)" · "Fake Channel (EN)"</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            <code>Seed tamam (N yeni kayit).</code> yazıyor. Komut tekrar
+            çalıştırılabilir; ikinci kez <code>0 yeni kayit</code> döner.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            İleride <code>bmai run --channel "…"</code> kullanacaksanız kanal
+            adı <strong>tam</strong> eşleşmeli. Yazım farkı
+            <code>Kanal bulunamadi</code> ile çıkış kodu 5 demek.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="adim">
+      <div class="ray"><div class="no">7</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Testleri koştur</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Kurulumun bütününü sınayan tek komut. Yaklaşık iki bin test var ve
+          bir kısmı gerçek PostgreSQL'e, bir kısmı gerçek ffmpeg'e koşuyor —
+          yani bu komut geçiyorsa ilk altı adımın hepsi doğru.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> dotnet test BytemountsAiStudio.slnx</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">beklenen çıktı</span></div>
+          <pre><span class="ok">Başarılı!</span>  - Başarısız: 0, Başarılı: 520, ... Core.Tests.dll
+<span class="ok">Başarılı!</span>  - Başarısız: 0, Başarılı: 324, ... Nodes.Tests.dll
+<span class="ok">Başarılı!</span>  - Başarısız: 0, Başarılı: 213, ... Providers.Open.Tests.dll
+<span class="yorum">                                          … ve diğerleri</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Hiçbir projede <code>Başarısız</code> sıfırdan büyük değil.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            Veritabanı testleri Postgres kapalıyken <strong>sessizce
+            atlanmıyor — kırmızı yanıyor</strong> ve mesaj
+            <code>PostgreSQL erişilemiyor (…)</code> oluyor. Bu kadar hata
+            görüyorsanız kod bozuk değil, Adım 4'e dönün. FFmpeg tarafında ise
+            bir kısım test gerçekten atlanıyor: yeşil bir koşu, render'ın
+            sınandığı anlamına gelmiyor.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 -->
+    <div class="adim">
+      <div class="ray"><div class="no">8</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>İlk videoyu üret</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Sahte hat: ağa hiç çıkmıyor, para harcamıyor ve
+          <strong>gerçek bir mp4 dosyası</strong> üretiyor — doğru süre,
+          doğru çözünürlük, altyazılı. Kurulumun uçtan uca çalıştığının
+          en somut kanıtı budur.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> bmai pipeline --topic "Deneme" --out output/ilk.mp4</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">beklenen çıktı ve ölçüm</span></div>
+          <pre><span class="ok">✓ output/ilk.mp4</span>
+
+  çözünürlük : 1080x1920      <span class="yorum"># dikey, Shorts</span>
+  kodek      : h264 / aac
+  süre       : ~13 sn
+  render     : ~2.4 sn</pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            <code>output/ilk.mp4</code> oynuyor, dikey ve altyazılı.
+            Doğrulanacak şey aynı sayılar değil,
+            <strong>çözünürlüğün ve ses kodeğinin doğru olması</strong>.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            Çalışma dizini önemli:
+            <code>dotnet run --project …</code> ile çağırdığınızda çalışma
+            dizini <em>o projenin klasörü</em> olur ve çıktı
+            <code>src/BytemountsAiStudio.Cli/output/</code> altına düşer.
+            Bulamıyorsanız orada arayın.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9 -->
+    <div class="adim">
+      <div class="ray"><div class="no">9</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Paneli aç</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Panel ayrı bir sunucu değil: API ile <strong>aynı adreste</strong>,
+          kök yolda duruyor. Derleme adımı yok, npm ağacı yok — tek bir
+          <code>index.html</code>.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell · ayrı bir pencere</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> dotnet run --project src/BytemountsAiStudio.Api</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">doğrulama</span></div>
+          <pre><span class="istem">PS&gt;</span> curl http://localhost:5223/health
+
+<span class="ok">{"status":"ok","version":"…","environment":"Development"}</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Tarayıcıda <code>http://localhost:5223</code> panoyu açıyor ve
+            Adım 8'de ürettiğiniz koşu listede görünüyor.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            Geliştirme portu <strong>5223</strong>, kap portu
+            <strong>8080</strong>. Docker ile koşarken 5223'e bakmak boş
+            döner. Bütün kap portları yalnızca <code>127.0.0.1</code>'e bağlı.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10 -->
+    <div class="adim">
+      <div class="ray"><div class="no">10</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Worker'ı başlat</h3>
+          <span class="rozet r-zorunlu">zorunlu</span>
+        </div>
+        <p>
+          Kuyruğu tüketen taraf. Adım 8'deki komut işi kendi süreci içinde
+          çalıştırıyordu; sürekli çalışan bir fabrika için Worker gerekiyor.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell · üçüncü pencere</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> dotnet run --project src/BytemountsAiStudio.Worker</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">açılışta loglananlar</span></div>
+          <pre>hat        : <span class="uyari">GERÇEK</span>   <span class="yorum"># BMAI_PIPELINE varsayılanı</span>
+kuyruklar  : RENDER LLM TTS UPLOAD ALIGN IMAGEGENERATION SEARCH
+zamanlayıcı: <span class="yorum">kapalı</span>  <span class="yorum"># BMAI_ORCHESTRATOR=on ile açılır</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Worker açılışta hangi hattı kullandığını <em>yazıyor</em>. Bu satırı
+            görmek önemli: sahte hat da gerçek bir mp4 üretiyor ve çıktıya
+            bakarak ikisi ayırt edilemiyor.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            Windows'ta doğrudan çalıştırırken varsayılan <strong>gerçek</strong>
+            hat, Docker kabında varsayılan <strong>sahte</strong>. Aynı depo,
+            iki farklı varsayılan — sebebi kabın Windows konuşma sentezine
+            erişememesi.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11 -->
+    <div class="adim opsiyonel">
+      <div class="ray"><div class="no">11</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Python yan-servisi</h3>
+          <span class="rozet r-istege">isteğe bağlı</span>
+        </div>
+        <p>
+          Üç yeteneği açıyor: JavaScript ile kurulan sayfaları
+          <em>tarayıcıyla</em> okumak, sesten <em>ölçülmüş</em> kelime
+          zamanları çıkarmak, ve Windows'un konuşamadığı diller için Piper
+          seslendirmesi.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell · depo kökünde</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> python -m venv .venv
+<span class="istem">PS&gt;</span> .venv\Scripts\Activate.ps1
+<span class="istem">PS&gt;</span> pip install -e "tools[dev,fetch]"
+
+<span class="yorum"># EN SIK ATLANAN ADIM — pip yalnızca paketi getirir,</span>
+<span class="yorum"># tarayıcının kendisi ayrı bir indirmedir:</span>
+<span class="istem">PS&gt;</span> python -m playwright install chromium
+
+<span class="istem">PS&gt;</span> python -m uvicorn bmai_tools.main:app --host 127.0.0.1 --port 8099</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">bmai tools health · ayrı pencerede</span></div>
+          <pre>  adres   : http://localhost:8099/
+  surum   : 0.1.0
+
+  <span class="ok">+ fetch</span>    playwright chromium (C:\...\chrome.exe)
+  <span class="ok">+ ffmpeg</span>   C:\ffmpeg\bin\ffmpeg.EXE
+  <span class="ok">+ search</span>   http://localhost:8888
+  <span class="uyari">- align</span>    faster-whisper kurulu degil: pip install 'bmai-tools[align]'
+  <span class="uyari">- tts</span>      piper-tts kurulu degil: pip install 'bmai-tools[tts]'</pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            <code>bmai tools health</code> çalışıyor ve <code>fetch</code>
+            satırı <strong>artı</strong> işaretli. Eksi ise tarayıcı
+            indirilmemiştir — <code>/health</code> bunu artık diske bakarak
+            söylüyor ve çarenin kendisini yazıyor.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            <code>search</code> satırı “artı” olsa bile SearXNG'nin
+            <em>ayakta olduğunu</em> göstermez — orada yalnızca yapılandırılmış
+            adres yazıyor. SearXNG için:
+            <code>docker compose --profile tools up -d searxng</code>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12 -->
+    <div class="adim opsiyonel">
+      <div class="ray"><div class="no">12</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Anahtarsız gerçek hat</h3>
+          <span class="rozet r-istege">isteğe bağlı</span>
+        </div>
+        <p>
+          Sahte hattan gerçek içeriğe geçiş. Dört sağlayıcı, hiçbiri anahtar
+          istemiyor: <strong>Wikipedia</strong> (araştırma),
+          <strong>Pollinations</strong> (görsel),
+          <strong>Windows Speech</strong> (seslendirme) ve senaryo için
+          <strong>Ollama</strong>.
+          <br><br>
+          Katalogda senaryo zinciri aslında
+          <code>[pollinations-text, ollama]</code> — yani Ollama kâğıt üstünde
+          <em>yedek</em>. Ama Pollinations'ın metin ucu bu ağdan
+          <code>402 (API key budget too low)</code> dönüyor (30 Ağu 2026'da
+          ölçüldü), dolayısıyla işi pratikte Ollama yapıyor: kurmadan
+          <code>bmai real</code> çalışmaz.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell</span>
+          </div>
+          <pre><span class="yorum"># Senaryo için genel bir instruct modeli gerekiyor —</span>
+<span class="yorum"># coder modelleri anlatı yazmakta zayıf.</span>
+<span class="istem">PS&gt;</span> ollama pull qwen2.5:7b-instruct
+<span class="istem">PS&gt;</span> ollama pull paraphrase-multilingual   <span class="yorum"># konu tekilliği</span>
+
+<span class="istem">PS&gt;</span> bmai real --topic "Gobeklitepe"</pre>
+        </div>
+
+        <div class="kabuk cikti">
+          <div class="kabuk-tepe"><span class="lamba"></span><span class="kabuk-ad">beklenen çıktı</span></div>
+          <pre>run        : 01a04af5-…
+konu       : Gobeklitepe
+saglayici  : <span class="ok">GERCEK</span> (Ollama + Wikipedia + Pollinations + Windows TTS)
+...
+<span class="ok">✓ 1080x1920 · ~13.5 sn · Wikipedia'ya dayalı Türkçe senaryo</span></pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Ekranda <code>saglayici : GERCEK</code> yazıyor ve üretilen
+            senaryo konuyla gerçekten ilgili.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            Windows'ta yalnızca <strong>kurulu dil paketlerinin</strong> sesi
+            var. İkinci dil (en-US) için ses yoksa hata <em>kalıcı başarısızlık
+            değil, ertelenmiş iş</em> olarak sınıflanıyor ve çözüm
+            <em>Ayarlar → Saat ve Dil</em>'den ses eklemek. Bu makinede ekran
+            kartı ayrıca güvenilir değil (kayıtlı beş mavi ekran) — Ollama'yı
+            <code>BMAI_OLLAMA_CPU</code> ile işlemcide koşturmak daha güvenli.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 13 -->
+    <div class="adim opsiyonel">
+      <div class="ray"><div class="no">13</div></div>
+      <div class="govde">
+        <div class="adim-basi">
+          <h3>Zamanlayıcıyı aç</h3>
+          <span class="rozet r-istege">isteğe bağlı</span>
+        </div>
+        <p>
+          Buraya kadar her koşuyu siz başlattınız. Zamanlayıcı açıldığında
+          sistem <strong>kendi kendine</strong> iş doğurmaya başlıyor:
+          kanalları değerlendirip yeni koşular açıyor.
+        </p>
+
+        <div class="kabuk">
+          <div class="kabuk-tepe">
+            <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+            <span class="kabuk-ad">PowerShell · Worker'ı yeniden başlatın</span>
+          </div>
+          <pre><span class="istem">PS&gt;</span> $env:BMAI_ORCHESTRATOR = "on"
+<span class="istem">PS&gt;</span> dotnet run --project src/BytemountsAiStudio.Worker</pre>
+        </div>
+
+        <div class="serit s-kontrol">
+          <span class="im">✓</span>
+          <span class="metin"><b>Kontrol</b>
+            Worker açılışında zamanlayıcı satırı artık <em>kapalı</em>
+            demiyor; panelde bir süre sonra sizin başlatmadığınız bir koşu
+            beliriyor.
+          </span>
+        </div>
+
+        <div class="serit s-tuzak">
+          <span class="im">!</span>
+          <span class="metin"><b>Tuzak</b>
+            Yalnızca <code>on</code> değeri açıyor. <code>true</code>,
+            <code>1</code>, <code>acik</code> <strong>açmıyor</strong> — ve
+            sessizce kapalı kalıyor. Varsayılan kapalı olmasının sebebi bu
+            döngünün gerçek para harcayabilmesi.
+          </span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= SAHTE Mİ GERÇEK Mİ ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Sahte hat mı, gerçek hat mı?</h2>
+    <p>
+      Kurulumda en çok karıştırılan ayar. <strong>Sahte hat gerçek bir mp4
+      üretiyor</strong> — doğru süre, doğru çözünürlük, doğru altyazı. Çıktı
+      dizinine bakan bir insan ikisini ayırt edemiyor.
+    </p>
+  </div>
+
+  <figure>
+    <div class="sekil-kap">
+      <svg viewBox="0 0 1000 300" role="img" aria-label="Sahte hat ile gerçek hattın karşılaştırması">
+        <style>
+          .h-kutu { fill: var(--yuzey-2); stroke: var(--cizgi-kuvvet); stroke-width: 1.2; }
+          .h-vur  { fill: var(--vurgu-zemin); stroke: var(--vurgu-kenar); stroke-width: 1.4; }
+          .h-ad   { font: 700 16px Archivo, sans-serif; fill: var(--murekkep); }
+          .h-alt  { font: 400 12.5px "IBM Plex Sans", sans-serif; fill: var(--soluk); }
+          .h-mono { font: 500 12.5px "JetBrains Mono", monospace; fill: var(--vurgu); }
+          .h-cizgi{ stroke: var(--cizgi-kuvvet); stroke-width: 1.2; fill: none; }
+          .h-ayn  { font: 600 12px "JetBrains Mono", monospace; fill: var(--gecti); letter-spacing: .05em; }
+        </style>
+
+        <rect class="h-kutu" x="20" y="30" width="230" height="108" rx="9"/>
+        <text class="h-ad"   x="44" y="62">SAHTE</text>
+        <text class="h-mono" x="44" y="84">BMAI_PIPELINE=sahte</text>
+        <text class="h-alt"  x="44" y="106">ağa çıkmaz · para harcamaz</text>
+        <text class="h-alt"  x="44" y="124">deterministik · saniyeler</text>
+
+        <rect class="h-vur" x="20" y="162" width="230" height="108" rx="9"/>
+        <text class="h-ad"   x="44" y="194">GERÇEK</text>
+        <text class="h-mono" x="44" y="216">BMAI_PIPELINE=acik</text>
+        <text class="h-alt"  x="44" y="238">Ollama · Wikipedia · Pollinations</text>
+        <text class="h-alt"  x="44" y="256">gerçek içerik · dakikalar</text>
+
+        <path class="h-cizgi" d="M250 84 H340 M250 216 H340"/>
+        <path class="h-cizgi" d="M340 84 V150 H400 M340 216 V150"/>
+
+        <rect class="h-kutu" x="400" y="112" width="200" height="76" rx="9"/>
+        <text class="h-ad"  x="500" y="144" text-anchor="middle">Aynı graf</text>
+        <text class="h-alt" x="500" y="166" text-anchor="middle">aynı motor, aynı QC</text>
+
+        <path class="h-cizgi" d="M600 150 H660"/>
+
+        <rect class="h-kutu" x="660" y="112" width="200" height="76" rx="9"/>
+        <text class="h-ad"  x="760" y="144" text-anchor="middle">1080×1920 mp4</text>
+        <text class="h-alt" x="760" y="166" text-anchor="middle">h264 / aac · altyazılı</text>
+
+        <text class="h-ayn" x="890" y="140">DOSYAYA</text>
+        <text class="h-ayn" x="890" y="158">BAKARAK</text>
+        <text class="h-ayn" x="890" y="176">AYIRT</text>
+        <text class="h-ayn" x="890" y="194">EDİLEMEZ</text>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Tek gösterge açılış logu ve koşu kaydıdır.</b> Seçim hem başlangıçta
+      yazdırılıyor hem her koşunun bağlamına (<code>context.pipeline</code>)
+      işleniyor. <code>bmai run</code> her zaman sahte,
+      <code>bmai real</code> her zaman gerçek koşuyor — bu iki komut
+      <code>BMAI_PIPELINE</code>'ı hiç okumuyor, çünkü kullanıcı hangisini
+      yazdıysa onu istiyor.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ================= AYARLAR ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Kurulumda dokunacağınız ayarlar</h2>
+    <p>
+      Sistemde elliden fazla <code>BMAI_*</code> değişkeni var; tam listesi
+      <code>docs/AYARLAR.md</code> içinde. Aşağıdakiler kurulum sırasında
+      gerçekten işinize yarayanlar. <strong>Hiçbirini set etmeseniz de
+      sistem çalışıyor</strong> — hepsinin makul bir varsayılanı var.
+    </p>
+  </div>
+
+  <div class="tablo-kap">
+    <table>
+      <thead>
+        <tr><th>Değişken</th><th>Varsayılan</th><th>Ne işe yarıyor</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>BMAI_PIPELINE</code></td>
+          <td class="dar"><code>acik</code></td>
+          <td><strong>En önemli ayar.</strong> <code>acik</code> · <code>sahte</code>. Yalnızca Worker ve API okuyor; CLI komutları kendi seçimlerini dayatıyor. Tanınmayan bir değer sessizce varsayılana düşmüyor, uyarı üretiyor.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_CONNECTION</code></td>
+          <td class="dar"><code>Host=localhost;…;Database=bmai</code></td>
+          <td>PostgreSQL bağlantısı. Docker'lı ve Docker'sız yolda aynı — bu yüzden yol değiştirmek kod değişikliği gerektirmiyor.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_FFMPEG</code><br><code>BMAI_FFPROBE</code></td>
+          <td class="dar">PATH</td>
+          <td>PATH'i değiştirmeden ffmpeg göstermek, ya da aynı makinede ikinci bir yapı (örn. NVENC destekli) kullanmak için.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_OUTPUT</code></td>
+          <td class="dar"><code>./output</code></td>
+          <td>Render edilmiş videoların çıktığı dizin. <strong>API, Worker ve bakım servisi okuyor; CLI'nin <code>run</code> ve <code>real</code> komutları okumuyor</strong> — onlar her zaman çalışma dizininin altına yazıyor.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_TOOLS_URL</code></td>
+          <td class="dar"><code>http://localhost:8099</code></td>
+          <td>Python yan-servisinin adresi. Kapta servis adı, yerelde localhost.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_ORCHESTRATOR</code></td>
+          <td class="dar"><code>off</code></td>
+          <td>Zamanlayıcı. Yalnızca <code>on</code> değeri açıyor — <code>true</code> ya da <code>1</code> açmıyor.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_OLLAMA</code><br><code>BMAI_OLLAMA_URL</code></td>
+          <td class="dar">yok · <code>:11434</code></td>
+          <td>İlki doluysa konu üreticisi kaydediliyor. Adres <em>uzak olabilir</em>: zayıf makine güçlü makineye bağlanabiliyor.</td>
+        </tr>
+        <tr>
+          <td><code>BMAI_SEQ</code></td>
+          <td class="dar">yok</td>
+          <td>Seq log toplayıcısı. Docker yolunda <code>http://localhost:5341</code>, arayüz <code>:8081</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= ANAHTARLAR ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Anahtar eklemek istersen</h2>
+    <p>
+      Sistem anahtarsız tam çalışıyor. Ücretli bir sağlayıcı eklemek
+      isterseniz doğru yer şifreli depo, ortam değişkeni değil.
+    </p>
+  </div>
+
+  <div class="kabuk">
+    <div class="kabuk-tepe">
+      <span class="lamba acik"></span><span class="lamba"></span><span class="lamba"></span>
+      <span class="kabuk-ad">PowerShell</span>
+    </div>
+    <pre><span class="istem">PS&gt;</span> bmai credential set elevenlabs
+<span class="yorum"># değer stdin'den okunuyor: komut satırına yazılmıyor,</span>
+<span class="yorum"># kabuk geçmişine düşmüyor.</span>
+
+<span class="istem">PS&gt;</span> bmai credential list
+<span class="istem">PS&gt;</span> bmai providers          <span class="yorum"># hangi sağlayıcı açık, hangisi anahtar bekliyor</span></pre>
+  </div>
+
+  <div class="serit s-tuzak">
+    <span class="im">!</span>
+    <span class="metin"><b>Bilinen tuzak</b>
+      Bir sağlayıcının seçilebilir sayılması (<code>IsUsableNow</code>)
+      şu an <strong>yalnızca ortam değişkenine</strong> bakıyor. Anahtarı
+      şifreli depoya girip katalogta <code>enabled: true</code> yapmak
+      yetmeyebilir; sağlayıcı hiç çağrılmadığında aynı anahtarı bir kez de
+      ortam değişkeni olarak verin.
+    </span>
+  </div>
+
+  <div class="serit s-tuzak">
+    <span class="im">!</span>
+    <span class="metin"><b>İkinci tuzak</b>
+      Anahtar isteyen bir sağlayıcıyı <code>routing</code> listesine
+      eklerken ortam değişkenini de tanımlayın: katalog doğrulaması
+      anahtarsız bir sağlayıcıyı yönlendirmede görürse
+      <strong>katalogun tamamını</strong> geçersiz sayıyor ve o zaman hız
+      sınırları ile yönlendirmenin hepsi kayboluyor — sistem yine video
+      üretiyor, sadece sessizce korumasız kalıyor.
+    </span>
+  </div>
+</section>
+
+<!-- ================= SORUN GİDERME ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Sorun giderme</h2>
+    <p>
+      Kurulumda gerçekten yaşanmış hatalar ve sebepleri.
+    </p>
+  </div>
+
+  <div class="sorunlar">
+
+    <details>
+      <summary><span><code>bmai : terim tanınmıyor</code></span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          Depoda <code>bmai</code> adında kurulu bir komut yok — belgelerdeki
+          bu ad bir kısaltma. Adım 2'deki kısayolu tanımlayın ya da komutu
+          tam yazın.
+        </p>
+        <div class="kabuk">
+          <div class="kabuk-tepe"><span class="lamba acik"></span><span class="kabuk-ad">PowerShell</span></div>
+          <pre><span class="istem">PS&gt;</span> dotnet run --project src/BytemountsAiStudio.Cli -- db migrate</pre>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span><code>extension "vector" is not available</code></span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          PostgreSQL ayakta ama pgvector kurulu değil. Bu hâlde
+          <strong>hiçbir tablo oluşmaz</strong>. Docker yolunda
+          <code>pgvector/pgvector:pg16</code> imajı eklentiyi hazır getiriyor;
+          düz <code>postgres:16</code> imajı getirmiyor. Docker'sız yolda
+          betik pgvector'ü derliyor ve bunun için MSVC Build Tools gerekiyor.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span>Onlarca test <code>PostgreSQL erişilemiyor</code> diye düşüyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          Kod bozuk değil: veritabanı testleri gerçek PostgreSQL istiyor ve
+          erişemediklerinde <strong>kırmızı yanıyorlar</strong> — sessizce
+          atlanmıyorlar. Adım 4'e dönün. Aynı anda hem Docker'lı hem
+          Docker'sız Postgres koşuyorsa ikisi de 5432'yi ister; birini
+          durdurun:
+        </p>
+        <div class="kabuk">
+          <div class="kabuk-tepe"><span class="lamba acik"></span><span class="kabuk-ad">PowerShell</span></div>
+          <pre><span class="istem">PS&gt;</span> powershell -File scripts/yerel-postgres.ps1 -Action stop</pre>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span>Testler geçiyor ama render hiç sınanmıyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          FFmpeg PATH'te değilse bir kısım medya testi atlanıyor — yani yeşil
+          bir koşu, render'ın doğrulandığı anlamına gelmiyor. Testler
+          <code>BMAI_FFMPEG</code> değişkenini <em>okumuyor</em>, doğrudan
+          PATH'e bakıyorlar.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span>Panel açılıyor ama boş / <code>localhost:5223</code> cevap vermiyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          Docker ile koşuyorsanız port <strong>8080</strong>, 5223 değil.
+          Doğrudan <code>dotnet run</code> ile koşuyorsanız 5223. Panel API
+          ile aynı sunucuda, kök adreste — ayrı bir sunucu aramayın.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span>Video üretiliyor ama <code>output/</code> boş görünüyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          <code>dotnet run --project …</code> çalışma dizinini o projenin
+          klasörü yapıyor. Çıktı
+          <code>src/BytemountsAiStudio.Cli/output/</code> ya da
+          <code>src/BytemountsAiStudio.Api/output/</code> altına düşmüş
+          olabilir. <strong><code>BMAI_OUTPUT</code> burada işe yaramıyor:</strong>
+          <code>run</code> ve <code>real</code> o değişkeni okumuyor, çıktıyı
+          her zaman çalışma dizininin altına yazıyorlar. Çözüm ya
+          <code>pipeline</code> komutunda <code>--out</code> ile tam yol
+          vermek, ya da depo kökünden çalıştırmak.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span><code>bmai tools health</code> “fetch açık” diyor ama çağrı düşüyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          Bu hata 30 Ağustos 2026'da kapatıldı: sağlık kontrolü artık
+          tarayıcının <em>diskte</em> olup olmadığına bakıyor ve yoksa
+          çareyi yazıyor. Hâlâ görüyorsanız
+          <code>python -m playwright install chromium</code> çalıştırın.
+          Eksik tarayıcı artık <strong>503</strong> dönüyor (502 değil), yani
+          kuyruk işi erteliyor — sonsuza kadar yeniden denemiyor.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span>Zamanlayıcıyı açtım ama hiçbir şey olmuyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          <code>BMAI_ORCHESTRATOR</code> yalnızca <code>on</code> değerini
+          kabul ediyor. <code>true</code>, <code>1</code>, <code>acik</code>
+          çalışmıyor ve sessizce kapalı kalıyor. Ayrıca konu üreticisi
+          <em>yalnızca</em> <code>BMAI_OLLAMA</code> doluysa kaydediliyor —
+          Ollama yoksa üretecek konu da yok.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span>Windows konuşma sentezi ses üretmiyor</span></summary>
+      <div class="sorun-ic">
+        <p class="sebep">sebep</p>
+        <p>
+          Windows yalnızca <strong>kurulu dil paketlerinin</strong> sesini
+          konuşuyor. İstenen dil için ses yoksa sistem başka bir dilin sesine
+          düşmüyor — bilerek. İngilizce metni Türkçe sesle okutmak hiçbir
+          yerde görünmeyen bir kusur olurdu. Çözüm: <em>Ayarlar → Saat ve
+          Dil → Konuşma</em>'dan ses ekleyin, ya da yan-servisle Piper
+          kullanın.
+        </p>
+      </div>
+    </details>
+
+  </div>
+</section>
+
+<!-- ================= SONRASI ================= -->
+<section class="sarmal">
+  <div class="bolum-basi">
+    <h2>Buradan sonrası</h2>
+  </div>
+  <ul class="liste">
+    <li><code>docs/AYARLAR.md</code> — elli iki ortam değişkeninin tamamı, varsayılanlarıyla</li>
+    <li><code>docs/IS-PLANI.md</code> — ilerlemenin tek gerçek kaynağı; <code>docs/plan-dashboard.html</code> ondan üretiliyor</li>
+    <li><code>docs/UCRETSIZ-SAGLAYICILAR.md</code> — anahtar istemeyen servisler ve sınırları</li>
+    <li><code>docs/DONANIM-VE-MODEL.md</code> — hangi makinede hangi model, GPU'suz kip</li>
+    <li><code>docs/YEREL-VERITABANI.md</code> — Docker'sız PostgreSQL'in tüm ayrıntısı</li>
+    <li><code>docs/DAGITIM.md</code> — kapla çalıştırırken ortaya çıkan gerçek sorunlar</li>
+    <li><code>tools/README.md</code> — yan-servisin yetenekleri ve hizalamayı ekran kartında koşturmak</li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <div class="sarmal">
+    <p>
+      <strong>Bu sayfadaki her komut, port ve varsayılan değer depodan
+      doğrulandı.</strong> Doğrulama sırasında altı yanlış iddia bulundu ve
+      düzeltildi — aralarında “Postgres kapalıyken testler sessizce atlanır”
+      da vardı; gerçekte kırmızı yanıyorlar.
+    </p>
+    <p>
+      Ölçülmemiş bir şey bu sayfada “çalışıyor” diye yazmıyor. Ölçülemeyen
+      tek şey kap içi davranış: bu makinede Docker Desktop şu an açılmıyor.
+    </p>
+  </div>
+</footer>
